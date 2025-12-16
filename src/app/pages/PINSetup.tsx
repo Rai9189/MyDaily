@@ -2,70 +2,83 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Calendar, Lock } from 'lucide-react';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
+import { Lock } from 'lucide-react';
 
 export function PINSetup() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<'setup' | 'confirm'>('setup');
+  const [pinType, setPinType] = useState<'pin4' | 'pin6' | 'password'>('pin4');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
-  const [error, setError] = useState('');
 
-  const currentPin = step === 'setup' ? pin : confirmPin;
-
-  const handleNumberPad = (num: string) => {
-    if (currentPin.length < 4) {
-      const newPin = currentPin + num;
-      
-      if (step === 'setup') {
-        setPin(newPin);
-        if (newPin.length === 4) {
-          // Move to confirm step
-          setTimeout(() => {
-            setStep('confirm');
-            setError('');
-          }, 200);
-        }
-      } else {
-        setConfirmPin(newPin);
-        if (newPin.length === 4) {
-          // Validate
-          setTimeout(() => {
-            if (newPin === pin) {
-              // Save PIN
-              localStorage.setItem('pin', pin);
-              localStorage.setItem('pinType', 'numeric');
-              localStorage.setItem('pinSetup', 'true');
-              navigate('/');
-            } else {
-              setError('PIN tidak cocok! Ulangi lagi.');
-              setTimeout(() => {
-                setPin('');
-                setConfirmPin('');
-                setStep('setup');
-                setError('');
-              }, 1500);
-            }
-          }, 100);
-        }
-      }
-    }
-  };
-
-  const handleBackspace = () => {
-    if (step === 'setup') {
-      setPin(currentPin.slice(0, -1));
+  const handlePinChange = (value: string) => {
+    // Validasi input berdasarkan tipe
+    if (pinType === 'pin4') {
+      // Hanya angka, maksimal 4 digit
+      const numericValue = value.replace(/\D/g, '').slice(0, 4);
+      setPin(numericValue);
+    } else if (pinType === 'pin6') {
+      // Hanya angka, maksimal 6 digit
+      const numericValue = value.replace(/\D/g, '').slice(0, 6);
+      setPin(numericValue);
     } else {
-      setConfirmPin(currentPin.slice(0, -1));
+      // Password: bebas, minimal 6 karakter
+      setPin(value);
     }
-    setError('');
   };
 
-  const handleReset = () => {
+  const handleConfirmPinChange = (value: string) => {
+    if (pinType === 'pin4') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 4);
+      setConfirmPin(numericValue);
+    } else if (pinType === 'pin6') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 6);
+      setConfirmPin(numericValue);
+    } else {
+      setConfirmPin(value);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validasi berdasarkan tipe
+    if (pinType === 'pin4' && pin.length !== 4) {
+      alert('PIN harus 4 digit!');
+      return;
+    }
+    
+    if (pinType === 'pin6' && pin.length !== 6) {
+      alert('PIN harus 6 digit!');
+      return;
+    }
+    
+    if (pinType === 'password' && pin.length < 6) {
+      alert('Password minimal 6 karakter!');
+      return;
+    }
+    
+    if (pin !== confirmPin) {
+      alert('PIN/Password tidak cocok!');
+      return;
+    }
+    
+    // Simpan ke localStorage
+    localStorage.setItem('userPin', pin);
+    localStorage.setItem('pinType', pinType);
+    localStorage.setItem('pinSetup', 'true');
+    
+    // Navigasi ke PIN Lock
+    navigate('/pin-lock');
+  };
+
+  // Reset input saat ganti tipe
+  const handleTypeChange = (newType: 'pin4' | 'pin6' | 'password') => {
+    setPinType(newType);
     setPin('');
     setConfirmPin('');
-    setStep('setup');
-    setError('');
   };
 
   return (
@@ -78,88 +91,105 @@ export function PINSetup() {
             </div>
           </div>
           <CardTitle className="text-3xl">Buat PIN Keamanan</CardTitle>
-          <p className="text-gray-500 mt-2">
-            {step === 'setup' ? 'Masukkan PIN 4 angka' : 'Konfirmasi PIN Anda'}
-          </p>
+          <p className="text-gray-500 mt-2">Amankan aplikasi Anda</p>
         </CardHeader>
+
         <CardContent>
-          <div className="space-y-6">
-            {/* PIN Dots */}
-            <div className="flex justify-center gap-4 mb-6">
-              {[0, 1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className={`w-4 h-4 rounded-full border-2 transition-all ${
-                    currentPin.length > i
-                      ? 'bg-blue-600 border-blue-600 scale-110'
-                      : 'border-gray-300'
-                  }`}
-                />
-              ))}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Pilihan Tipe PIN - Samsung Style */}
+            <div>
+              <Label className="mb-3 block font-semibold">Tipe PIN</Label>
+              <RadioGroup 
+                value={pinType} 
+                onValueChange={(value: any) => handleTypeChange(value)}
+              >
+                <div className="flex items-center space-x-2 mb-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors cursor-pointer">
+                  <RadioGroupItem value="pin4" id="pin4" />
+                  <Label htmlFor="pin4" className="cursor-pointer flex-1 font-normal">
+                    PIN 4 angka
+                  </Label>
+                </div>
+                
+                <div className="flex items-center space-x-2 mb-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors cursor-pointer">
+                  <RadioGroupItem value="pin6" id="pin6" />
+                  <Label htmlFor="pin6" className="cursor-pointer flex-1 font-normal">
+                    PIN 6 angka
+                  </Label>
+                </div>
+                
+                <div className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-gray-50 transition-colors cursor-pointer">
+                  <RadioGroupItem value="password" id="password" />
+                  <Label htmlFor="password" className="cursor-pointer flex-1 font-normal">
+                    Password
+                  </Label>
+                </div>
+              </RadioGroup>
             </div>
 
-            {error && (
-              <div className="text-center">
-                <p className="text-red-600 text-sm animate-pulse">{error}</p>
-              </div>
-            )}
-
-            {!error && step === 'confirm' && (
-              <div className="text-center">
-                <p className="text-green-600 text-sm">✓ PIN diatur</p>
-              </div>
-            )}
-
-            {/* Number Pad */}
-            <div className="grid grid-cols-3 gap-4 max-w-xs mx-auto">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                <Button
-                  key={num}
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  onClick={() => handleNumberPad(num.toString())}
-                  className="h-16 text-xl hover:bg-blue-50 hover:border-blue-300 transition-all"
-                  disabled={currentPin.length >= 4}
-                >
-                  {num}
-                </Button>
-              ))}
-              <Button
-                type="button"
-                variant="ghost"
-                size="lg"
-                onClick={handleReset}
-                className="h-16 text-sm"
-              >
-                Reset
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={() => handleNumberPad('0')}
-                className="h-16 text-xl hover:bg-blue-50 hover:border-blue-300 transition-all"
-                disabled={currentPin.length >= 4}
-              >
-                0
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="lg"
-                onClick={handleBackspace}
-                className="h-16"
-                disabled={currentPin.length === 0}
-              >
-                ⌫
-              </Button>
+            {/* Input PIN */}
+            <div>
+              <Label htmlFor="pin">
+                {pinType === 'pin4' && 'PIN (4 Angka)'}
+                {pinType === 'pin6' && 'PIN (6 Angka)'}
+                {pinType === 'password' && 'Password (min. 6 karakter)'}
+              </Label>
+              <Input
+                id="pin"
+                type={pinType === 'password' ? 'password' : 'text'}
+                inputMode={pinType === 'password' ? 'text' : 'numeric'}
+                placeholder={
+                  pinType === 'pin4' ? '••••' : 
+                  pinType === 'pin6' ? '••••••' : 
+                  'Masukkan password'
+                }
+                value={pin}
+                onChange={(e) => handlePinChange(e.target.value)}
+                className="text-center text-lg tracking-widest"
+                autoComplete="off"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {pinType === 'pin4' && `${pin.length}/4 digit`}
+                {pinType === 'pin6' && `${pin.length}/6 digit`}
+                {pinType === 'password' && `${pin.length} karakter (min. 6)`}
+              </p>
             </div>
 
-            <div className="text-center text-sm text-gray-500 mt-4">
-              <p>PIN ini akan digunakan untuk mengamankan aplikasi Anda</p>
+            {/* Konfirmasi PIN */}
+            <div>
+              <Label htmlFor="confirmPin">
+                Konfirmasi {pinType === 'password' ? 'Password' : 'PIN'}
+              </Label>
+              <Input
+                id="confirmPin"
+                type={pinType === 'password' ? 'password' : 'text'}
+                inputMode={pinType === 'password' ? 'text' : 'numeric'}
+                placeholder={
+                  pinType === 'pin4' ? '••••' : 
+                  pinType === 'pin6' ? '••••••' : 
+                  'Ulangi password'
+                }
+                value={confirmPin}
+                onChange={(e) => handleConfirmPinChange(e.target.value)}
+                className="text-center text-lg tracking-widest"
+                autoComplete="off"
+                required
+              />
             </div>
-          </div>
+
+            {/* Tombol Submit */}
+            <Button 
+              type="submit" 
+              className="w-full h-12 text-base"
+              disabled={
+                (pinType === 'pin4' && (pin.length !== 4 || confirmPin.length !== 4)) ||
+                (pinType === 'pin6' && (pin.length !== 6 || confirmPin.length !== 6)) ||
+                (pinType === 'password' && (pin.length < 6 || confirmPin.length < 6))
+              }
+            >
+              Simpan PIN
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>

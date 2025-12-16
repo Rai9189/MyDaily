@@ -3,24 +3,49 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Calendar, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 
 export function PINLock() {
   const navigate = useNavigate();
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
-  const [pinType, setPinType] = useState<'numeric' | 'password'>('numeric');
-  const savedPin = localStorage.getItem('pin') || '1234';
+  const [pinType, setPinType] = useState<'pin4' | 'pin6' | 'password'>('pin4');
+  
+  const savedPin = localStorage.getItem('userPin') || '1234';
 
   useEffect(() => {
-    const type = localStorage.getItem('pinType') as 'numeric' | 'password' || 'numeric';
+    const type = localStorage.getItem('pinType') as 'pin4' | 'pin6' | 'password' || 'pin4';
     setPinType(type);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePinChange = (value: string) => {
+    setError(''); // Clear error saat input
     
-    if (pin === savedPin) {
+    // Validasi input berdasarkan tipe
+    if (pinType === 'pin4') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 4);
+      setPin(numericValue);
+      
+      // Auto submit saat 4 digit terisi
+      if (numericValue.length === 4) {
+        setTimeout(() => validatePin(numericValue), 100);
+      }
+    } else if (pinType === 'pin6') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 6);
+      setPin(numericValue);
+      
+      // Auto submit saat 6 digit terisi
+      if (numericValue.length === 6) {
+        setTimeout(() => validatePin(numericValue), 100);
+      }
+    } else {
+      // Password: bebas input
+      setPin(value);
+    }
+  };
+
+  const validatePin = (inputPin: string) => {
+    if (inputPin === savedPin) {
       localStorage.setItem('pinUnlocked', 'true');
       navigate('/');
     } else {
@@ -29,28 +54,21 @@ export function PINLock() {
     }
   };
 
-  const handleNumberPad = (num: string) => {
-    if (pinType === 'numeric' && pin.length < 4) {
-      const newPin = pin + num;
-      setPin(newPin);
-      if (newPin.length === 4) {
-        // Auto submit when 4 digits entered
-        setTimeout(() => {
-          if (newPin === savedPin) {
-            localStorage.setItem('pinUnlocked', 'true');
-            navigate('/');
-          } else {
-            setError('PIN salah!');
-            setPin('');
-          }
-        }, 100);
-      }
-    }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    validatePin(pin);
   };
 
-  const handleBackspace = () => {
-    setPin(pin.slice(0, -1));
-    setError('');
+  const getPlaceholder = () => {
+    if (pinType === 'pin4') return '••••';
+    if (pinType === 'pin6') return '••••••';
+    return 'Masukkan password';
+  };
+
+  const getTitle = () => {
+    if (pinType === 'pin4') return 'Masukkan PIN (4 angka)';
+    if (pinType === 'pin6') return 'Masukkan PIN (6 angka)';
+    return 'Masukkan Password';
   };
 
   return (
@@ -63,103 +81,80 @@ export function PINLock() {
             </div>
           </div>
           <CardTitle className="text-3xl">MyDaily</CardTitle>
-          <p className="text-gray-500 mt-2">
-            Masukkan {pinType === 'numeric' ? 'PIN' : 'password'} Anda
-          </p>
+          <p className="text-gray-500 mt-2">{getTitle()}</p>
         </CardHeader>
+
         <CardContent>
-          {pinType === 'numeric' ? (
-            <div className="space-y-6">
-              {/* PIN Dots */}
-              <div className="flex justify-center gap-4 mb-6">
-                {[0, 1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className={`w-4 h-4 rounded-full border-2 transition-colors ${
-                      pin.length > i
-                        ? 'bg-blue-600 border-blue-600'
-                        : 'border-gray-300'
-                    }`}
-                  />
-                ))}
-              </div>
-
-              {error && (
-                <p className="text-red-600 text-center text-sm">{error}</p>
-              )}
-
-              {/* Number Pad */}
-              <div className="grid grid-cols-3 gap-4 max-w-xs mx-auto">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                  <Button
-                    key={num}
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    onClick={() => handleNumberPad(num.toString())}
-                    className="h-16 text-xl"
-                  >
-                    {num}
-                  </Button>
-                ))}
-                <div />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  onClick={() => handleNumberPad('0')}
-                  className="h-16 text-xl"
-                >
-                  0
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  onClick={handleBackspace}
-                  className="h-16"
-                >
-                  ⌫
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Input PIN/Password - Samsung Secure Folder Style */}
+            <div className="space-y-2">
               <Input
-                type="password"
-                placeholder="Masukkan password"
+                type={pinType === 'password' ? 'password' : 'text'}
+                inputMode={pinType === 'password' ? 'text' : 'numeric'}
+                placeholder={getPlaceholder()}
                 value={pin}
-                onChange={(e) => {
-                  setPin(e.target.value);
-                  setError('');
-                }}
-                required
+                onChange={(e) => handlePinChange(e.target.value)}
+                className="h-14 text-center text-2xl tracking-widest font-semibold"
                 autoFocus
+                autoComplete="off"
               />
               
               {error && (
-                <p className="text-red-600 text-sm">{error}</p>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-red-600 text-sm text-center font-medium">
+                    {error}
+                  </p>
+                </div>
               )}
 
-              <Button type="submit" className="w-full">
+              {/* Progress indicator untuk PIN */}
+              {(pinType === 'pin4' || pinType === 'pin6') && (
+                <div className="flex justify-center gap-2 pt-2">
+                  {Array.from({ length: pinType === 'pin4' ? 4 : 6 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`w-3 h-3 rounded-full transition-all ${
+                        pin.length > i
+                          ? 'bg-blue-600 scale-110'
+                          : 'bg-gray-300'
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Tombol Buka - Hanya muncul untuk Password */}
+            {pinType === 'password' && (
+              <Button 
+                type="submit" 
+                className="w-full h-12 text-base"
+                disabled={pin.length < 6}
+              >
                 Buka
               </Button>
-            </form>
-          )}
+            )}
 
-          <div className="mt-6 text-center">
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200"></div>
+              </div>
+            </div>
+
+            {/* Tombol Keluar Akun */}
             <Button
               type="button"
-              variant="link"
+              variant="ghost"
               onClick={() => {
                 localStorage.clear();
                 navigate('/login');
               }}
-              className="text-sm"
+              className="w-full text-gray-500 hover:text-gray-700 hover:bg-gray-100"
             >
               Keluar Akun
             </Button>
-          </div>
+          </form>
         </CardContent>
       </Card>
     </div>
