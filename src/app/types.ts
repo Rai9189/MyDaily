@@ -1,21 +1,26 @@
-// Types untuk aplikasi MyDaily
+// Types untuk aplikasi MyDaily dengan Supabase compatibility
 
 export type AccountType = 'Bank' | 'E-Wallet' | 'Cash';
 
 export interface Account {
-  id: string;
+  id?: string; // Optional untuk create
+  user_id?: string; // Akan di-set otomatis dari auth
   name: string;
   type: AccountType;
   balance: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export type TransactionType = 'Masuk' | 'Keluar';
 
 export interface Category {
-  id: string;
+  id?: string;
+  user_id?: string;
   name: string;
   type: 'transaction' | 'task' | 'note';
   color?: string;
+  created_at?: string;
 }
 
 export interface Attachment {
@@ -26,42 +31,51 @@ export interface Attachment {
 }
 
 export interface Transaction {
-  id: string;
-  accountId: string;
+  id?: string;
+  user_id?: string;
+  account_id: string;
   amount: number;
   type: TransactionType;
   date: string;
-  categoryId: string;
+  category_id: string;
   description?: string;
   attachments?: Attachment[];
   deleted?: boolean;
-  deletedAt?: string;
+  deleted_at?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export type TaskStatus = 'Masih Lama' | 'Mendekati' | 'Mendesak';
 
 export interface Task {
-  id: string;
+  id?: string;
+  user_id?: string;
   title: string;
   deadline: string;
   status: TaskStatus;
   completed: boolean;
-  categoryId: string;
+  category_id: string;
   description?: string;
-  completionNote?: string;
-  completionAttachments?: Attachment[];
+  completion_note?: string;
+  completion_attachments?: Attachment[];
   deleted?: boolean;
-  deletedAt?: string;
+  deleted_at?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Note {
-  id: string;
+  id?: string;
+  user_id?: string;
   title: string;
   content: string;
-  timestamp: string;
+  timestamp?: string; // Akan jadi created_at di database
   pinned: boolean;
-  categoryId: string;
+  category_id: string;
   attachments?: Attachment[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface User {
@@ -69,8 +83,28 @@ export interface User {
   name: string;
   email: string;
   avatar?: string;
-  pinType: 'numeric' | 'password';
-  pin?: string; // Hashed in real app
+  pin_type?: 'pin4' | 'pin6' | 'password';
+  pin_hash?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
+// Legacy types (keep for backward compatibility)
 export type DateRange = 'today' | 'week' | 'month' | 'year' | 'custom';
+
+// Supabase-specific types
+export interface SupabaseProfile {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string | null;
+  pin_type: 'pin4' | 'pin6' | 'password' | null;
+  pin_hash: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Helper type untuk convert camelCase ke snake_case
+export type SnakeToCamel<S extends string> = S extends `${infer T}_${infer U}`
+  ? `${T}${Capitalize<SnakeToCamel<U>>}`
+  : S;
