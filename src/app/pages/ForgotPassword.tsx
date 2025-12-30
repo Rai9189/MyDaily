@@ -1,20 +1,41 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Calendar, ArrowLeft, Mail } from 'lucide-react';
+import { Calendar, ArrowLeft, Mail, AlertCircle } from 'lucide-react';
 
 export function ForgotPassword() {
   const navigate = useNavigate();
+  const { resetPassword } = useAuth();
+  
   const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Dummy - in real app, send reset email
-    setSent(true);
+    
+    if (!email) {
+      setError('Email harus diisi');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      await resetPassword(email);
+      setSent(true);
+    } catch (err: any) {
+      console.error('Reset password error:', err);
+      setError(err.message || 'Gagal mengirim email reset password.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -26,6 +47,7 @@ export function ForgotPassword() {
             size="icon"
             className="absolute left-4 top-4"
             onClick={() => navigate('/login')}
+            disabled={loading}
           >
             <ArrowLeft size={20} />
           </Button>
@@ -40,9 +62,19 @@ export function ForgotPassword() {
             {sent ? 'Email terkirim!' : 'Reset password Anda'}
           </p>
         </CardHeader>
+
         <CardContent>
           {!sent ? (
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Error Alert */}
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+                  <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                  <p className="text-red-600 text-sm">{error}</p>
+                </div>
+              )}
+
+              {/* Email Input */}
               <div>
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -51,17 +83,21 @@ export function ForgotPassword() {
                   placeholder="nama@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
                   required
+                  autoComplete="email"
                 />
                 <p className="text-sm text-gray-500 mt-2">
                   Kami akan mengirim link reset password ke email Anda
                 </p>
               </div>
 
-              <Button type="submit" className="w-full">
-                Kirim Link Reset
+              {/* Submit Button */}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Mengirim...' : 'Kirim Link Reset'}
               </Button>
 
+              {/* Back to Login */}
               <div className="text-center text-sm text-gray-500">
                 Ingat password?{' '}
                 <Button
@@ -69,6 +105,7 @@ export function ForgotPassword() {
                   variant="link"
                   className="p-0 h-auto"
                   onClick={() => navigate('/login')}
+                  disabled={loading}
                 >
                   Masuk
                 </Button>

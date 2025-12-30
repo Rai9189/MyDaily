@@ -1,28 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Lock } from 'lucide-react';
+import { Lock, AlertCircle } from 'lucide-react';
 
 export function PINLock() {
   const navigate = useNavigate();
+  const { profile, unlockWithPin, signOut, loading: authLoading } = useAuth();
+  
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
-  const [pinType, setPinType] = useState<'pin4' | 'pin6' | 'password'>('pin4');
-  
-  const savedPin = localStorage.getItem('userPin') || '1234';
-
-  useEffect(() => {
-    const type = localStorage.getItem('pinType') as 'pin4' | 'pin6' | 'password' || 'pin4';
-    setPinType(type);
-  }, []);
+  const [loading, setLoading] = useState(false);
 
   const handlePinChange = (value: string) => {
-    setError(''); // Clear error saat input
+    setError('');
     
-    // Validasi input berdasarkan tipe
-    if (pinType === 'pin4') {
+    if (!profile) return;
+
+    // Validasi input berdasarkan tipe PIN
+    if (profile.pin_type === 'pin4') {
       const numericValue = value.replace(/\D/g, '').slice(0, 4);
       setPin(numericValue);
       
@@ -30,7 +28,7 @@ export function PINLock() {
       if (numericValue.length === 4) {
         setTimeout(() => validatePin(numericValue), 100);
       }
-    } else if (pinType === 'pin6') {
+    } else if (profile.pin_type === 'pin6') {
       const numericValue = value.replace(/\D/g, '').slice(0, 6);
       setPin(numericValue);
       
@@ -44,13 +42,20 @@ export function PINLock() {
     }
   };
 
-  const validatePin = (inputPin: string) => {
-    if (inputPin === savedPin) {
-      localStorage.setItem('pinUnlocked', 'true');
+  const validatePin = async (inputPin: string) => {
+    setLoading(true);
+    setError('');
+
+    try {
+      await unlockWithPin(inputPin);
+      // Jika berhasil, navigate ke dashboard
       navigate('/');
-    } else {
-      setError('PIN salah!');
+    } catch (err: any) {
+      console.error('PIN verification error:', err);
+      setError(err.message || 'PIN salah!');
       setPin('');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -59,17 +64,54 @@ export function PINLock() {
     validatePin(pin);
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
+
   const getPlaceholder = () => {
-    if (pinType === 'pin4') return '••••';
-    if (pinType === 'pin6') return '••••••';
+    if (!profile) return '••••';
+    if (profile.pin_type === 'pin4') return '••••';
+    if (profile.pin_type === 'pin6') return '••••••';
     return 'Masukkan password';
   };
 
   const getTitle = () => {
-    if (pinType === 'pin4') return 'Masukkan PIN (4 angka)';
-    if (pinType === 'pin6') return 'Masukkan PIN (6 angka)';
+    if (!profile) return 'Masukkan PIN';
+    if (profile.pin_type === 'pin4') return 'Masukkan PIN (4 angka)';
+    if (profile.pin_type === 'pin6') return 'Masukkan PIN (6 angka)';
     return 'Masukkan Password';
   };
+
+  // Loading state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // No profile (should not happen, but safety check)
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="pt-6 text-center">
+            <p className="text-gray-600 mb-4">Profile tidak ditemukan</p>
+            <Button onClick={() => navigate('/login')}>Kembali ke Login</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -86,31 +128,34 @@ export function PINLock() {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Input PIN/Password - Samsung Secure Folder Style */}
+            {/* Error Alert */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+                <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* Input PIN/Password */}
             <div className="space-y-2">
               <Input
-                type={pinType === 'password' ? 'password' : 'text'}
-                inputMode={pinType === 'password' ? 'text' : 'numeric'}
+                type={profile.pin_type === 'password' ? 'password' : 'text'}
+                inputMode={profile.pin_type === 'password' ? 'text' : 'numeric'}
                 placeholder={getPlaceholder()}
                 value={pin}
                 onChange={(e) => handlePinChange(e.target.value)}
                 className="h-14 text-center text-2xl tracking-widest font-semibold"
                 autoFocus
                 autoComplete="off"
+                disabled={loading}
               />
               
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-red-600 text-sm text-center font-medium">
-                    {error}
-                  </p>
-                </div>
-              )}
-
               {/* Progress indicator untuk PIN */}
-              {(pinType === 'pin4' || pinType === 'pin6') && (
+              {(profile.pin_type === 'pin4' || profile.pin_type === 'pin6') && (
                 <div className="flex justify-center gap-2 pt-2">
-                  {Array.from({ length: pinType === 'pin4' ? 4 : 6 }).map((_, i) => (
+                  {Array.from({ 
+                    length: profile.pin_type === 'pin4' ? 4 : 6 
+                  }).map((_, i) => (
                     <div
                       key={i}
                       className={`w-3 h-3 rounded-full transition-all ${
@@ -125,13 +170,13 @@ export function PINLock() {
             </div>
 
             {/* Tombol Buka - Hanya muncul untuk Password */}
-            {pinType === 'password' && (
+            {profile.pin_type === 'password' && (
               <Button 
                 type="submit" 
                 className="w-full h-12 text-base"
-                disabled={pin.length < 6}
+                disabled={loading || pin.length < 6}
               >
-                Buka
+                {loading ? 'Memverifikasi...' : 'Buka'}
               </Button>
             )}
 
@@ -146,10 +191,8 @@ export function PINLock() {
             <Button
               type="button"
               variant="ghost"
-              onClick={() => {
-                localStorage.clear();
-                navigate('/login');
-              }}
+              onClick={handleLogout}
+              disabled={loading}
               className="w-full text-gray-500 hover:text-gray-700 hover:bg-gray-100"
             >
               Keluar Akun

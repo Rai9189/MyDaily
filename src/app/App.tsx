@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from '../hooks';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
@@ -16,36 +17,113 @@ import { NoteDetail } from './pages/NoteDetail';
 import { Profile } from './pages/Profile';
 import { Categories } from './pages/Categories';
 
-// Auth Guard Component
+/**
+ * Auth Guard Component - SIMPLIFIED VERSION
+ */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const isLoggedIn = localStorage.getItem('isLoggedIn');
-  const pinSetup = localStorage.getItem('pinSetup');
-  const pinUnlocked = localStorage.getItem('pinUnlocked');
+  const { user, profile, loading, pinUnlocked } = useAuth();
 
-  if (!isLoggedIn) {
+  // Show loading while checking auth
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not logged in → redirect to login
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!pinSetup) {
+  // Wait for profile to load
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // No PIN setup → redirect to PIN setup
+  if (!profile.pin_hash) {
     return <Navigate to="/pin-setup" replace />;
   }
 
+  // PIN not unlocked → redirect to PIN lock
   if (!pinUnlocked) {
     return <Navigate to="/pin-lock" replace />;
+  }
+
+  // All checks passed → allow access
+  return <>{children}</>;
+}
+
+/**
+ * Public Route Component
+ */
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If logged in, redirect to dashboard
+  if (user) {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
 }
 
+/**
+ * Main App Component
+ */
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         {/* Public Routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        
+        <Route
+          path="/login"
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PublicRoute>
+              <Register />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicRoute>
+              <ForgotPassword />
+            </PublicRoute>
+          }
+        />
+
         {/* Auth Setup Routes */}
         <Route path="/pin-setup" element={<PINSetup />} />
         <Route path="/pin-lock" element={<PINLock />} />
@@ -151,6 +229,9 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

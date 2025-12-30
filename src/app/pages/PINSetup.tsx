@@ -1,35 +1,42 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks';
+import { validatePinFormat } from '../../utils/pinEncryption';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
-import { Lock } from 'lucide-react';
+import { Lock, AlertCircle } from 'lucide-react';
 
 export function PINSetup() {
   const navigate = useNavigate();
+  const { setupPin, user } = useAuth();
+  
   const [pinType, setPinType] = useState<'pin4' | 'pin6' | 'password'>('pin4');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handlePinChange = (value: string) => {
+    setError('');
+    
     // Validasi input berdasarkan tipe
     if (pinType === 'pin4') {
-      // Hanya angka, maksimal 4 digit
       const numericValue = value.replace(/\D/g, '').slice(0, 4);
       setPin(numericValue);
     } else if (pinType === 'pin6') {
-      // Hanya angka, maksimal 6 digit
       const numericValue = value.replace(/\D/g, '').slice(0, 6);
       setPin(numericValue);
     } else {
-      // Password: bebas, minimal 6 karakter
       setPin(value);
     }
   };
 
   const handleConfirmPinChange = (value: string) => {
+    setError('');
+    
     if (pinType === 'pin4') {
       const numericValue = value.replace(/\D/g, '').slice(0, 4);
       setConfirmPin(numericValue);
@@ -41,37 +48,46 @@ export function PINSetup() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validasi berdasarkan tipe
-    if (pinType === 'pin4' && pin.length !== 4) {
-      alert('PIN harus 4 digit!');
+    if (!user) {
+      setError('User tidak terautentikasi');
       return;
     }
-    
-    if (pinType === 'pin6' && pin.length !== 6) {
-      alert('PIN harus 6 digit!');
-      return;
-    }
-    
-    if (pinType === 'password' && pin.length < 6) {
-      alert('Password minimal 6 karakter!');
+
+    // Validasi format PIN
+    if (!validatePinFormat(pin, pinType)) {
+      if (pinType === 'pin4') {
+        setError('PIN harus 4 digit angka!');
+      } else if (pinType === 'pin6') {
+        setError('PIN harus 6 digit angka!');
+      } else {
+        setError('Password minimal 6 karakter!');
+      }
       return;
     }
     
     if (pin !== confirmPin) {
-      alert('PIN/Password tidak cocok!');
+      setError('PIN/Password tidak cocok!');
       return;
     }
     
-    // Simpan ke localStorage
-    localStorage.setItem('userPin', pin);
-    localStorage.setItem('pinType', pinType);
-    localStorage.setItem('pinSetup', 'true');
-    
-    // Navigasi ke PIN Lock
-    navigate('/pin-lock');
+    setLoading(true);
+    setError('');
+
+    try {
+      // Save PIN ke Supabase
+      await setupPin(pin, pinType);
+      
+      // Redirect ke PIN Lock
+      navigate('/pin-lock');
+    } catch (err: any) {
+      console.error('PIN setup error:', err);
+      setError(err.message || 'Gagal menyimpan PIN');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Reset input saat ganti tipe
@@ -79,6 +95,7 @@ export function PINSetup() {
     setPinType(newType);
     setPin('');
     setConfirmPin('');
+    setError('');
   };
 
   return (
@@ -96,12 +113,21 @@ export function PINSetup() {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Pilihan Tipe PIN - Samsung Style */}
+            {/* Error Alert */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+                <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* Pilihan Tipe PIN */}
             <div>
               <Label className="mb-3 block font-semibold">Tipe PIN</Label>
               <RadioGroup 
                 value={pinType} 
                 onValueChange={(value: any) => handleTypeChange(value)}
+                disabled={loading}
               >
                 <div className="flex items-center space-x-2 mb-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors cursor-pointer">
                   <RadioGroupItem value="pin4" id="pin4" />
@@ -146,6 +172,7 @@ export function PINSetup() {
                 onChange={(e) => handlePinChange(e.target.value)}
                 className="text-center text-lg tracking-widest"
                 autoComplete="off"
+                disabled={loading}
                 required
               />
               <p className="text-xs text-gray-500 mt-1">
@@ -173,6 +200,7 @@ export function PINSetup() {
                 onChange={(e) => handleConfirmPinChange(e.target.value)}
                 className="text-center text-lg tracking-widest"
                 autoComplete="off"
+                disabled={loading}
                 required
               />
             </div>
@@ -182,12 +210,13 @@ export function PINSetup() {
               type="submit" 
               className="w-full h-12 text-base"
               disabled={
+                loading ||
                 (pinType === 'pin4' && (pin.length !== 4 || confirmPin.length !== 4)) ||
                 (pinType === 'pin6' && (pin.length !== 6 || confirmPin.length !== 6)) ||
                 (pinType === 'password' && (pin.length < 6 || confirmPin.length < 6))
               }
             >
-              Simpan PIN
+              {loading ? 'Menyimpan...' : 'Simpan PIN'}
             </Button>
           </form>
         </CardContent>
