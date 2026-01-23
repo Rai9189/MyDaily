@@ -1,45 +1,60 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { dummyNotes, dummyCategories } from '../data/dummyData';
+import { useNotes } from '../context/NoteContext';
+import { useCategories } from '../context/CategoryContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../components/ui/sheet';
 import { Badge } from '../components/ui/badge';
-import { Plus, Search, Pin, Paperclip, List, LayoutGrid, ChevronLeft, ChevronRight, Edit, Filter } from 'lucide-react';
-import { Note } from '../types';
+import { Plus, Search, Pin, Paperclip, List, LayoutGrid, ChevronLeft, ChevronRight, Edit, Filter, Loader2 } from 'lucide-react';
 
 export function Notes() {
   const navigate = useNavigate();
-  const [notes] = useState<Note[]>(dummyNotes);
+  const { notes, loading, error } = useNotes();
+  const { getCategoriesByType } = useCategories();
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
-  
-  // View options
   const [viewMode, setViewMode] = useState<'list' | 'card'>('card');
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const noteCategories = dummyCategories.filter(c => c.type === 'note');
+  const noteCategories = getCategoriesByType('note');
 
   const getCategoryName = (categoryId: string) => {
-    return dummyCategories.find(c => c.id === categoryId)?.name || 'Lainnya';
+    return noteCategories.find(c => c.id === categoryId)?.name || 'Lainnya';
   };
 
   const getCategoryColor = (categoryId: string) => {
-    return dummyCategories.find(c => c.id === categoryId)?.color || '#gray';
+    return noteCategories.find(c => c.id === categoryId)?.color || '#gray';
   };
 
-  let filteredNotes = notes.filter(note => {
-    const matchesSearch = note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      note.content.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || note.categoryId === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
+  // Filter notes
+  const filteredNotes = useMemo(() => {
+    let result = [...notes];
 
-  const pinnedNotes = filteredNotes.filter(n => n.pinned);
-  const regularNotes = filteredNotes.filter(n => !n.pinned);
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(note => {
+        const matchesTitle = note.title.toLowerCase().includes(query);
+        const matchesContent = note.content.toLowerCase().includes(query);
+        return matchesTitle || matchesContent;
+      });
+    }
+
+    // Category filter
+    if (filterCategory !== 'all') {
+      result = result.filter(note => note.categoryId === filterCategory);
+    }
+
+    return result;
+  }, [notes, searchQuery, filterCategory]);
+
+  const pinnedNotes = useMemo(() => filteredNotes.filter(n => n.pinned), [filteredNotes]);
+  const regularNotes = useMemo(() => filteredNotes.filter(n => !n.pinned), [filteredNotes]);
 
   // Pagination for regular notes
   const totalPages = Math.ceil(regularNotes.length / itemsPerPage);
@@ -52,7 +67,7 @@ export function Notes() {
     setCurrentPage(1);
   };
 
-  const NoteCard = ({ note, isPinned }: { note: Note, isPinned?: boolean }) => (
+  const NoteCard = ({ note, isPinned }: { note: any, isPinned?: boolean }) => (
     <Card
       className={`hover:shadow-lg transition-shadow dark:bg-gray-800 dark:border-gray-700 ${isPinned ? 'border-blue-200 dark:border-blue-700' : ''}`}
     >
@@ -106,7 +121,7 @@ export function Notes() {
     </Card>
   );
 
-  const NoteListItem = ({ note, isPinned }: { note: Note, isPinned?: boolean }) => (
+  const NoteListItem = ({ note, isPinned }: { note: any, isPinned?: boolean }) => (
     <Card className={`hover:shadow-md transition-shadow dark:bg-gray-800 dark:border-gray-700 ${isPinned ? 'border-blue-200 dark:border-blue-700' : ''}`}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-4">
@@ -152,6 +167,22 @@ export function Notes() {
       </CardContent>
     </Card>
   );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+        <p className="text-red-600 dark:text-red-400">Error: {error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

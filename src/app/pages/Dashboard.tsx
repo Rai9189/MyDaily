@@ -1,29 +1,24 @@
-import { useState } from 'react';
-import { dummyAccounts, dummyTransactions, dummyTasks, dummyNotes, dummyCategories } from '../data/dummyData';
+import { useState, useMemo } from 'react';
+import { useAccounts } from '../context/AccountContext';
+import { useTransactions } from '../context/TransactionContext';
+import { useTasks } from '../context/TaskContext';
+import { useNotes } from '../context/NoteContext';
+import { useCategories } from '../context/CategoryContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Button } from '../components/ui/button';
-import { AlertCircle, Wallet, TrendingUp, TrendingDown, PinIcon, Calendar as CalendarIcon } from 'lucide-react';
+import { AlertCircle, Wallet, TrendingUp, TrendingDown, PinIcon, Loader2 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
-import { Calendar } from '../components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
-import { id } from 'date-fns/locale';
+import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 
 export function Dashboard() {
+  const { accounts, loading: accountsLoading } = useAccounts();
+  const { transactions, loading: transactionsLoading } = useTransactions();
+  const { tasks, loading: tasksLoading } = useTasks();
+  const { notes, loading: notesLoading } = useNotes();
+  const { categories } = useCategories();
+  
   const [transactionRange, setTransactionRange] = useState<string>('month');
-  const [taskRange, setTaskRange] = useState<string>('month');
-  
-  // Custom date ranges
-  const [transactionDateFrom, setTransactionDateFrom] = useState<Date>();
-  const [transactionDateTo, setTransactionDateTo] = useState<Date>();
-  const [taskDateFrom, setTaskDateFrom] = useState<Date>();
-  const [taskDateTo, setTaskDateTo] = useState<Date>();
-  
-  const totalBalance = dummyAccounts.reduce((sum, acc) => sum + acc.balance, 0);
-  const urgentTasks = dummyTasks.filter(t => t.status === 'Mendesak' && !t.completed);
-  const pinnedNotes = dummyNotes.filter(n => n.pinned);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -33,109 +28,82 @@ export function Dashboard() {
     }).format(amount);
   };
 
-  const getTransactionDateRange = () => {
+  // Calculate data
+  const totalBalance = useMemo(() => 
+    accounts.reduce((sum, acc) => sum + acc.balance, 0),
+    [accounts]
+  );
+
+  const urgentTasks = useMemo(() => 
+    tasks.filter(t => t.status === 'Mendesak' && !t.completed),
+    [tasks]
+  );
+
+  const pinnedNotes = useMemo(() => 
+    notes.filter(n => n.pinned),
+    [notes]
+  );
+
+  // Filter transactions by month
+  const filteredTransactions = useMemo(() => {
     const today = new Date();
-    switch (transactionRange) {
-      case 'today':
-        return { start: startOfDay(today), end: endOfDay(today) };
-      case 'week':
-        return { start: startOfWeek(today, { locale: id }), end: endOfWeek(today, { locale: id }) };
-      case 'month':
-        return { start: startOfMonth(today), end: endOfMonth(today) };
-      case 'year':
-        return { start: startOfYear(today), end: endOfYear(today) };
-      case 'custom':
-        return transactionDateFrom && transactionDateTo ? { start: transactionDateFrom, end: transactionDateTo } : null;
-      default:
-        return null;
-    }
-  };
+    const monthStart = startOfMonth(today);
+    const monthEnd = endOfMonth(today);
 
-  const getTaskDateRange = () => {
-    const today = new Date();
-    switch (taskRange) {
-      case 'today':
-        return { start: startOfDay(today), end: endOfDay(today) };
-      case 'week':
-        return { start: startOfWeek(today, { locale: id }), end: endOfWeek(today, { locale: id }) };
-      case 'month':
-        return { start: startOfMonth(today), end: endOfMonth(today) };
-      case 'year':
-        return { start: startOfYear(today), end: endOfYear(today) };
-      case 'custom':
-        return taskDateFrom && taskDateTo ? { start: taskDateFrom, end: taskDateTo } : null;
-      default:
-        return null;
-    }
-  };
+    return transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return isWithinInterval(transactionDate, { start: monthStart, end: monthEnd });
+    });
+  }, [transactions]);
 
-  // Filter transactions by date range
-  const filteredTransactions = dummyTransactions.filter(t => {
-    const dateRange = getTransactionDateRange();
-    if (!dateRange) return true;
-    const transactionDate = new Date(t.date);
-    return isWithinInterval(transactionDate, { start: dateRange.start, end: dateRange.end });
-  });
-
-  // Filter tasks by date range
-  const filteredTasks = dummyTasks.filter(t => {
-    const dateRange = getTaskDateRange();
-    if (!dateRange) return true;
-    const taskDate = new Date(t.deadline);
-    return isWithinInterval(taskDate, { start: dateRange.start, end: dateRange.end });
-  });
-
-  const thisMonthIncome = filteredTransactions
-    .filter(t => t.type === 'Masuk')
-    .reduce((sum, t) => sum + t.amount, 0);
+  const thisMonthIncome = useMemo(() => 
+    filteredTransactions
+      .filter(t => t.type === 'Masuk')
+      .reduce((sum, t) => sum + t.amount, 0),
+    [filteredTransactions]
+  );
   
-  const thisMonthExpense = filteredTransactions
-    .filter(t => t.type === 'Keluar')
-    .reduce((sum, t) => sum + t.amount, 0);
+  const thisMonthExpense = useMemo(() => 
+    filteredTransactions
+      .filter(t => t.type === 'Keluar')
+      .reduce((sum, t) => sum + t.amount, 0),
+    [filteredTransactions]
+  );
 
-  // Transaction Chart Data (by category)
-  const transactionByCategory = filteredTransactions
-    .filter(t => t.type === 'Keluar')
-    .reduce((acc, t) => {
-      const category = dummyCategories.find(c => c.id === t.categoryId);
-      const categoryName = category?.name || 'Lainnya';
-      
-      if (!acc[categoryName]) {
-        acc[categoryName] = { name: categoryName, amount: 0, color: category?.color || '#gray' };
-      }
-      acc[categoryName].amount += t.amount;
-      return acc;
-    }, {} as Record<string, { name: string; amount: number; color: string }>);
+  // Transaction by category
+  const categoryChartData = useMemo(() => {
+    const transactionByCategory = filteredTransactions
+      .filter(t => t.type === 'Keluar')
+      .reduce((acc, t) => {
+        const category = categories.find(c => c.id === t.categoryId);
+        const categoryName = category?.name || 'Lainnya';
+        
+        if (!acc[categoryName]) {
+          acc[categoryName] = { name: categoryName, amount: 0, color: category?.color || '#gray' };
+        }
+        acc[categoryName].amount += t.amount;
+        return acc;
+      }, {} as Record<string, { name: string; amount: number; color: string }>);
 
-  const categoryChartData = Object.values(transactionByCategory);
+    return Object.values(transactionByCategory);
+  }, [filteredTransactions, categories]);
 
-  // Transaction Trend Data (daily) - mock data based on filtered
-  const transactionTrendData = [
-    { date: '07 Dec', income: 0, expense: 150000 },
-    { date: '08 Dec', income: 0, expense: 300000 },
-    { date: '10 Dec', income: 5000000, expense: 0 },
-    { date: '11 Dec', income: 0, expense: 750000 },
-    { date: '12 Dec', income: 0, expense: 1500000 },
-    { date: '13 Dec', income: 200000, expense: 85000 },
-  ];
+  // Task status data
+  const taskStatusData = useMemo(() => [
+    { name: 'Mendesak', value: tasks.filter(t => t.status === 'Mendesak' && !t.completed).length, color: '#ef4444' },
+    { name: 'Mendekati', value: tasks.filter(t => t.status === 'Mendekati' && !t.completed).length, color: '#f59e0b' },
+    { name: 'Masih Lama', value: tasks.filter(t => t.status === 'Masih Lama' && !t.completed).length, color: '#10b981' },
+  ], [tasks]);
 
-  // Task Status Data
-  const taskStatusData = [
-    { name: 'Mendesak', value: filteredTasks.filter(t => t.status === 'Mendesak' && !t.completed).length, color: '#ef4444' },
-    { name: 'Mendekati', value: filteredTasks.filter(t => t.status === 'Mendekati' && !t.completed).length, color: '#f59e0b' },
-    { name: 'Masih Lama', value: filteredTasks.filter(t => t.status === 'Masih Lama' && !t.completed).length, color: '#10b981' },
-  ];
+  const isLoading = accountsLoading || transactionsLoading || tasksLoading || notesLoading;
 
-  const getRangeLabel = (range: string) => {
-    switch (range) {
-      case 'today': return 'Hari Ini';
-      case 'week': return 'Minggu Ini';
-      case 'month': return 'Bulan Ini';
-      case 'year': return 'Tahun Ini';
-      case 'custom': return 'Range Bebas';
-      default: return '';
-    }
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -154,13 +122,13 @@ export function Dashboard() {
         </CardHeader>
         <CardContent>
           <p className="text-4xl">{formatCurrency(totalBalance)}</p>
-          <p className="text-blue-100 mt-2">{dummyAccounts.length} Akun Aktif</p>
+          <p className="text-blue-100 mt-2">{accounts.length} Akun Aktif</p>
         </CardContent>
       </Card>
 
       {/* Ringkasan Transaksi */}
       <div>
-        <h2 className="text-xl mb-4 dark:text-white">Transaksi {getRangeLabel(transactionRange)}</h2>
+        <h2 className="text-xl mb-4 dark:text-white">Transaksi Bulan Ini</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="dark:bg-gray-800 dark:border-gray-700">
             <CardHeader>
@@ -194,86 +162,11 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Grafik Transaksi */}
-      <Card className="dark:bg-gray-800 dark:border-gray-700">
-        <CardHeader>
-          <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-            <CardTitle className="dark:text-white">Tren Transaksi</CardTitle>
-            <div className="flex flex-col gap-2">
-              <Select value={transactionRange} onValueChange={setTransactionRange}>
-                <SelectTrigger className="w-full md:w-40 dark:bg-gray-700 dark:border-gray-600">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">Hari Ini</SelectItem>
-                  <SelectItem value="week">Minggu Ini</SelectItem>
-                  <SelectItem value="month">Bulan Ini</SelectItem>
-                  <SelectItem value="year">Tahun Ini</SelectItem>
-                  <SelectItem value="custom">Range Bebas</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              {transactionRange === 'custom' && (
-                <div className="grid grid-cols-2 gap-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="text-xs">
-                        <CalendarIcon className="mr-1 h-3 w-3" />
-                        {transactionDateFrom ? format(transactionDateFrom, 'dd/MM', { locale: id }) : 'Dari'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={transactionDateFrom}
-                        onSelect={setTransactionDateFrom}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="text-xs">
-                        <CalendarIcon className="mr-1 h-3 w-3" />
-                        {transactionDateTo ? format(transactionDateTo, 'dd/MM', { locale: id }) : 'Sampai'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={transactionDateTo}
-                        onSelect={setTransactionDateTo}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={transactionTrendData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip 
-                formatter={(value) => formatCurrency(value as number)}
-              />
-              <Legend />
-              <Line type="monotone" dataKey="income" stroke="#10b981" name="Pemasukan" strokeWidth={2} />
-              <Line type="monotone" dataKey="expense" stroke="#ef4444" name="Pengeluaran" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
       {/* Grafik Pengeluaran per Kategori */}
       {categoryChartData.length > 0 && (
-        <Card>
+        <Card className="dark:bg-gray-800 dark:border-gray-700">
           <CardHeader>
-            <CardTitle>Pengeluaran per Kategori ({getRangeLabel(transactionRange)})</CardTitle>
+            <CardTitle className="dark:text-white">Pengeluaran per Kategori (Bulan Ini)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -299,12 +192,12 @@ export function Dashboard() {
 
               <div className="space-y-2">
                 {categoryChartData.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                      <span className="text-sm">{item.name}</span>
+                      <span className="text-sm dark:text-white">{item.name}</span>
                     </div>
-                    <span className="text-sm">{formatCurrency(item.amount)}</span>
+                    <span className="text-sm dark:text-white">{formatCurrency(item.amount)}</span>
                   </div>
                 ))}
               </div>
@@ -314,62 +207,9 @@ export function Dashboard() {
       )}
 
       {/* Grafik Status Tugas */}
-      <Card>
+      <Card className="dark:bg-gray-800 dark:border-gray-700">
         <CardHeader>
-          <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-            <CardTitle>Status Tugas</CardTitle>
-            <div className="flex flex-col gap-2">
-              <Select value={taskRange} onValueChange={setTaskRange}>
-                <SelectTrigger className="w-full md:w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">Hari Ini</SelectItem>
-                  <SelectItem value="week">Minggu Ini</SelectItem>
-                  <SelectItem value="month">Bulan Ini</SelectItem>
-                  <SelectItem value="year">Tahun Ini</SelectItem>
-                  <SelectItem value="custom">Range Bebas</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              {taskRange === 'custom' && (
-                <div className="grid grid-cols-2 gap-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="text-xs">
-                        <CalendarIcon className="mr-1 h-3 w-3" />
-                        {taskDateFrom ? format(taskDateFrom, 'dd/MM', { locale: id }) : 'Dari'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={taskDateFrom}
-                        onSelect={setTaskDateFrom}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="text-xs">
-                        <CalendarIcon className="mr-1 h-3 w-3" />
-                        {taskDateTo ? format(taskDateTo, 'dd/MM', { locale: id }) : 'Sampai'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={taskDateTo}
-                        onSelect={setTaskDateTo}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              )}
-            </div>
-          </div>
+          <CardTitle className="dark:text-white">Status Tugas</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -391,9 +231,9 @@ export function Dashboard() {
 
       {/* Tugas Mendesak */}
       {urgentTasks.length > 0 && (
-        <Card className="border-red-200 bg-red-50">
+        <Card className="border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-700">
+            <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400">
               <AlertCircle size={20} />
               Tugas Mendesak ({urgentTasks.length})
             </CardTitle>
@@ -401,10 +241,10 @@ export function Dashboard() {
           <CardContent>
             <div className="space-y-2">
               {urgentTasks.slice(0, 5).map((task) => (
-                <div key={task.id} className="flex justify-between items-center p-3 bg-white rounded-lg">
+                <div key={task.id} className="flex justify-between items-center p-3 bg-white dark:bg-gray-800 rounded-lg">
                   <div>
-                    <p>{task.title}</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="dark:text-white">{task.title}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                       Deadline: {new Date(task.deadline).toLocaleDateString('id-ID')}
                     </p>
                   </div>
@@ -419,19 +259,19 @@ export function Dashboard() {
       {/* Notes Terpin */}
       {pinnedNotes.length > 0 && (
         <div>
-          <h2 className="text-xl mb-4">Catatan Terpin</h2>
+          <h2 className="text-xl mb-4 dark:text-white">Catatan Terpin</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {pinnedNotes.map((note) => (
-              <Card key={note.id}>
+              <Card key={note.id} className="dark:bg-gray-800 dark:border-gray-700">
                 <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
+                  <CardTitle className="text-base flex items-center gap-2 dark:text-white">
                     <PinIcon size={16} className="text-blue-600" />
                     {note.title}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-gray-600 line-clamp-3">{note.content}</p>
-                  <p className="text-xs text-gray-400 mt-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">{note.content}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
                     {new Date(note.timestamp).toLocaleString('id-ID')}
                   </p>
                 </CardContent>

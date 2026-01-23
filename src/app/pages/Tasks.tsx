@@ -1,47 +1,38 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { dummyTasks, dummyCategories } from '../data/dummyData';
+import { useTasks } from '../context/TaskContext';
+import { useCategories } from '../context/CategoryContext';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
-import { Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Filter, Search } from 'lucide-react';
-import { Calendar } from '../components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../components/ui/sheet';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval } from 'date-fns';
-import { id } from 'date-fns/locale';
-import { Task } from '../types';
 
 export function Tasks() {
   const navigate = useNavigate();
-  const [tasks] = useState<Task[]>(dummyTasks);
+  const { tasks, loading, error } = useTasks();
+  const { getCategoriesByType } = useCategories();
+  
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterCompleted, setFilterCompleted] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'deadline' | 'status'>('deadline');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  
-  // Date filter
-  const [dateFilter, setDateFilter] = useState<string>('all');
-  const [customDateFrom, setCustomDateFrom] = useState<Date>();
-  const [customDateTo, setCustomDateTo] = useState<Date>();
-  
-  // View options
   const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const taskCategories = dummyCategories.filter(c => c.type === 'task');
+  const taskCategories = getCategoriesByType('task');
 
   const getCategoryName = (categoryId: string) => {
-    return dummyCategories.find(c => c.id === categoryId)?.name || 'Lainnya';
+    return taskCategories.find(c => c.id === categoryId)?.name || 'Lainnya';
   };
 
   const getCategoryColor = (categoryId: string) => {
-    return dummyCategories.find(c => c.id === categoryId)?.color || '#gray';
+    return taskCategories.find(c => c.id === categoryId)?.color || '#gray';
   };
 
   const getStatusColor = (status: string) => {
@@ -62,65 +53,42 @@ export function Tasks() {
     }
   };
 
-  const getDateRange = () => {
-    const today = new Date();
-    switch (dateFilter) {
-      case 'today':
-        return { start: new Date(today.setHours(0, 0, 0, 0)), end: new Date(today.setHours(23, 59, 59, 999)) };
-      case 'week':
-        return { start: startOfWeek(today, { locale: id }), end: endOfWeek(today, { locale: id }) };
-      case 'month':
-        return { start: startOfMonth(today), end: endOfMonth(today) };
-      case 'year':
-        return { start: startOfYear(today), end: endOfYear(today) };
-      case 'custom':
-        return customDateFrom && customDateTo ? { start: customDateFrom, end: customDateTo } : null;
-      default:
-        return null;
-    }
-  };
+  // Filter and sort
+  const filteredTasks = useMemo(() => {
+    let result = [...tasks];
 
-  let filteredTasks = tasks.filter(t => {
-    // Search filter
+    // Search
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      const matchesTitle = t.title.toLowerCase().includes(query);
-      const matchesDescription = t.description?.toLowerCase().includes(query);
-      const matchesCategory = getCategoryName(t.categoryId).toLowerCase().includes(query);
-      
-      if (!matchesTitle && !matchesDescription && !matchesCategory) {
-        return false;
+      result = result.filter(t => {
+        const matchesTitle = t.title.toLowerCase().includes(query);
+        const matchesDescription = t.description?.toLowerCase().includes(query);
+        const matchesCategory = getCategoryName(t.categoryId).toLowerCase().includes(query);
+        return matchesTitle || matchesDescription || matchesCategory;
+      });
+    }
+
+    if (filterStatus !== 'all') result = result.filter(t => t.status === filterStatus);
+    if (filterCategory !== 'all') result = result.filter(t => t.categoryId === filterCategory);
+    if (filterCompleted === 'completed') result = result.filter(t => t.completed);
+    if (filterCompleted === 'active') result = result.filter(t => !t.completed);
+
+    // Sort
+    result.sort((a, b) => {
+      if (sortBy === 'deadline') {
+        const dateA = new Date(a.deadline).getTime();
+        const dateB = new Date(b.deadline).getTime();
+        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+      } else {
+        const statusOrder = { 'Mendesak': 3, 'Mendekati': 2, 'Masih Lama': 1 };
+        const statusA = statusOrder[a.status as keyof typeof statusOrder];
+        const statusB = statusOrder[b.status as keyof typeof statusOrder];
+        return sortOrder === 'asc' ? statusA - statusB : statusB - statusA;
       }
-    }
+    });
 
-    if (filterStatus !== 'all' && t.status !== filterStatus) return false;
-    if (filterCategory !== 'all' && t.categoryId !== filterCategory) return false;
-    if (filterCompleted === 'completed' && !t.completed) return false;
-    if (filterCompleted === 'active' && t.completed) return false;
-    
-    // Date filter
-    const dateRange = getDateRange();
-    if (dateRange) {
-      const taskDate = new Date(t.deadline);
-      if (!isWithinInterval(taskDate, { start: dateRange.start, end: dateRange.end })) return false;
-    }
-    
-    return true;
-  });
-
-  // Sort tasks
-  filteredTasks = [...filteredTasks].sort((a, b) => {
-    if (sortBy === 'deadline') {
-      const dateA = new Date(a.deadline).getTime();
-      const dateB = new Date(b.deadline).getTime();
-      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
-    } else {
-      const statusOrder = { 'Mendesak': 3, 'Mendekati': 2, 'Masih Lama': 1 };
-      const statusA = statusOrder[a.status as keyof typeof statusOrder];
-      const statusB = statusOrder[b.status as keyof typeof statusOrder];
-      return sortOrder === 'asc' ? statusA - statusB : statusB - statusA;
-    }
-  });
+    return result;
+  }, [tasks, searchQuery, filterStatus, filterCategory, filterCompleted, sortBy, sortOrder, taskCategories]);
 
   // Pagination
   const totalPages = Math.ceil(filteredTasks.length / itemsPerPage);
@@ -128,11 +96,26 @@ export function Tasks() {
   const endIndex = startIndex + itemsPerPage;
   const paginatedTasks = viewMode === 'card' ? filteredTasks.slice(startIndex, endIndex) : filteredTasks;
 
-  // Reset to page 1 when filters change
   const handleFilterChange = (setter: any, value: any) => {
     setter(value);
     setCurrentPage(1);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+        <p className="text-red-600 dark:text-red-400">Error: {error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -171,68 +154,6 @@ export function Tasks() {
                   <SheetTitle className="dark:text-white">Filter & Sortir</SheetTitle>
                 </SheetHeader>
                 <div className="space-y-4 mt-6">
-                  {/* Date Filter */}
-                  <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Filter Waktu</label>
-                    <Select value={dateFilter} onValueChange={(v) => handleFilterChange(setDateFilter, v)}>
-                      <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600">
-                        <SelectValue placeholder="Semua Waktu" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Semua Waktu</SelectItem>
-                        <SelectItem value="today">Hari Ini</SelectItem>
-                        <SelectItem value="week">Minggu Ini</SelectItem>
-                        <SelectItem value="month">Bulan Ini</SelectItem>
-                        <SelectItem value="year">Tahun Ini</SelectItem>
-                        <SelectItem value="custom">Range Bebas</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Custom Date Range */}
-                  {dateFilter === 'custom' && (
-                    <div className="space-y-4 pt-4 border-t dark:border-gray-700">
-                      <div>
-                        <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Dari Tanggal</label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" className="w-full justify-start text-left font-normal dark:bg-gray-700 dark:border-gray-600">
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {customDateFrom ? format(customDateFrom, 'PPP', { locale: id }) : 'Pilih tanggal'}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0">
-                            <Calendar
-                              mode="single"
-                              selected={customDateFrom}
-                              onSelect={setCustomDateFrom}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <div>
-                        <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Sampai Tanggal</label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" className="w-full justify-start text-left font-normal dark:bg-gray-700 dark:border-gray-600">
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {customDateTo ? format(customDateTo, 'PPP', { locale: id }) : 'Pilih tanggal'}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0">
-                            <Calendar
-                              mode="single"
-                              selected={customDateTo}
-                              onSelect={setCustomDateTo}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                    </div>
-                  )}
-
                   <div>
                     <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Filter Status</label>
                     <Select value={filterStatus} onValueChange={(v) => handleFilterChange(setFilterStatus, v)}>
@@ -300,7 +221,6 @@ export function Tasks() {
                     </div>
                   </div>
 
-                  {/* View Options */}
                   <div className="pt-4 border-t dark:border-gray-700">
                     <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Tampilan</label>
                     <div className="flex gap-2">
@@ -336,9 +256,9 @@ export function Tasks() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="3">3</SelectItem>
                           <SelectItem value="5">5</SelectItem>
                           <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="20">20</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -360,12 +280,10 @@ export function Tasks() {
           >
             <CardContent className="p-4">
               <div className="space-y-3">
-                {/* Title */}
                 <h3 className={`text-lg dark:text-white ${task.completed ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}>
                   {task.title}
                 </h3>
 
-                {/* Badges */}
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant={getStatusColor(task.status)} className="gap-1">
                     {getStatusIcon(task.status)}
@@ -388,14 +306,12 @@ export function Tasks() {
                   )}
                 </div>
 
-                {/* Description */}
                 {task.description && (
                   <p className={`text-sm text-gray-600 dark:text-gray-400 ${task.completed ? 'line-through' : ''}`}>
                     {task.description}
                   </p>
                 )}
 
-                {/* Deadline */}
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
                     <Clock size={14} />
