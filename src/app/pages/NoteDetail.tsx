@@ -2,13 +2,16 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useNotes } from '../context/NoteContext';
 import { useCategories } from '../context/CategoryContext';
+import { useAttachments } from '../context/AttachmentContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { ArrowLeft, Pin, Upload, X, Loader2 } from 'lucide-react';
+import { Badge } from '../components/ui/badge';
+import { ArrowLeft, Pin, Upload, X, Loader2, FileText, Image as ImageIcon } from 'lucide-react';
+import { formatFileSize, isImageFile } from '../../lib/supabase';
 
 export function NoteDetail() {
   const navigate = useNavigate();
@@ -17,6 +20,7 @@ export function NoteDetail() {
   
   const { getNoteById, createNote, updateNote, deleteNote, togglePin } = useNotes();
   const { getCategoriesByType } = useCategories();
+  const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
   
   const note = isNew ? null : getNoteById(id!);
   const noteCategories = getCategoriesByType('note');
@@ -28,9 +32,18 @@ export function NoteDetail() {
     pinned: note?.pinned || false,
   });
 
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [pinning, setPinning] = useState(false);
+
+  // Load attachments if editing
+  useEffect(() => {
+    if (!isNew && id) {
+      loadAttachments();
+    }
+  }, [id]);
 
   useEffect(() => {
     if (note) {
@@ -42,6 +55,44 @@ export function NoteDetail() {
       });
     }
   }, [note]);
+
+  const loadAttachments = async () => {
+    if (!id) return;
+    const { data } = await getAttachments('note', id);
+    if (data) setAttachments(data);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !id) return;
+
+    setUploading(true);
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const { success, data, error } = await uploadAttachment(file, 'note', id);
+      
+      if (success && data) {
+        setAttachments(prev => [...prev, data]);
+      } else {
+        alert(error || 'Gagal upload file');
+      }
+    }
+
+    setUploading(false);
+    e.target.value = '';
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string, url: string) => {
+    if (!confirm('Hapus lampiran ini?')) return;
+
+    const { success, error } = await deleteAttachment(attachmentId, url);
+    if (success) {
+      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+    } else {
+      alert(error || 'Gagal menghapus lampiran');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,7 +133,7 @@ export function NoteDetail() {
   };
 
   const handleDelete = async () => {
-    if (!confirm('Yakin ingin menghapus note ini?')) return;
+    if (!confirm('Yakin ingin menghapus note ini? Semua lampiran juga akan dihapus.')) return;
     
     setDeleting(true);
     const { success, error } = await deleteNote(id!);
@@ -195,45 +246,86 @@ export function NoteDetail() {
           </CardContent>
         </Card>
 
-        <Card className="dark:bg-gray-800 dark:border-gray-700">
-          <CardHeader>
-            <CardTitle className="dark:text-white">Lampiran</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label className="dark:text-gray-300">Upload File (Opsional)</Label>
-              <div className="mt-2 space-y-2">
-                <Button type="button" variant="outline" className="w-full gap-2 dark:bg-gray-700 dark:border-gray-600">
-                  <Upload size={16} />
-                  Upload Image / PDF
-                </Button>
-                
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Fitur upload akan diimplementasikan di fase berikutnya
-                </p>
-                
-                {note?.attachments && note.attachments.length > 0 && (
-                  <div className="space-y-2 mt-3">
-                    {note.attachments.map((file) => (
-                      <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <div className="flex items-center gap-2 flex-1">
-                          <Badge variant="outline">{file.type}</Badge>
-                          <Input
-                            defaultValue={file.name}
-                            className="h-8 text-sm dark:bg-gray-600 dark:border-gray-500"
-                          />
+        {/* Attachments Section */}
+        {!isNew && (
+          <Card className="dark:bg-gray-800 dark:border-gray-700">
+            <CardHeader>
+              <CardTitle className="dark:text-white">Lampiran</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="dark:text-gray-300">Upload File (Maksimal 10MB)</Label>
+                <div className="mt-2 space-y-2">
+                  <Input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    multiple
+                    onChange={handleFileUpload}
+                    disabled={uploading}
+                    className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Tambahkan gambar atau dokumen PDF sebagai lampiran catatan.
+                  </p>
+                  
+                  {uploading && (
+                    <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Mengupload...
+                    </div>
+                  )}
+
+                  {attachments.length > 0 && (
+                    <div className="space-y-2 mt-3">
+                      {attachments.map((file) => (
+                        <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            {isImageFile(file.name) ? (
+                              <ImageIcon size={20} className="text-blue-600 flex-shrink-0" />
+                            ) : (
+                              <FileText size={20} className="text-red-600 flex-shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate dark:text-white">{file.name}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {formatFileSize(file.size)}
+                              </p>
+                            </div>
+                            <a
+                              href={file.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline flex-shrink-0"
+                            >
+                              Lihat
+                            </a>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 ml-2 flex-shrink-0"
+                            onClick={() => handleDeleteAttachment(file.id, file.url)}
+                          >
+                            <X size={16} />
+                          </Button>
                         </div>
-                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 ml-2">
-                          <X size={16} />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
+
+        {isNew && (
+          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <p className="text-sm text-yellow-800 dark:text-yellow-300">
+              💡 <strong>Tips:</strong> Simpan note terlebih dahulu, lalu Anda bisa menambahkan lampiran.
+            </p>
+          </div>
+        )}
 
         {formData.pinned && (
           <Card className="bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">

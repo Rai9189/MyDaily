@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useTransactions } from '../context/TransactionContext';
 import { useAccounts } from '../context/AccountContext';
 import { useCategories } from '../context/CategoryContext';
+import { useAttachments } from '../context/AttachmentContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -10,7 +11,8 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
-import { ArrowLeft, Upload, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, Upload, X, Loader2, FileText, Image as ImageIcon } from 'lucide-react';
+import { formatFileSize, isImageFile } from '../../lib/supabase';
 
 export function TransactionDetail() {
   const navigate = useNavigate();
@@ -20,6 +22,7 @@ export function TransactionDetail() {
   const { getTransactionById, createTransaction, updateTransaction, deleteTransaction } = useTransactions();
   const { accounts } = useAccounts();
   const { getCategoriesByType } = useCategories();
+  const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
   
   const transaction = isNew ? null : getTransactionById(id!);
   const transactionCategories = getCategoriesByType('transaction');
@@ -33,8 +36,17 @@ export function TransactionDetail() {
     description: transaction?.description || '',
   });
 
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Load attachments if editing
+  useEffect(() => {
+    if (!isNew && id) {
+      loadAttachments();
+    }
+  }, [id]);
 
   useEffect(() => {
     if (transaction) {
@@ -49,6 +61,12 @@ export function TransactionDetail() {
     }
   }, [transaction]);
 
+  const loadAttachments = async () => {
+    if (!id) return;
+    const { data } = await getAttachments('transaction', id);
+    if (data) setAttachments(data);
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -61,14 +79,48 @@ export function TransactionDetail() {
     return accounts.find(a => a.id === accountId)?.name || 'Unknown';
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !id) return;
+
+    setUploading(true);
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const { success, data, error } = await uploadAttachment(file, 'transaction', id);
+      
+      if (success && data) {
+        setAttachments(prev => [...prev, data]);
+      } else {
+        alert(error || 'Gagal upload file');
+      }
+    }
+
+    setUploading(false);
+    e.target.value = ''; // Reset input
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string, url: string) => {
+    if (!confirm('Hapus lampiran ini?')) return;
+
+    const { success, error } = await deleteAttachment(attachmentId, url);
+    if (success) {
+      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+    } else {
+      alert(error || 'Gagal menghapus lampiran');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
 
     try {
       if (isNew) {
-        const { success, error } = await createTransaction(formData);
-        if (success) {
+        const { success, data, error } = await createTransaction(formData);
+        if (success && data) {
+          // If there are attachments uploaded before save, we need to re-associate them
+          // For now, just navigate to list
           navigate('/transactions');
         } else {
           alert(error || 'Gagal membuat transaksi');
@@ -87,7 +139,7 @@ export function TransactionDetail() {
   };
 
   const handleDelete = async () => {
-    if (!confirm('Yakin ingin menghapus transaksi ini?')) return;
+    if (!confirm('Yakin ingin menghapus transaksi ini? Semua lampiran juga akan dihapus.')) return;
     
     setDeleting(true);
     const { success, error } = await deleteTransaction(id!);
@@ -207,21 +259,89 @@ export function TransactionDetail() {
                 className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
             </div>
-
-            <div>
-              <Label className="dark:text-gray-300">Lampiran (Opsional)</Label>
-              <div className="mt-2 space-y-2">
-                <Button type="button" variant="outline" className="w-full gap-2 dark:bg-gray-700 dark:border-gray-600">
-                  <Upload size={16} />
-                  Upload Image / PDF
-                </Button>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Fitur upload akan diimplementasikan di fase berikutnya
-                </p>
-              </div>
-            </div>
           </CardContent>
         </Card>
+
+        {/* Attachments Section - Only show if not new or if transaction exists */}
+        {!isNew && (
+          <Card className="dark:bg-gray-800 dark:border-gray-700">
+            <CardHeader>
+              <CardTitle className="dark:text-white">Lampiran</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="dark:text-gray-300">Upload File (Maksimal 10MB)</Label>
+                <div className="mt-2 space-y-2">
+                  <Input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    multiple
+                    onChange={handleFileUpload}
+                    disabled={uploading}
+                    className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Tipe file: Gambar (JPEG, PNG, GIF, WebP) atau PDF. Maksimal 10MB per file.
+                  </p>
+                  
+                  {uploading && (
+                    <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Mengupload...
+                    </div>
+                  )}
+
+                  {attachments.length > 0 && (
+                    <div className="space-y-2 mt-3">
+                      {attachments.map((file) => (
+                        <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            {isImageFile(file.name) ? (
+                              <ImageIcon size={20} className="text-blue-600 flex-shrink-0" />
+                            ) : (
+                              <FileText size={20} className="text-red-600 flex-shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate dark:text-white">{file.name}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {formatFileSize(file.size)}
+                              </p>
+                            </div>
+                            <a
+                              href={file.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline flex-shrink-0"
+                            >
+                              Lihat
+                            </a>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 ml-2 flex-shrink-0"
+                            onClick={() => handleDeleteAttachment(file.id, file.url)}
+                          >
+                            <X size={16} />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {isNew && (
+          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <p className="text-sm text-yellow-800 dark:text-yellow-300">
+              💡 <strong>Tips:</strong> Simpan transaksi terlebih dahulu, lalu Anda bisa menambahkan lampiran.
+            </p>
+          </div>
+        )}
 
         {!isNew && transaction && (
           <Card className="bg-gray-50 dark:bg-gray-800 dark:border-gray-700">

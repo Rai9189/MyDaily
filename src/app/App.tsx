@@ -6,6 +6,7 @@ import { CategoryProvider } from './context/CategoryContext';
 import { TransactionProvider } from './context/TransactionContext';
 import { TaskProvider } from './context/TaskContext';
 import { NoteProvider } from './context/NoteContext';
+import { AttachmentProvider } from './context/AttachmentContext';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
@@ -96,7 +97,8 @@ export default function App() {
             <TransactionProvider>
               <TaskProvider>
                 <NoteProvider>
-                  <BrowserRouter>
+                  <AttachmentProvider>
+                    <BrowserRouter>
                     <Routes>
                       {/* Public Routes */}
                       <Route
@@ -260,7 +262,8 @@ export default function App() {
                         }
                       />
                     </Routes>
-                  </BrowserRouter>
+                                      </BrowserRouter>
+                  </AttachmentProvider>
                 </NoteProvider>
               </TaskProvider>
             </TransactionProvider>
