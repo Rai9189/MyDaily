@@ -1,9 +1,9 @@
 // src/app/pages/__tests__/Register.test.tsx
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '../../../test/utils';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { render } from '../../../test/utils';
 import { Register } from '../Register';
-import { BrowserRouter } from 'react-router-dom';
 
 const mockNavigate = vi.fn();
 const mockSignUp = vi.fn();
@@ -23,22 +23,15 @@ vi.mock('../../context/AuthContext', () => ({
   }),
 }));
 
-const renderRegister = () => {
-  return render(
-    <BrowserRouter>
-      <Register />
-    </BrowserRouter>
-  );
-};
-
 describe('Register Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSignUp.mockResolvedValue({ success: true, error: null });
   });
 
   describe('Rendering', () => {
     it('should render registration form with all fields', () => {
-      renderRegister();
+      render(<Register />);
 
       expect(screen.getByText('Daftar Akun')).toBeInTheDocument();
       expect(screen.getByLabelText(/nama lengkap/i)).toBeInTheDocument();
@@ -49,14 +42,14 @@ describe('Register Component', () => {
     });
 
     it('should render back button', () => {
-      renderRegister();
+      render(<Register />);
 
-      const backButton = screen.getByRole('button', { name: '' }); // ArrowLeft icon button
+      const backButton = screen.getAllByRole('button')[0]; // First button
       expect(backButton).toBeInTheDocument();
     });
 
     it('should render link to login page', () => {
-      renderRegister();
+      render(<Register />);
 
       expect(screen.getByText(/sudah punya akun/i)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /masuk/i })).toBeInTheDocument();
@@ -66,7 +59,7 @@ describe('Register Component', () => {
   describe('Form Validation', () => {
     it('should show error when password is less than 8 characters', async () => {
       const user = userEvent.setup();
-      renderRegister();
+      render(<Register />);
 
       await user.type(screen.getByLabelText(/nama lengkap/i), 'John Doe');
       await user.type(screen.getByLabelText(/email/i), 'john@example.com');
@@ -84,7 +77,7 @@ describe('Register Component', () => {
 
     it('should show error when passwords do not match', async () => {
       const user = userEvent.setup();
-      renderRegister();
+      render(<Register />);
 
       await user.type(screen.getByLabelText(/nama lengkap/i), 'John Doe');
       await user.type(screen.getByLabelText(/email/i), 'john@example.com');
@@ -102,7 +95,7 @@ describe('Register Component', () => {
 
     it('should require all fields to be filled', async () => {
       const user = userEvent.setup();
-      renderRegister();
+      render(<Register />);
 
       const submitButton = screen.getByRole('button', { name: /daftar/i });
       await user.click(submitButton);
@@ -115,44 +108,40 @@ describe('Register Component', () => {
   describe('Password Visibility Toggle', () => {
     it('should toggle password visibility', async () => {
       const user = userEvent.setup();
-      renderRegister();
+      render(<Register />);
 
       const passwordInput = screen.getByLabelText(/^password$/i) as HTMLInputElement;
       expect(passwordInput.type).toBe('password');
 
-      // Find and click the first eye icon (password field)
-      const eyeButtons = screen.getAllByRole('button', { name: '' });
-      const passwordToggle = eyeButtons.find(btn => 
-        btn.querySelector('svg') && btn.closest('div')?.querySelector('#password')
-      );
+      // Find toggle button in password field container
+      const passwordContainer = passwordInput.closest('div');
+      const toggleButtons = passwordContainer?.querySelectorAll('button[type="button"]');
       
-      if (passwordToggle) {
-        await user.click(passwordToggle);
+      if (toggleButtons && toggleButtons.length > 0) {
+        await user.click(toggleButtons[0]);
         expect(passwordInput.type).toBe('text');
 
-        await user.click(passwordToggle);
+        await user.click(toggleButtons[0]);
         expect(passwordInput.type).toBe('password');
       }
     });
 
     it('should toggle confirm password visibility', async () => {
       const user = userEvent.setup();
-      renderRegister();
+      render(<Register />);
 
       const confirmPasswordInput = screen.getByLabelText(/konfirmasi password/i) as HTMLInputElement;
       expect(confirmPasswordInput.type).toBe('password');
 
-      // Find and click the second eye icon (confirm password field)
-      const eyeButtons = screen.getAllByRole('button', { name: '' });
-      const confirmToggle = eyeButtons.find(btn => 
-        btn.querySelector('svg') && btn.closest('div')?.querySelector('#confirmPassword')
-      );
+      // Find toggle button in confirm password field container
+      const confirmContainer = confirmPasswordInput.closest('div');
+      const toggleButtons = confirmContainer?.querySelectorAll('button[type="button"]');
       
-      if (confirmToggle) {
-        await user.click(confirmToggle);
+      if (toggleButtons && toggleButtons.length > 0) {
+        await user.click(toggleButtons[0]);
         expect(confirmPasswordInput.type).toBe('text');
 
-        await user.click(confirmToggle);
+        await user.click(toggleButtons[0]);
         expect(confirmPasswordInput.type).toBe('password');
       }
     });
@@ -163,7 +152,7 @@ describe('Register Component', () => {
       const user = userEvent.setup();
       mockSignUp.mockResolvedValue({ success: true, error: null });
       
-      renderRegister();
+      render(<Register />);
 
       await user.type(screen.getByLabelText(/nama lengkap/i), 'John Doe');
       await user.type(screen.getByLabelText(/email/i), 'john@example.com');
@@ -186,7 +175,7 @@ describe('Register Component', () => {
       const errorMessage = 'Email already exists';
       mockSignUp.mockResolvedValue({ success: false, error: errorMessage });
       
-      renderRegister();
+      render(<Register />);
 
       await user.type(screen.getByLabelText(/nama lengkap/i), 'John Doe');
       await user.type(screen.getByLabelText(/email/i), 'existing@example.com');
@@ -210,7 +199,7 @@ describe('Register Component', () => {
       });
       mockSignUp.mockReturnValue(signUpPromise);
       
-      renderRegister();
+      render(<Register />);
 
       await user.type(screen.getByLabelText(/nama lengkap/i), 'John Doe');
       await user.type(screen.getByLabelText(/email/i), 'john@example.com');
@@ -236,7 +225,7 @@ describe('Register Component', () => {
   describe('Navigation', () => {
     it('should navigate to login when clicking login link', async () => {
       const user = userEvent.setup();
-      renderRegister();
+      render(<Register />);
 
       const loginButton = screen.getByRole('button', { name: /masuk/i });
       await user.click(loginButton);
@@ -246,7 +235,7 @@ describe('Register Component', () => {
 
     it('should navigate to login when clicking back button', async () => {
       const user = userEvent.setup();
-      renderRegister();
+      render(<Register />);
 
       const backButton = screen.getAllByRole('button')[0]; // First button is back
       await user.click(backButton);
@@ -257,7 +246,7 @@ describe('Register Component', () => {
 
   describe('Accessibility', () => {
     it('should have proper labels for all form inputs', () => {
-      renderRegister();
+      render(<Register />);
 
       expect(screen.getByLabelText(/nama lengkap/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
@@ -273,7 +262,7 @@ describe('Register Component', () => {
       });
       mockSignUp.mockReturnValue(signUpPromise);
       
-      renderRegister();
+      render(<Register />);
 
       await user.type(screen.getByLabelText(/nama lengkap/i), 'John Doe');
       await user.type(screen.getByLabelText(/email/i), 'john@example.com');
