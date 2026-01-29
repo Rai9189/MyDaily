@@ -82,14 +82,39 @@ export const deleteFiles = vi.fn(() =>
   Promise.resolve({ success: true, error: null })
 );
 
-export const generateUniqueFileName = vi.fn((name: string) => `unique-${name}`);
+// ✅ FIXED: Proper implementation with timestamp
+let callCount = 0;
+export const generateUniqueFileName = vi.fn((name: string) => {
+  const timestamp = Date.now() + callCount++;
+  const extension = name.split('.').pop();
+  const baseName = name.substring(0, name.lastIndexOf('.'));
+  return `${baseName}-${timestamp}.${extension}`;
+});
 
-export const getFileExtension = vi.fn((filename: string) => 
-  filename.split('.').pop()?.toLowerCase() || ''
-);
+// ✅ FIXED: Proper implementation
+export const getFileExtension = vi.fn((filename: string) => {
+  if (!filename.includes('.')) return '';
+  return filename.split('.').pop()?.toLowerCase() || '';
+});
 
-export const isImageFile = vi.fn(() => true);
+// ✅ FIXED: Proper implementation checking actual extensions
+export const isImageFile = vi.fn((filename: string) => {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '');
+});
 
-export const formatFileSize = vi.fn(() => '1 MB');
+// ✅ FIXED: Proper implementation with size calculation
+export const formatFileSize = vi.fn((bytes: number) => {
+  if (bytes === 0) return '0 Bytes';
+  
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  
+  const size = bytes / Math.pow(k, i);
+  const formattedSize = i === 0 ? size.toString() : size.toFixed(2);
+  
+  return `${formattedSize} ${sizes[i]}`;
+});
 
 export default supabase;

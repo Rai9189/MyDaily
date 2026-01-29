@@ -4,9 +4,78 @@ import { render, RenderOptions } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { vi } from 'vitest';
 
-// Mock semua context providers di LEVEL FILE INI
-// Jangan import provider asli!
+// Mock data - WITH ACTUAL VALUES (defined first to be used in mocks)
+export const mockUser = {
+  id: 'test-user-id',
+  name: 'Test User',
+  email: 'test@example.com',
+  pin_type: 'numeric' as const,
+};
 
+export const mockAccount = {
+  id: 'test-account-id',
+  name: 'Test Account',
+  type: 'Bank' as const,
+  balance: 15500000,
+  user_id: 'test-user-id',
+  created_at: new Date().toISOString(),
+};
+
+export const mockAccounts = [mockAccount];
+
+export const mockCategory = {
+  id: 'test-category-id',
+  name: 'Test Category',
+  type: 'transaction' as const,
+  color: '#3b82f6',
+  user_id: 'test-user-id',
+  created_at: new Date().toISOString(),
+};
+
+export const mockCategories = [mockCategory];
+
+export const mockTransaction = {
+  id: 'test-transaction-id',
+  accountId: 'test-account-id',
+  categoryId: 'test-category-id',
+  amount: 50000,
+  type: 'Keluar' as const,
+  date: new Date().toISOString().split('T')[0],
+  description: 'Test transaction',
+  user_id: 'test-user-id',
+  created_at: new Date().toISOString(),
+};
+
+export const mockTransactions = [mockTransaction];
+
+export const mockTask = {
+  id: 'test-task-id',
+  title: 'Test Task',
+  deadline: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+  status: 'Masih Lama' as const,
+  completed: false,
+  categoryId: 'test-category-id',
+  description: 'Test task description',
+  user_id: 'test-user-id',
+  created_at: new Date().toISOString(),
+};
+
+export const mockTasks = [mockTask];
+
+export const mockNote = {
+  id: 'test-note-id',
+  title: 'Test Note',
+  content: 'Test note content',
+  timestamp: new Date().toISOString(),
+  pinned: false,
+  categoryId: 'test-category-id',
+  user_id: 'test-user-id',
+  created_at: new Date().toISOString(),
+};
+
+export const mockNotes = [mockNote];
+
+// Mock semua context providers KECUALI AuthContext
 vi.mock('../app/context/ThemeContext', () => ({
   ThemeProvider: ({ children }: { children: ReactNode }) => children,
   useTheme: () => ({
@@ -15,28 +84,15 @@ vi.mock('../app/context/ThemeContext', () => ({
   }),
 }));
 
-vi.mock('../app/context/AuthContext', () => ({
-  AuthProvider: ({ children }: { children: ReactNode }) => children,
-  useAuth: () => ({
-    user: { id: 'test-user-id', email: 'test@example.com', name: 'Test User' },
-    session: { access_token: 'test-token' },
-    loading: false,
-    error: null,
-    signUp: vi.fn(() => Promise.resolve({ success: true, error: null })),
-    signIn: vi.fn(() => Promise.resolve({ success: true, error: null })),
-    signOut: vi.fn(() => Promise.resolve()),
-    resetPassword: vi.fn(() => Promise.resolve({ success: true, error: null })),
-    updateProfile: vi.fn(() => Promise.resolve({ success: true, error: null })),
-  }),
-}));
+// ❌ DIHAPUS: Mock AuthContext - biarkan setiap test file mock sendiri
 
 vi.mock('../app/context/CategoryContext', () => ({
   CategoryProvider: ({ children }: { children: ReactNode }) => children,
   useCategories: () => ({
-    categories: [],
+    categories: mockCategories,
     loading: false,
     error: null,
-    getCategoriesByType: vi.fn(() => []),
+    getCategoriesByType: vi.fn(() => mockCategories),
     createCategory: vi.fn(() => Promise.resolve({ success: true, error: null })),
     updateCategory: vi.fn(() => Promise.resolve({ success: true, error: null })),
     deleteCategory: vi.fn(() => Promise.resolve({ success: true, error: null })),
@@ -47,7 +103,7 @@ vi.mock('../app/context/CategoryContext', () => ({
 vi.mock('../app/context/AccountContext', () => ({
   AccountProvider: ({ children }: { children: ReactNode }) => children,
   useAccounts: () => ({
-    accounts: [],
+    accounts: mockAccounts,
     loading: false,
     error: null,
     createAccount: vi.fn(() => Promise.resolve({ success: true, error: null })),
@@ -60,7 +116,7 @@ vi.mock('../app/context/AccountContext', () => ({
 vi.mock('../app/context/TransactionContext', () => ({
   TransactionProvider: ({ children }: { children: ReactNode }) => children,
   useTransactions: () => ({
-    transactions: [],
+    transactions: mockTransactions,
     loading: false,
     error: null,
     createTransaction: vi.fn(() => Promise.resolve({ success: true, data: {}, error: null })),
@@ -74,7 +130,7 @@ vi.mock('../app/context/TransactionContext', () => ({
 vi.mock('../app/context/TaskContext', () => ({
   TaskProvider: ({ children }: { children: ReactNode }) => children,
   useTasks: () => ({
-    tasks: [],
+    tasks: mockTasks,
     loading: false,
     error: null,
     createTask: vi.fn(() => Promise.resolve({ success: true, data: {}, error: null })),
@@ -89,7 +145,7 @@ vi.mock('../app/context/TaskContext', () => ({
 vi.mock('../app/context/NoteContext', () => ({
   NoteProvider: ({ children }: { children: ReactNode }) => children,
   useNotes: () => ({
-    notes: [],
+    notes: mockNotes,
     loading: false,
     error: null,
     createNote: vi.fn(() => Promise.resolve({ success: true, data: {}, error: null })),
@@ -111,7 +167,7 @@ vi.mock('../app/context/AttachmentContext', () => ({
   }),
 }));
 
-// Simple wrapper - gunakan MemoryRouter untuk menghindari double router
+// Simple wrapper
 const AllTheProviders = ({ children }: { children: ReactNode }) => {
   return <MemoryRouter>{children}</MemoryRouter>;
 };
@@ -125,64 +181,3 @@ const customRender = (
 // Re-export everything
 export * from '@testing-library/react';
 export { customRender as render };
-
-// Mock data
-export const mockUser = {
-  id: 'test-user-id',
-  name: 'Test User',
-  email: 'test@example.com',
-  pin_type: 'numeric' as const,
-};
-
-export const mockAccount = {
-  id: 'test-account-id',
-  name: 'Test Account',
-  type: 'Bank' as const,
-  balance: 15500000,
-  user_id: 'test-user-id',
-  created_at: new Date().toISOString(),
-};
-
-export const mockCategory = {
-  id: 'test-category-id',
-  name: 'Test Category',
-  type: 'transaction' as const,
-  color: '#3b82f6',
-  user_id: 'test-user-id',
-  created_at: new Date().toISOString(),
-};
-
-export const mockTransaction = {
-  id: 'test-transaction-id',
-  accountId: 'test-account-id',
-  categoryId: 'test-category-id',
-  amount: 50000,
-  type: 'Keluar' as const,
-  date: new Date().toISOString().split('T')[0],
-  description: 'Test transaction',
-  user_id: 'test-user-id',
-  created_at: new Date().toISOString(),
-};
-
-export const mockTask = {
-  id: 'test-task-id',
-  title: 'Test Task',
-  deadline: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-  status: 'Masih Lama' as const,
-  completed: false,
-  categoryId: 'test-category-id',
-  description: 'Test task description',
-  user_id: 'test-user-id',
-  created_at: new Date().toISOString(),
-};
-
-export const mockNote = {
-  id: 'test-note-id',
-  title: 'Test Note',
-  content: 'Test note content',
-  timestamp: new Date().toISOString(),
-  pinned: false,
-  categoryId: 'test-category-id',
-  user_id: 'test-user-id',
-  created_at: new Date().toISOString(),
-};

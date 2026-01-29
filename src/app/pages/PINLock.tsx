@@ -193,10 +193,12 @@ export function PINLock() {
             )}
 
             <div>
-              <Label className="text-sm text-gray-500 dark:text-gray-400">
+              {/* ✅ FIXED: Tambahkan htmlFor pada Label dan id pada Input */}
+              <Label htmlFor="pin-input" className="text-sm text-gray-500 dark:text-gray-400">
                 {getPinLabel()}
               </Label>
               <Input
+                id="pin-input"
                 type={pinType === 'password' ? 'password' : 'number'}
                 placeholder={getPinPlaceholder()}
                 value={pin}

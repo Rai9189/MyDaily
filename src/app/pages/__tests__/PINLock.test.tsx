@@ -37,10 +37,13 @@ describe('PINLock Component', () => {
     // Set up default PIN
     localStorage.setItem('pin', btoa('1234'));
     localStorage.setItem('pinType', 'pin4');
+    
+    // ❌ REMOVED: vi.useFakeTimers()
   });
 
   afterEach(() => {
     localStorage.clear();
+    // ❌ REMOVED: vi.useRealTimers()
   });
 
   describe('Rendering', () => {
@@ -63,7 +66,7 @@ describe('PINLock Component', () => {
       render(<PINLock />);
 
       expect(screen.getByText(/login sebagai:/i)).toBeInTheDocument();
-      expect(screen.getByText(mockUser.email)).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(mockUser.email, 'i'))).toBeInTheDocument();
     });
   });
 
@@ -76,28 +79,32 @@ describe('PINLock Component', () => {
       expect(screen.getByPlaceholderText('1234')).toBeInTheDocument();
     });
 
-    it('should show PIN 6 label for pin6 type', () => {
+    it('should show PIN 6 label for pin6 type', async () => {
       localStorage.setItem('pinType', 'pin6');
       localStorage.setItem('pin', btoa('123456'));
       render(<PINLock />);
 
-      expect(screen.getByLabelText(/pin 6 angka/i)).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('123456')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByLabelText(/pin 6 angka/i)).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('123456')).toBeInTheDocument();
+      });
     });
 
-    it('should show Password label for password type', () => {
+    it('should show Password label for password type', async () => {
       localStorage.setItem('pinType', 'password');
       localStorage.setItem('pin', btoa('mypassword'));
       render(<PINLock />);
 
-      expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
-      expect(screen.getByPlaceholderText(/masukkan password/i)).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
+        expect(screen.getByPlaceholderText(/masukkan password/i)).toBeInTheDocument();
+      });
     });
   });
 
   describe('PIN Verification', () => {
     it('should unlock and navigate to dashboard with correct PIN', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup(); // ✅ FIXED: Removed { delay: null }
       render(<PINLock />);
 
       const pinInput = screen.getByLabelText(/pin 4 angka/i);
@@ -106,14 +113,16 @@ describe('PINLock Component', () => {
       const unlockButton = screen.getByRole('button', { name: /buka/i });
       await user.click(unlockButton);
 
+      // ❌ REMOVED: vi.advanceTimersByTime(500)
+
       await waitFor(() => {
         expect(localStorage.getItem('pinUnlocked')).toBe('true');
         expect(mockNavigate).toHaveBeenCalledWith('/');
-      });
+      }, { timeout: 2000 }); // ✅ ADDED: Longer timeout for real setTimeout
     });
 
     it('should show error with incorrect PIN', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup(); // ✅ FIXED: Removed { delay: null }
       render(<PINLock />);
 
       const pinInput = screen.getByLabelText(/pin 4 angka/i);
@@ -122,15 +131,17 @@ describe('PINLock Component', () => {
       const unlockButton = screen.getByRole('button', { name: /buka/i });
       await user.click(unlockButton);
 
+      // ❌ REMOVED: vi.advanceTimersByTime(500)
+
       await waitFor(() => {
         expect(screen.getByText(/pin\/password salah/i)).toBeInTheDocument();
-      });
+      }, { timeout: 2000 }); // ✅ ADDED: Longer timeout
 
       expect(mockNavigate).not.toHaveBeenCalled();
     });
 
     it('should clear PIN input after incorrect attempt', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup(); // ✅ FIXED: Removed { delay: null }
       render(<PINLock />);
 
       const pinInput = screen.getByLabelText(/pin 4 angka/i) as HTMLInputElement;
@@ -139,11 +150,11 @@ describe('PINLock Component', () => {
       const unlockButton = screen.getByRole('button', { name: /buka/i });
       await user.click(unlockButton);
 
+      // ❌ REMOVED: vi.advanceTimersByTime(500)
+
       await waitFor(() => {
         expect(pinInput.value).toBe('');
-      });
+      }, { timeout: 2000 }); // ✅ ADDED: Longer timeout
     });
   });
-
-  // ... sisanya sama, hanya hapus <BrowserRouter> wrapper
 });

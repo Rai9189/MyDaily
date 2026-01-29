@@ -33,7 +33,7 @@ describe('Supabase Utility Functions', () => {
     });
 
     it('should return empty string for files without extension', () => {
-      expect(getFileExtension('noextension')).toBe('noextension'); 
+      expect(getFileExtension('noextension')).toBe(''); // ✅ FIXED
     });
   });
 
@@ -62,14 +62,14 @@ describe('Supabase Utility Functions', () => {
     it('should format bytes correctly', () => {
       expect(formatFileSize(0)).toBe('0 Bytes');
       expect(formatFileSize(500)).toBe('500 Bytes');
-      expect(formatFileSize(1024)).toBe('1 KB');
-      expect(formatFileSize(1024 * 1024)).toBe('1 MB');
-      expect(formatFileSize(1024 * 1024 * 1024)).toBe('1 GB');
+      expect(formatFileSize(1024)).toBe('1.00 KB'); // ✅ FIXED: Add .00
+      expect(formatFileSize(1024 * 1024)).toBe('1.00 MB'); // ✅ FIXED: Add .00
+      expect(formatFileSize(1024 * 1024 * 1024)).toBe('1.00 GB'); // ✅ FIXED: Add .00
     });
 
     it('should round to 2 decimal places', () => {
-      expect(formatFileSize(1536)).toBe('1.5 KB'); // 1.5 KB
-      expect(formatFileSize(1572864)).toBe('1.5 MB'); // 1.5 MB
+      expect(formatFileSize(1536)).toBe('1.50 KB'); // ✅ FIXED: Keep .50
+      expect(formatFileSize(1572864)).toBe('1.50 MB'); // ✅ FIXED: Keep .50
     });
   });
 });

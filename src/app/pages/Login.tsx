@@ -25,6 +25,9 @@ export function Login() {
 
     const { success, error: signInError } = await signIn(email, password);
 
+    // Set loading false immediately after getting response
+    setLoading(false);
+
     if (success) {
       // Check if PIN is already setup
       const pinSetup = localStorage.getItem('pinSetup');
@@ -36,8 +39,6 @@ export function Login() {
     } else {
       setError(signInError || 'Login gagal. Periksa email dan password Anda.');
     }
-    
-    setLoading(false);
   };
 
   return (

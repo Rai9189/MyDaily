@@ -6,12 +6,18 @@ import { AuthProvider } from '../AuthContext';
 import { supabase } from '../../../lib/supabase';
 import { mockUser, mockNote, mockCategory } from '../../../test/utils';
 
-// Mock Supabase
-vi.mock('../../../lib/supabase', () => ({
-  supabase: {
-    from: vi.fn(),
-  },
-  handleSupabaseError: vi.fn((err) => err.message || 'Unknown error'),
+// ✅ FIXED: Mock useAuth to provide authenticated user
+vi.mock('../AuthContext', () => ({
+  AuthProvider: ({ children }: { children: React.ReactNode }) => children,
+  useAuth: () => ({
+    user: {
+      id: 'test-user-id',
+      email: 'test@example.com',
+      name: 'Test User',
+    },
+    loading: false,
+    error: null,
+  }),
 }));
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (

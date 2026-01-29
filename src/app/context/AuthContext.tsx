@@ -72,11 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Sign Up
+  // Sign Up - Loading state managed by component
   const signUp = async (email: string, password: string, name: string) => {
     try {
       setError(null);
-      setLoading(true);
 
       // Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -104,16 +103,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const errorMessage = handleSupabaseError(err);
       setError(errorMessage);
       return { success: false, error: errorMessage };
-    } finally {
-      setLoading(false);
     }
   };
 
-  // Sign In
+  // Sign In - Loading state managed by component
   const signIn = async (email: string, password: string) => {
     try {
       setError(null);
-      setLoading(true);
 
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -127,8 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const errorMessage = handleSupabaseError(err);
       setError(errorMessage);
       return { success: false, error: errorMessage };
-    } finally {
-      setLoading(false);
     }
   };
 
