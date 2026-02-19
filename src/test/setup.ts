@@ -1,5 +1,5 @@
 // src/test/setup.ts
-import { expect, afterEach, vi, beforeAll } from 'vitest';
+import { expect, afterEach, vi, beforeAll, beforeEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
 
@@ -9,11 +9,35 @@ expect.extend(matchers);
 // Mock Supabase BEFORE any imports
 vi.mock('../lib/supabase');
 
-// Cleanup after each test
-afterEach(() => {
-  cleanup();
-  vi.clearAllMocks();
-});
+// ✅ IMPROVED: Better localStorage mock that properly returns null
+class LocalStorageMock {
+  private store: Record<string, string> = {};
+
+  clear() {
+    this.store = {};
+  }
+
+  getItem(key: string): string | null {
+    return this.store[key] || null; // ✅ Returns null instead of undefined
+  }
+
+  setItem(key: string, value: string) {
+    this.store[key] = String(value);
+  }
+
+  removeItem(key: string) {
+    delete this.store[key];
+  }
+
+  get length() {
+    return Object.keys(this.store).length;
+  }
+
+  key(index: number): string | null {
+    const keys = Object.keys(this.store);
+    return keys[index] || null;
+  }
+}
 
 // Setup before all tests
 beforeAll(() => {
@@ -32,14 +56,8 @@ beforeAll(() => {
     })),
   });
 
-  // Mock localStorage
-  const localStorageMock = {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
-  };
-  global.localStorage = localStorageMock as any;
+  // ✅ FIXED: Use proper localStorage mock
+  global.localStorage = new LocalStorageMock() as Storage;
 
   // Mock IntersectionObserver
   global.IntersectionObserver = class IntersectionObserver {
@@ -59,4 +77,16 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
   } as any;
+});
+
+// ✅ ADDED: Clear localStorage before each test
+beforeEach(() => {
+  localStorage.clear();
+});
+
+// Cleanup after each test
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+  localStorage.clear(); // ✅ Also clear after each test
 });

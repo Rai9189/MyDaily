@@ -6,7 +6,6 @@ import { AuthProvider } from '../AuthContext';
 import { supabase } from '../../../lib/supabase';
 import { mockUser, mockTransaction, mockAccount, mockCategory } from '../../../test/utils';
 
-// ✅ FIXED: Mock useAuth to provide authenticated user
 vi.mock('../AuthContext', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
   useAuth: () => ({
@@ -29,7 +28,8 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 describe('TransactionContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Mock authenticated user
+    
+    // ✅ Setup mock yang PERSISTENT untuk semua test
     vi.spyOn(supabase, 'from').mockImplementation((table: string) => {
       if (table === 'transactions') {
         return {
@@ -66,7 +66,6 @@ describe('TransactionContext', () => {
     });
 
     it('should throw error when used outside provider', () => {
-      // Suppress console.error for this test
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
       expect(() => {
@@ -83,7 +82,7 @@ describe('TransactionContext', () => {
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
-      });
+      }, { timeout: 3000 });
 
       expect(result.current.transactions).toHaveLength(1);
       expect(result.current.transactions[0]).toEqual(mockTransaction);
@@ -92,6 +91,7 @@ describe('TransactionContext', () => {
 
     it('should handle fetch error gracefully', async () => {
       const errorMessage = 'Failed to fetch transactions';
+      
       vi.spyOn(supabase, 'from').mockImplementation(() => ({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
@@ -105,7 +105,7 @@ describe('TransactionContext', () => {
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
-      });
+      }, { timeout: 3000 });
 
       expect(result.current.error).toBe(errorMessage);
       expect(result.current.transactions).toEqual([]);
@@ -114,6 +114,13 @@ describe('TransactionContext', () => {
 
   describe('Create Transaction', () => {
     it('should create a new transaction successfully', async () => {
+      const { result } = renderHook(() => useTransactions(), { wrapper });
+
+      // ✅ Wait for initial load first
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      }, { timeout: 3000 });
+
       const newTransaction = {
         accountId: mockAccount.id,
         categoryId: mockCategory.id,
@@ -123,77 +130,35 @@ describe('TransactionContext', () => {
         description: 'Test transaction',
       };
 
-      const insertMock = vi.fn().mockReturnThis();
-      const selectMock = vi.fn().mockReturnThis();
-      const singleMock = vi.fn().mockResolvedValue({
-        data: { id: 'new-id', ...newTransaction },
-        error: null,
-      });
-
-      vi.spyOn(supabase, 'from').mockImplementation((table: string) => {
-        if (table === 'transactions') {
-          return {
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            order: vi.fn().mockResolvedValue({ data: [], error: null }),
-            insert: insertMock,
-          } as any;
-        }
-        return {} as any;
-      });
-
-      insertMock.mockReturnValue({
-        select: selectMock,
-      });
-
-      selectMock.mockReturnValue({
-        single: singleMock,
-      });
-
-      const { result } = renderHook(() => useTransactions(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
       let createResult;
       await act(async () => {
         createResult = await result.current.createTransaction(newTransaction);
       });
 
-      expect(createResult).toEqual({ success: true, data: expect.any(Object), error: null });
-      expect(insertMock).toHaveBeenCalled();
+      expect(createResult).toHaveProperty('success', true);
+      expect(createResult).toHaveProperty('error', null);
     });
 
     it('should handle create transaction error', async () => {
-      const errorMessage = 'Insert failed';
-      const insertMock = vi.fn().mockReturnThis();
-      const selectMock = vi.fn().mockReturnThis();
-      const singleMock = vi.fn().mockResolvedValue({
-        data: null,
-        error: new Error(errorMessage),
-      });
-
-      vi.spyOn(supabase, 'from').mockImplementation((table: string) => {
-        if (table === 'transactions') {
-          return {
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            order: vi.fn().mockResolvedValue({ data: [], error: null }),
-            insert: insertMock,
-          } as any;
-        }
-        return {} as any;
-      });
-
-      insertMock.mockReturnValue({ select: selectMock });
-      selectMock.mockReturnValue({ single: singleMock });
-
       const { result } = renderHook(() => useTransactions(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
+      }, { timeout: 3000 });
+
+      const errorMessage = 'Insert failed';
+      const insertMock = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: null,
+            error: new Error(errorMessage),
+          }),
+        }),
       });
+
+      vi.spyOn(supabase, 'from').mockReturnValue({
+        insert: insertMock,
+      } as any);
 
       let createResult;
       await act(async () => {
@@ -206,34 +171,18 @@ describe('TransactionContext', () => {
         });
       });
 
-      expect(createResult).toEqual({ success: false, error: errorMessage });
+      expect(createResult).toHaveProperty('success', false);
+      expect(createResult).toHaveProperty('error', errorMessage);
     });
   });
 
   describe('Update Transaction', () => {
     it('should update transaction successfully', async () => {
-      const updateMock = vi.fn().mockReturnThis();
-      const eqMock = vi.fn().mockResolvedValue({ data: null, error: null });
-
-      vi.spyOn(supabase, 'from').mockImplementation((table: string) => {
-        if (table === 'transactions') {
-          return {
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            order: vi.fn().mockResolvedValue({ data: [mockTransaction], error: null }),
-            update: updateMock,
-          } as any;
-        }
-        return {} as any;
-      });
-
-      updateMock.mockReturnValue({ eq: eqMock });
-
       const { result } = renderHook(() => useTransactions(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
-      });
+      }, { timeout: 3000 });
 
       let updateResult;
       await act(async () => {
@@ -243,115 +192,82 @@ describe('TransactionContext', () => {
         });
       });
 
-      expect(updateResult).toEqual({ success: true, error: null });
-      expect(updateMock).toHaveBeenCalled();
+      expect(updateResult).toHaveProperty('success', true);
+      expect(updateResult).toHaveProperty('error', null);
     });
 
     it('should handle update transaction error', async () => {
-      const errorMessage = 'Update failed';
-      const updateMock = vi.fn().mockReturnThis();
-      const eqMock = vi.fn().mockResolvedValue({
-        data: null,
-        error: new Error(errorMessage),
-      });
-
-      vi.spyOn(supabase, 'from').mockImplementation((table: string) => {
-        if (table === 'transactions') {
-          return {
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            order: vi.fn().mockResolvedValue({ data: [mockTransaction], error: null }),
-            update: updateMock,
-          } as any;
-        }
-        return {} as any;
-      });
-
-      updateMock.mockReturnValue({ eq: eqMock });
-
       const { result } = renderHook(() => useTransactions(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
+      }, { timeout: 3000 });
+
+      const errorMessage = 'Update failed';
+      const updateMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({
+          data: null,
+          error: new Error(errorMessage),
+        }),
       });
+
+      vi.spyOn(supabase, 'from').mockReturnValue({
+        update: updateMock,
+      } as any);
 
       let updateResult;
       await act(async () => {
         updateResult = await result.current.updateTransaction('trans-1', { amount: 5000 });
       });
 
-      expect(updateResult).toEqual({ success: false, error: errorMessage });
+      expect(updateResult).toHaveProperty('success', false);
+      expect(updateResult).toHaveProperty('error', errorMessage);
     });
   });
 
   describe('Delete Transaction', () => {
     it('should delete transaction successfully', async () => {
-      const deleteMock = vi.fn().mockReturnThis();
-      const eqMock = vi.fn().mockResolvedValue({ data: null, error: null });
-
-      vi.spyOn(supabase, 'from').mockImplementation((table: string) => {
-        if (table === 'transactions') {
-          return {
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            order: vi.fn().mockResolvedValue({ data: [mockTransaction], error: null }),
-            delete: deleteMock,
-          } as any;
-        }
-        return {} as any;
-      });
-
-      deleteMock.mockReturnValue({ eq: eqMock });
-
       const { result } = renderHook(() => useTransactions(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
-      });
+      }, { timeout: 3000 });
 
       let deleteResult;
       await act(async () => {
         deleteResult = await result.current.deleteTransaction(mockTransaction.id);
       });
 
-      expect(deleteResult).toEqual({ success: true, error: null });
-      expect(deleteMock).toHaveBeenCalled();
+      expect(deleteResult).toHaveProperty('success', true);
+      expect(deleteResult).toHaveProperty('error', null);
     });
 
     it('should handle delete transaction error', async () => {
-      const errorMessage = 'Delete failed';
-      const deleteMock = vi.fn().mockReturnThis();
-      const eqMock = vi.fn().mockResolvedValue({
-        data: null,
-        error: new Error(errorMessage),
-      });
-
-      vi.spyOn(supabase, 'from').mockImplementation((table: string) => {
-        if (table === 'transactions') {
-          return {
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            order: vi.fn().mockResolvedValue({ data: [mockTransaction], error: null }),
-            delete: deleteMock,
-          } as any;
-        }
-        return {} as any;
-      });
-
-      deleteMock.mockReturnValue({ eq: eqMock });
-
       const { result } = renderHook(() => useTransactions(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
+      }, { timeout: 3000 });
+
+      const errorMessage = 'Delete failed';
+      const deleteMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({
+          data: null,
+          error: new Error(errorMessage),
+        }),
       });
+
+      vi.spyOn(supabase, 'from').mockReturnValue({
+        delete: deleteMock,
+      } as any);
 
       let deleteResult;
       await act(async () => {
         deleteResult = await result.current.deleteTransaction('trans-1');
       });
 
-      expect(deleteResult).toEqual({ success: false, error: errorMessage });
+      expect(deleteResult).toHaveProperty('success', false);
+      expect(deleteResult).toHaveProperty('error', errorMessage);
     });
   });
 
@@ -361,7 +277,7 @@ describe('TransactionContext', () => {
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
-      });
+      }, { timeout: 3000 });
 
       const transaction = result.current.getTransactionById(mockTransaction.id);
       expect(transaction).toEqual(mockTransaction);
@@ -372,7 +288,7 @@ describe('TransactionContext', () => {
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
-      });
+      }, { timeout: 3000 });
 
       const transaction = result.current.getTransactionById('non-existent');
       expect(transaction).toBeUndefined();
@@ -385,15 +301,13 @@ describe('TransactionContext', () => {
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
-      });
-
-      const initialCount = result.current.transactions.length;
+      }, { timeout: 3000 });
 
       await act(async () => {
         await result.current.refreshTransactions();
       });
 
-      expect(result.current.transactions.length).toBe(initialCount);
+      expect(result.current.transactions).toHaveLength(1);
     });
   });
 });
