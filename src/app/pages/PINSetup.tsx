@@ -1,7 +1,7 @@
-import { useState } from 'react';
+// src/app/pages/PINSetup.tsx
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Logo } from '../components/Logo';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -12,23 +12,32 @@ import { Shield, Loader2 } from 'lucide-react';
 export function PINSetup() {
   const navigate = useNavigate();
   const { user, loading: authLoading, updateProfile } = useAuth();
-  
+
   const [pinType, setPinType] = useState<'pin4' | 'pin6' | 'password'>('pin4');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Jika PIN sudah pernah dibuat, langsung redirect ke pin-lock.
+  // User tidak perlu membuat PIN baru setelah logout.
+  useEffect(() => {
+    const pinAlreadySetup = localStorage.getItem('pinSetup');
+    if (pinAlreadySetup) {
+      navigate('/pin-lock', { replace: true });
+    }
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    
+
     // Validation
     if (pinType === 'pin4' && pin.length !== 4) {
       setError('PIN harus 4 digit!');
       return;
     }
-    
+
     if (pinType === 'pin6' && pin.length !== 6) {
       setError('PIN harus 6 digit!');
       return;
@@ -38,7 +47,7 @@ export function PINSetup() {
       setError('Password minimal 6 karakter!');
       return;
     }
-    
+
     if (pin !== confirmPin) {
       setError('PIN/Password tidak cocok!');
       return;
@@ -48,25 +57,30 @@ export function PINSetup() {
 
     try {
       // Simple hash function (untuk keamanan dasar)
-      // Di production, gunakan library seperti bcrypt.js
       const hashPin = btoa(pin); // Base64 encoding
-      
-      // Save PIN to localStorage
+
+      // Simpan PIN ke localStorage terlebih dahulu
+      // Ini harus selalu berhasil terlepas dari kondisi user/network
       localStorage.setItem('pin', hashPin);
       localStorage.setItem('pinType', pinType);
       localStorage.setItem('pinSetup', 'true');
-      
-      // Update user profile with PIN type info
-      if (user) {
-        await updateProfile({ 
-          pin_type: pinType === 'password' ? 'password' : 'numeric' 
-        });
-      }
-      
-      // Mark as unlocked since user just set it up
       localStorage.setItem('pinUnlocked', 'true');
-      
-      // Navigate to dashboard
+
+      // Update profil user di database jika user sudah ter-load
+      // Jika gagal (misal user null atau network error), tidak masalah —
+      // PIN sudah tersimpan di localStorage dan user tetap bisa masuk
+      if (user) {
+        try {
+          await updateProfile({
+            pin_type: pinType === 'password' ? 'password' : 'numeric',
+          });
+        } catch (profileErr) {
+          // Gagal update profil tidak menghalangi user masuk
+          console.warn('updateProfile gagal, tapi PIN tetap tersimpan:', profileErr);
+        }
+      }
+
+      // Navigasi ke dashboard
       navigate('/');
     } catch (err) {
       setError('Gagal menyimpan PIN. Silakan coba lagi.');
@@ -181,7 +195,7 @@ export function PINSetup() {
 
             <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <p className="text-sm text-blue-900 dark:text-blue-300">
-                <strong>Catatan:</strong> PIN ini hanya untuk keamanan tambahan di perangkat Anda. 
+                <strong>Catatan:</strong> PIN ini hanya untuk keamanan tambahan di perangkat Anda.
                 Anda tetap bisa login dengan email & password Supabase.
               </p>
             </div>

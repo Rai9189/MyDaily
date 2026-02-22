@@ -1,12 +1,15 @@
+// src/app/components/Sidebar.tsx
 import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut, Moon, Sun } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { signOut } = useAuth();
 
   const navItems = [
     { path: '/', icon: Home, label: 'Dashboard' },
@@ -17,8 +20,10 @@ export function Sidebar() {
     { path: '/profile', icon: User, label: 'Profile' },
   ];
 
-  const handleLogout = () => {
-    localStorage.clear();
+  // Gunakan signOut dari AuthContext agar konsisten:
+  // hanya menghapus pinUnlocked, PIN lama tetap tersimpan untuk login berikutnya.
+  const handleLogout = async () => {
+    await signOut();
     navigate('/login');
   };
 
@@ -28,12 +33,12 @@ export function Sidebar() {
         <h1 className="text-2xl">MyDaily</h1>
         <p className="text-sm text-blue-100 dark:text-gray-400 mt-1">Kelola hidupmu dengan mudah</p>
       </div>
-      
+
       <nav className="flex-1 p-4">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           const Icon = item.icon;
-          
+
           return (
             <Link
               key={item.path}

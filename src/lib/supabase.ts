@@ -14,12 +14,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Create Supabase client
+// Tidak perlu set storage secara eksplisit — Supabase sudah default ke localStorage.
+// Mengeset window.localStorage secara manual bisa menyebabkan onAuthStateChange
+// tidak trigger karena konflik saat client diinisialisasi sebelum React mount.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    storage: window.localStorage, // Use localStorage for session persistence
   },
 });
 
