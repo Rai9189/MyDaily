@@ -9,19 +9,18 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Badge } from '../components/ui/badge';
-import { ArrowLeft, Pin, Upload, X, Loader2, FileText, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Pin, X, Loader2, FileText, Image as ImageIcon, Trash2, Save } from 'lucide-react';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 
 export function NoteDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isNew = id === 'new';
-  
+
   const { getNoteById, createNote, updateNote, deleteNote, togglePin } = useNotes();
   const { getCategoriesByType } = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
-  
+
   const note = isNew ? null : getNoteById(id!);
   const noteCategories = getCategoriesByType('note');
 
@@ -38,11 +37,8 @@ export function NoteDetail() {
   const [deleting, setDeleting] = useState(false);
   const [pinning, setPinning] = useState(false);
 
-  // Load attachments if editing
   useEffect(() => {
-    if (!isNew && id) {
-      loadAttachments();
-    }
+    if (!isNew && id) loadAttachments();
   }, [id]);
 
   useEffect(() => {
@@ -65,54 +61,35 @@ export function NoteDetail() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !id) return;
-
     setUploading(true);
-
     for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const { success, data, error } = await uploadAttachment(file, 'note', id);
-      
-      if (success && data) {
-        setAttachments(prev => [...prev, data]);
-      } else {
-        alert(error || 'Gagal upload file');
-      }
+      const { success, data, error } = await uploadAttachment(files[i], 'note', id);
+      if (success && data) setAttachments(prev => [...prev, data]);
+      else alert(error || 'Failed to upload file');
     }
-
     setUploading(false);
     e.target.value = '';
   };
 
   const handleDeleteAttachment = async (attachmentId: string, url: string) => {
-    if (!confirm('Hapus lampiran ini?')) return;
-
+    if (!confirm('Remove this attachment?')) return;
     const { success, error } = await deleteAttachment(attachmentId, url);
-    if (success) {
-      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
-    } else {
-      alert(error || 'Gagal menghapus lampiran');
-    }
+    if (success) setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+    else alert(error || 'Failed to delete attachment');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-
     try {
       if (isNew) {
         const { success, error } = await createNote(formData);
-        if (success) {
-          navigate('/notes');
-        } else {
-          alert(error || 'Gagal membuat note');
-        }
+        if (success) navigate('/notes');
+        else alert(error || 'Failed to create note');
       } else {
         const { success, error } = await updateNote(id!, formData);
-        if (success) {
-          navigate('/notes');
-        } else {
-          alert(error || 'Gagal update note');
-        }
+        if (success) navigate('/notes');
+        else alert(error || 'Failed to update note');
       }
     } finally {
       setSubmitting(false);
@@ -121,93 +98,93 @@ export function NoteDetail() {
 
   const handleTogglePin = async () => {
     if (!id) return;
-    
     setPinning(true);
     const { success, error } = await togglePin(id);
-    if (success) {
-      setFormData({ ...formData, pinned: !formData.pinned });
-    } else {
-      alert(error || 'Gagal toggle pin');
-    }
+    if (success) setFormData(prev => ({ ...prev, pinned: !prev.pinned }));
+    else alert(error || 'Failed to toggle pin');
     setPinning(false);
   };
 
   const handleDelete = async () => {
-    if (!confirm('Yakin ingin menghapus note ini? Semua lampiran juga akan dihapus.')) return;
-    
+    if (!confirm('Delete this note? All attachments will also be removed.')) return;
     setDeleting(true);
     const { success, error } = await deleteNote(id!);
-    if (success) {
-      navigate('/notes');
-    } else {
-      alert(error || 'Gagal menghapus note');
-      setDeleting(false);
-    }
+    if (success) navigate('/notes');
+    else { alert(error || 'Failed to delete note'); setDeleting(false); }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-1">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate('/notes')}>
             <ArrowLeft size={20} />
           </Button>
           <div>
-            <h1 className="text-3xl dark:text-white">
-              {isNew ? 'Tambah Note' : 'Detail Note'}
+            <h1 className="text-3xl font-semibold text-foreground">
+              {isNew ? 'New Note' : 'Note Detail'}
             </h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">
-              {isNew ? 'Buat catatan baru' : 'Lihat dan edit catatan'}
+            <p className="text-muted-foreground mt-0.5">
+              {isNew ? 'Create a new note' : 'View and edit this note'}
             </p>
           </div>
         </div>
-        
+
+        {/* Pin toggle in header */}
         {!isNew && (
           <Button
             variant={formData.pinned ? 'default' : 'outline'}
             onClick={handleTogglePin}
-            className="gap-2"
             disabled={pinning}
+            className="gap-2"
           >
-            {pinning ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                <Pin size={16} />
-                {formData.pinned ? 'Unpin' : 'Pin'}
-              </>
-            )}
+            {pinning
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Pin size={15} />
+            }
+            {formData.pinned ? 'Unpin' : 'Pin'}
           </Button>
         )}
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <Card className="dark:bg-gray-800 dark:border-gray-700">
-          <CardHeader>
-            <CardTitle className="dark:text-white">Informasi Note</CardTitle>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Note Info Card */}
+        <Card className="border border-border bg-card">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold text-foreground">Note Info</CardTitle>
+              {!isNew && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 size={15} />}
+                  {deleting ? 'Deleting...' : 'Delete'}
+                </Button>
+              )}
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="title" className="dark:text-gray-300">Judul</Label>
+          <CardContent className="space-y-5 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="title">Title</Label>
               <Input
                 id="title"
-                placeholder="Judul catatan..."
+                placeholder="Note title..."
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 required
-                className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
             </div>
 
-            <div>
-              <Label htmlFor="category" className="dark:text-gray-300">Kategori</Label>
-              <Select 
-                value={formData.categoryId}
-                onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
-              >
-                <SelectTrigger id="category" className="dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                  <SelectValue />
-                </SelectTrigger>
+            <div className="space-y-1.5">
+              <Label htmlFor="category">Category</Label>
+              <Select value={formData.categoryId} onValueChange={(v) => setFormData({ ...formData, categoryId: v })}>
+                <SelectTrigger id="category"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {noteCategories.map(cat => (
                     <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
@@ -216,29 +193,25 @@ export function NoteDetail() {
               </Select>
             </div>
 
-            <div>
-              <Label htmlFor="content" className="dark:text-gray-300">Isi Catatan</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="content">Content</Label>
               <Textarea
                 id="content"
-                placeholder="Tulis catatan Anda di sini..."
+                placeholder="Write your note here..."
                 value={formData.content}
                 onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                 rows={10}
                 required
-                className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
             </div>
 
             {!isNew && note && (
-              <div>
-                <Label className="dark:text-gray-300">Timestamp</Label>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {new Date(note.timestamp).toLocaleString('id-ID', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
+              <div className="space-y-1">
+                <Label className="text-muted-foreground text-xs">Last updated</Label>
+                <p className="text-sm text-muted-foreground">
+                  {new Date(note.timestamp).toLocaleString('en-US', {
+                    day: 'numeric', month: 'long', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit',
                   })}
                 </p>
               </div>
@@ -246,135 +219,87 @@ export function NoteDetail() {
           </CardContent>
         </Card>
 
-        {/* Attachments Section */}
+        {/* Attachments */}
         {!isNew && (
-          <Card className="dark:bg-gray-800 dark:border-gray-700">
-            <CardHeader>
-              <CardTitle className="dark:text-white">Lampiran</CardTitle>
+          <Card className="border border-border bg-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold text-foreground">Attachments</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label className="dark:text-gray-300">Upload File (Maksimal 10MB)</Label>
-                <div className="mt-2 space-y-2">
-                  <Input
-                    type="file"
-                    accept="image/*,application/pdf"
-                    multiple
-                    onChange={handleFileUpload}
-                    disabled={uploading}
-                    className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Tambahkan gambar atau dokumen PDF sebagai lampiran catatan.
-                  </p>
-                  
-                  {uploading && (
-                    <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Mengupload...
-                    </div>
-                  )}
-
-                  {attachments.length > 0 && (
-                    <div className="space-y-2 mt-3">
-                      {attachments.map((file) => (
-                        <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            {isImageFile(file.name) ? (
-                              <ImageIcon size={20} className="text-blue-600 flex-shrink-0" />
-                            ) : (
-                              <FileText size={20} className="text-red-600 flex-shrink-0" />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate dark:text-white">{file.name}</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {formatFileSize(file.size)}
-                              </p>
-                            </div>
-                            <a
-                              href={file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:underline flex-shrink-0"
-                            >
-                              Lihat
-                            </a>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 ml-2 flex-shrink-0"
-                            onClick={() => handleDeleteAttachment(file.id, file.url)}
-                          >
-                            <X size={16} />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+            <CardContent className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label>Upload File <span className="text-muted-foreground font-normal">(Max 10MB)</span></Label>
+                <Input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  multiple
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Supported: JPEG, PNG, GIF, WebP, PDF — max 10MB per file
+                </p>
+                {uploading && (
+                  <div className="flex items-center gap-2 text-sm text-primary">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Uploading...
+                  </div>
+                )}
               </div>
+
+              {attachments.length > 0 && (
+                <div className="space-y-2">
+                  {attachments.map((file) => (
+                    <div key={file.id} className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {isImageFile(file.name)
+                          ? <ImageIcon size={18} className="text-primary flex-shrink-0" />
+                          : <FileText size={18} className="text-red-500 flex-shrink-0" />
+                        }
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
+                          <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                        </div>
+                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex-shrink-0 mr-2">
+                          View
+                        </a>
+                      </div>
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteAttachment(file.id, file.url)}>
+                        <X size={15} />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
 
+        {/* Pinned info banner */}
+        {formData.pinned && (
+          <div className="flex items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+            <Pin size={16} className="text-primary flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-foreground">This note is pinned</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Pinned notes appear at the top of your list and on the Dashboard</p>
+            </div>
+          </div>
+        )}
+
+        {/* Tip */}
         {isNew && (
-          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-            <p className="text-sm text-yellow-800 dark:text-yellow-300">
-              💡 <strong>Tips:</strong> Simpan note terlebih dahulu, lalu Anda bisa menambahkan lampiran.
+          <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <p className="text-sm text-amber-800 dark:text-amber-300">
+              <strong>Tip:</strong> Save the note first, then you can add attachments.
             </p>
           </div>
         )}
 
-        {formData.pinned && (
-          <Card className="bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <Pin size={20} className="text-blue-600" />
-                <div>
-                  <p className="dark:text-white">Note ini akan muncul di bagian atas daftar</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Catatan terpin juga muncul di Dashboard
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <div className="flex gap-3">
-          <Button type="submit" className="flex-1" disabled={submitting}>
-            {submitting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Menyimpan...
-              </>
-            ) : (
-              isNew ? 'Simpan Note' : 'Update Note'
-            )}
-          </Button>
-          
-          {!isNew && (
-            <Button 
-              type="button"
-              variant="destructive" 
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Menghapus...
-                </>
-              ) : (
-                'Hapus'
-              )}
-            </Button>
-          )}
-          
-          <Button type="button" variant="outline" onClick={() => navigate('/notes')}>
-            Batal
+        {/* Action Button */}
+        <div className="pt-2">
+          <Button type="submit" className="w-full gap-2" disabled={submitting}>
+            {submitting
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+              : <><Save size={16} />{isNew ? 'Save Note' : 'Update Note'}</>
+            }
           </Button>
         </div>
       </form>

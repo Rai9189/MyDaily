@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTransactions } from '../context/TransactionContext';
 import { useAccounts } from '../context/AccountContext';
@@ -8,102 +8,106 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, TrendingUp, TrendingDown, Paperclip, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2 } from 'lucide-react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../components/ui/sheet';
+import { Plus, TrendingUp, TrendingDown, Paperclip, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2, X } from 'lucide-react';
 
 export function Transactions() {
   const navigate = useNavigate();
   const { transactions, loading, error } = useTransactions();
   const { accounts } = useAccounts();
   const { categories, getCategoriesByType } = useCategories();
-  
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [filterAccount, setFilterAccount] = useState<string>('all');
-  const [filterType, setFilterType] = useState<string>('all');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterAccount, setFilterAccount] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all');
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
 
   const transactionCategories = getCategoriesByType('transaction');
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  // Close filter popup on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-  const getAccountName = (accountId: string) => {
-    return accounts.find(a => a.id === accountId)?.name || 'Unknown';
-  };
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 
-  const getCategoryName = (categoryId: string) => {
-    return categories.find(c => c.id === categoryId)?.name || 'Lainnya';
-  };
+  const getAccountName = (accountId: string) =>
+    accounts.find(a => a.id === accountId)?.name || 'Unknown';
 
-  const getCategoryColor = (categoryId: string) => {
-    return categories.find(c => c.id === categoryId)?.color || '#gray';
-  };
+  const getCategoryName = (categoryId: string) =>
+    categories.find(c => c.id === categoryId)?.name || 'Other';
 
-  // Filter and sort
+  const getCategoryColor = (categoryId: string) =>
+    categories.find(c => c.id === categoryId)?.color || '#6b7280';
+
   const filteredTransactions = useMemo(() => {
     let result = [...transactions];
-
-    // Search filter
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(t => {
-        const matchesDescription = t.description?.toLowerCase().includes(query);
-        const matchesAccount = getAccountName(t.accountId).toLowerCase().includes(query);
-        const matchesCategory = getCategoryName(t.categoryId).toLowerCase().includes(query);
-        const matchesAmount = t.amount.toString().includes(query);
-        return matchesDescription || matchesAccount || matchesCategory || matchesAmount;
-      });
+      const q = searchQuery.toLowerCase();
+      result = result.filter(t =>
+        t.description?.toLowerCase().includes(q) ||
+        getAccountName(t.accountId).toLowerCase().includes(q) ||
+        getCategoryName(t.categoryId).toLowerCase().includes(q) ||
+        t.amount.toString().includes(q)
+      );
     }
-
-    if (filterAccount !== 'all') {
-      result = result.filter(t => t.accountId === filterAccount);
-    }
-    if (filterType !== 'all') {
-      result = result.filter(t => t.type === filterType);
-    }
-    if (filterCategory !== 'all') {
-      result = result.filter(t => t.categoryId === filterCategory);
-    }
-
-    // Sort
+    if (filterAccount !== 'all') result = result.filter(t => t.accountId === filterAccount);
+    if (filterType !== 'all') result = result.filter(t => t.type === filterType);
+    if (filterCategory !== 'all') result = result.filter(t => t.categoryId === filterCategory);
     result.sort((a, b) => {
       if (sortBy === 'date') {
-        const dateA = new Date(a.date).getTime();
-        const dateB = new Date(b.date).getTime();
-        return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
-      } else {
-        return sortOrder === 'desc' ? b.amount - a.amount : a.amount - b.amount;
+        return sortOrder === 'desc'
+          ? new Date(b.date).getTime() - new Date(a.date).getTime()
+          : new Date(a.date).getTime() - new Date(b.date).getTime();
       }
+      return sortOrder === 'desc' ? b.amount - a.amount : a.amount - b.amount;
     });
-
     return result;
-  }, [transactions, searchQuery, filterAccount, filterType, filterCategory, sortBy, sortOrder, accounts, categories]);
+  }, [transactions, searchQuery, filterAccount, filterType, filterCategory, sortBy, sortOrder]);
 
-  // Pagination
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedTransactions = viewMode === 'card' ? filteredTransactions.slice(startIndex, endIndex) : filteredTransactions;
+  const paginatedTransactions = viewMode === 'card'
+    ? filteredTransactions.slice(startIndex, startIndex + itemsPerPage)
+    : filteredTransactions;
+
+  const activeFilterCount = [
+    filterAccount !== 'all',
+    filterType !== 'all',
+    filterCategory !== 'all',
+  ].filter(Boolean).length;
 
   const handleFilterChange = (setter: any, value: any) => {
     setter(value);
     setCurrentPage(1);
   };
 
+  const resetFilters = () => {
+    setFilterAccount('all');
+    setFilterType('all');
+    setFilterCategory('all');
+    setSortBy('date');
+    setSortOrder('desc');
+    setCurrentPage(1);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -117,264 +121,275 @@ export function Transactions() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 p-1">
+      {/* Header */}
+      <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl dark:text-white">Transaksi</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Riwayat semua transaksi Anda</p>
+          <h1 className="text-3xl font-semibold text-foreground">Transactions</h1>
+          <p className="text-muted-foreground mt-1">All your transaction history</p>
         </div>
         <Button onClick={() => navigate('/transactions/new')} className="gap-2">
-          <Plus size={20} />
-          Tambah Transaksi
+          <Plus size={18} />
+          Add Transaction
         </Button>
       </div>
 
-      {/* Search Bar and Filter */}
-      <Card className="dark:bg-gray-800 dark:border-gray-700">
-        <CardContent className="pt-6">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <Input
-                placeholder="Cari transaksi (deskripsi, akun, kategori, nominal)..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              />
-            </div>
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                  <Filter size={20} />
-                </Button>
-              </SheetTrigger>
-              <SheetContent className="dark:bg-gray-800 dark:text-white overflow-y-auto">
-                <SheetHeader>
-                  <SheetTitle className="dark:text-white">Filter & Sortir</SheetTitle>
-                </SheetHeader>
-                <div className="space-y-4 mt-6">
-                  <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Filter Akun</label>
-                    <Select value={filterAccount} onValueChange={(v) => handleFilterChange(setFilterAccount, v)}>
-                      <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Semua Akun</SelectItem>
-                        {accounts.map(acc => (
-                          <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+      {/* Search + Filter */}
+      <div className="flex gap-2 items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+          <Input
+            placeholder="Search by description, account, category, or amount..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 border border-border shadow-sm"
+          />
+        </div>
 
-                  <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Filter Jenis</label>
-                    <Select value={filterType} onValueChange={(v) => handleFilterChange(setFilterType, v)}>
-                      <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Semua Jenis</SelectItem>
-                        <SelectItem value="Masuk">Pemasukan</SelectItem>
-                        <SelectItem value="Keluar">Pengeluaran</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Filter Kategori</label>
-                    <Select value={filterCategory} onValueChange={(v) => handleFilterChange(setFilterCategory, v)}>
-                      <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Semua Kategori</SelectItem>
-                        {transactionCategories.map(cat => (
-                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Urutkan</label>
-                    <div className="flex gap-2">
-                      <Select value={sortBy} onValueChange={(v: 'date' | 'amount') => setSortBy(v)}>
-                        <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="date">Tanggal</SelectItem>
-                          <SelectItem value="amount">Nominal</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                        className="dark:bg-gray-700 dark:border-gray-600"
-                      >
-                        <ArrowUpDown size={16} />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t dark:border-gray-700">
-                    <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Tampilan</label>
-                    <div className="flex gap-2">
-                      <Button
-                        variant={viewMode === 'list' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setViewMode('list')}
-                        className="gap-2 flex-1"
-                      >
-                        <List size={16} />
-                        List
-                      </Button>
-                      <Button
-                        variant={viewMode === 'card' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setViewMode('card')}
-                        className="gap-2 flex-1"
-                      >
-                        <LayoutGrid size={16} />
-                        Card
-                      </Button>
-                    </div>
-                  </div>
-
-                  {viewMode === 'card' && (
-                    <div>
-                      <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Per halaman</label>
-                      <Select value={itemsPerPage.toString()} onValueChange={(v) => {
-                        setItemsPerPage(parseInt(v));
-                        setCurrentPage(1);
-                      }}>
-                        <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="5">5</SelectItem>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="20">20</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Transaction List/Cards */}
-      <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-3'}>
-        {paginatedTransactions.map((transaction) => (
-          <Card
-            key={transaction.id}
-            className="hover:shadow-md transition-shadow cursor-pointer dark:bg-gray-800 dark:border-gray-700"
-            onClick={() => navigate(`/transactions/${transaction.id}`)}
+        {/* Filter Popup Trigger */}
+        <div className="relative" ref={filterRef}>
+          <Button
+            variant="outline"
+            className="gap-2 relative"
+            onClick={() => setFilterOpen(!filterOpen)}
           >
-            <CardContent className="p-4">
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    {transaction.type === 'Masuk' ? (
-                      <TrendingUp className="text-green-600" size={20} />
-                    ) : (
-                      <TrendingDown className="text-red-600" size={20} />
-                    )}
-                    <Badge variant={transaction.type === 'Masuk' ? 'default' : 'destructive'}>
-                      {transaction.type}
-                    </Badge>
-                  </div>
-                  <p className={`text-xl ${transaction.type === 'Masuk' ? 'text-green-600' : 'text-red-600'}`}>
-                    {transaction.type === 'Masuk' ? '+' : '-'}
-                    {formatCurrency(transaction.amount)}
-                  </p>
+            <Filter size={18} />
+            Filter
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
+
+          {/* Filter Popup */}
+          {filterOpen && (
+            <div className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+              {/* Popup Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <span className="font-semibold text-foreground">Filter & Sort</span>
+                <div className="flex items-center gap-2">
+                  {activeFilterCount > 0 && (
+                    <button
+                      onClick={resetFilters}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Reset all
+                    </button>
+                  )}
+                  <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground">
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 space-y-4">
+                {/* Account */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Account</label>
+                  <Select value={filterAccount} onValueChange={(v) => handleFilterChange(setFilterAccount, v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Accounts</SelectItem>
+                      {accounts.map(acc => (
+                        <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge 
-                    variant="outline" 
-                    style={{ 
-                      borderColor: getCategoryColor(transaction.categoryId),
-                      color: getCategoryColor(transaction.categoryId)
-                    }}
-                  >
-                    {getCategoryName(transaction.categoryId)}
-                  </Badge>
-                  {transaction.attachments && transaction.attachments.length > 0 && (
-                    <Badge variant="secondary" className="gap-1">
-                      <Paperclip size={12} />
-                      {transaction.attachments.length}
-                    </Badge>
-                  )}
+                {/* Type */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</label>
+                  <Select value={filterType} onValueChange={(v) => handleFilterChange(setFilterType, v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="Masuk">Income</SelectItem>
+                      <SelectItem value="Keluar">Expense</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                
-                <p className="text-sm text-gray-600 dark:text-gray-400">{getAccountName(transaction.accountId)}</p>
-                
-                {transaction.description && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{transaction.description}</p>
+
+                {/* Category */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</label>
+                  <Select value={filterCategory} onValueChange={(v) => handleFilterChange(setFilterCategory, v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {transactionCategories.map(cat => (
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Sort */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sort by</label>
+                  <div className="flex gap-2">
+                    <Select value={sortBy} onValueChange={(v: 'date' | 'amount') => setSortBy(v)}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="date">Date</SelectItem>
+                        <SelectItem value="amount">Amount</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                      title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+                    >
+                      <ArrowUpDown size={16} />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-border pt-3 space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">View</label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={viewMode === 'list' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setViewMode('list')}
+                      className="gap-2 flex-1"
+                    >
+                      <List size={15} />
+                      List
+                    </Button>
+                    <Button
+                      variant={viewMode === 'card' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setViewMode('card')}
+                      className="gap-2 flex-1"
+                    >
+                      <LayoutGrid size={15} />
+                      Card
+                    </Button>
+                  </div>
+                </div>
+
+                {viewMode === 'card' && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Per page</label>
+                    <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
-                
-                <p className="text-xs text-gray-400 dark:text-gray-500">
-                  {new Date(transaction.date).toLocaleDateString('id-ID', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                  })}
-                </p>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {filteredTransactions.length === 0 && (
-        <Card className="dark:bg-gray-800 dark:border-gray-700">
-          <CardContent className="p-12 text-center text-gray-500 dark:text-gray-400">
-            <p>Tidak ada transaksi ditemukan</p>
+      {/* Results count */}
+      {filteredTransactions.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''} found
+        </p>
+      )}
+
+      {/* Transaction List/Cards */}
+      {filteredTransactions.length === 0 ? (
+        <Card className="border border-border bg-card">
+          <CardContent className="py-16 text-center">
+            <p className="text-muted-foreground">No transactions found</p>
+            <p className="text-sm text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
           </CardContent>
         </Card>
+      ) : (
+        <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
+          {paginatedTransactions.map((transaction) => (
+            <Card
+              key={transaction.id}
+              className="hover:shadow-md transition-shadow cursor-pointer border border-border bg-card"
+              onClick={() => navigate(`/transactions/${transaction.id}`)}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  {/* Left */}
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className={`mt-0.5 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                      transaction.type === 'Masuk' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'
+                    }`}>
+                      {transaction.type === 'Masuk'
+                        ? <TrendingUp size={16} className="text-green-600 dark:text-green-400" />
+                        : <TrendingDown size={16} className="text-red-600 dark:text-red-400" />
+                      }
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className="text-xs font-medium px-2 py-0.5 rounded-full border"
+                          style={{ borderColor: getCategoryColor(transaction.categoryId), color: getCategoryColor(transaction.categoryId) }}
+                        >
+                          {getCategoryName(transaction.categoryId)}
+                        </span>
+                        {transaction.attachments && transaction.attachments.length > 0 && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Paperclip size={11} />
+                            {transaction.attachments.length}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">{getAccountName(transaction.accountId)}</p>
+                      {transaction.description && (
+                        <p className="text-sm text-muted-foreground truncate mt-0.5">{transaction.description}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground/60 mt-1">
+                        {new Date(transaction.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Right - Amount */}
+                  <p className={`text-base font-semibold flex-shrink-0 ${
+                    transaction.type === 'Masuk' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {transaction.type === 'Masuk' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
 
       {/* Pagination */}
       {viewMode === 'card' && totalPages > 1 && (
-        <Card className="dark:bg-gray-800 dark:border-gray-700">
-          <CardContent className="p-4">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Menampilkan {startIndex + 1}-{Math.min(endIndex, filteredTransactions.length)} dari {filteredTransactions.length} transaksi
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="dark:bg-gray-700 dark:border-gray-600"
-                >
-                  <ChevronLeft size={16} />
-                </Button>
-                <span className="text-sm dark:text-white">
-                  Halaman {currentPage} dari {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="dark:bg-gray-700 dark:border-gray-600"
-                >
-                  <ChevronRight size={16} />
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredTransactions.length)} of {filteredTransactions.length}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+              <ChevronLeft size={16} />
+            </Button>
+            <span className="text-sm text-foreground">Page {currentPage} of {totalPages}</span>
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+              <ChevronRight size={16} />
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

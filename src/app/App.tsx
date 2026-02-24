@@ -26,7 +26,6 @@ import { Categories } from './pages/Categories';
 import { Loader2 } from 'lucide-react';
 
 // Wrapper semua data provider — hanya dirender setelah user terautentikasi
-// Ini mencegah data provider fetch data sebelum auth selesai
 function DataProviders({ children }: { children: React.ReactNode }) {
   return (
     <CategoryProvider>
@@ -66,7 +65,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/pin-setup" replace />;
   }
 
-  const pinUnlocked = localStorage.getItem('pinUnlocked');
+  // ✅ FIX: Gunakan sessionStorage agar otomatis terhapus saat browser/tab ditutup
+  const pinUnlocked = sessionStorage.getItem('pinUnlocked');
   if (!pinUnlocked) {
     return <Navigate to="/pin-lock" replace />;
   }
@@ -88,7 +88,8 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
   if (user) {
     const pinSetup = localStorage.getItem('pinSetup');
-    const pinUnlocked = localStorage.getItem('pinUnlocked');
+    // ✅ FIX: Gunakan sessionStorage agar otomatis terhapus saat browser/tab ditutup
+    const pinUnlocked = sessionStorage.getItem('pinUnlocked');
 
     if (!pinSetup) return <Navigate to="/pin-setup" replace />;
     if (!pinUnlocked) return <Navigate to="/pin-lock" replace />;

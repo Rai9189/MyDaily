@@ -1,17 +1,16 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Logo } from '../components/Logo';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Eye, EyeOff, ArrowLeft, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export function Register() {
   const navigate = useNavigate();
   const { signUp } = useAuth();
-  
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,7 +24,6 @@ export function Register() {
     e.preventDefault();
     setError(null);
 
-    // Validation
     if (password.length < 8) {
       setError('Password minimal 8 karakter');
       return;
@@ -41,36 +39,27 @@ export function Register() {
     const { success, error: signUpError } = await signUp(email, password, name);
 
     if (success) {
-      // After successful registration, go to PIN setup
       navigate('/pin-setup');
     } else {
       setError(signUpError || 'Registrasi gagal. Silakan coba lagi.');
     }
-    
+
     setLoading(false);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <Card className="w-full max-w-md dark:bg-gray-800 dark:border-gray-700">
-        <CardHeader className="text-center relative">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute left-0 top-0"
-            onClick={() => navigate('/login')}
-            disabled={loading}
-          >
-            <ArrowLeft size={20} />
-          </Button>
-          
-          <div className="flex justify-center mb-4">
-            <Logo size={64} />
+        <CardContent className="pt-6 pb-6">
+          {/* ✅ Logo normal di light mode, invert di dark mode */}
+          <div className="flex justify-center mb-5">
+            <img
+              src="/logo.png"
+              alt="MyDaily"
+              className="w-72 h-auto object-contain dark:invert"
+            />
           </div>
-          <CardTitle className="text-3xl dark:text-white">Daftar Akun</CardTitle>
-          <p className="text-gray-500 dark:text-gray-400 mt-2">Buat akun MyDaily baru</p>
-        </CardHeader>
-        <CardContent>
+
           <form onSubmit={handleRegister} className="space-y-4">
             {error && (
               <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -78,7 +67,7 @@ export function Register() {
               </div>
             )}
 
-            <div>
+            <div className="space-y-1">
               <Label htmlFor="name" className="dark:text-gray-300">Nama Lengkap</Label>
               <Input
                 id="name"
@@ -92,7 +81,7 @@ export function Register() {
               />
             </div>
 
-            <div>
+            <div className="space-y-1">
               <Label htmlFor="email" className="dark:text-gray-300">Email</Label>
               <Input
                 id="email"
@@ -106,7 +95,7 @@ export function Register() {
               />
             </div>
 
-            <div>
+            <div className="space-y-1">
               <Label htmlFor="password" className="dark:text-gray-300">Password</Label>
               <div className="relative">
                 <Input
@@ -131,7 +120,7 @@ export function Register() {
               </div>
             </div>
 
-            <div>
+            <div className="space-y-1">
               <Label htmlFor="confirmPassword" className="dark:text-gray-300">Konfirmasi Password</Label>
               <div className="relative">
                 <Input

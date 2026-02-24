@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTasks } from '../context/TaskContext';
 import { useCategories } from '../context/CategoryContext';
@@ -7,35 +7,44 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
-import { Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2 } from 'lucide-react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../components/ui/sheet';
+import { Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2, X } from 'lucide-react';
 
 export function Tasks() {
   const navigate = useNavigate();
   const { tasks, loading, error } = useTasks();
   const { getCategoriesByType } = useCategories();
-  
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [filterCompleted, setFilterCompleted] = useState<string>('all');
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterCompleted, setFilterCompleted] = useState('all');
   const [sortBy, setSortBy] = useState<'deadline' | 'status'>('deadline');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
 
   const taskCategories = getCategoriesByType('task');
 
-  const getCategoryName = (categoryId: string) => {
-    return taskCategories.find(c => c.id === categoryId)?.name || 'Lainnya';
-  };
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-  const getCategoryColor = (categoryId: string) => {
-    return taskCategories.find(c => c.id === categoryId)?.color || '#gray';
-  };
+  const getCategoryName = (categoryId: string) =>
+    taskCategories.find(c => c.id === categoryId)?.name || 'Other';
 
-  const getStatusColor = (status: string) => {
+  const getCategoryColor = (categoryId: string) =>
+    taskCategories.find(c => c.id === categoryId)?.color || '#6b7280';
+
+  const getStatusVariant = (status: string) => {
     switch (status) {
       case 'Mendesak': return 'destructive';
       case 'Mendekati': return 'default';
@@ -44,28 +53,34 @@ export function Tasks() {
     }
   };
 
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'Mendesak': return 'Urgent';
+      case 'Mendekati': return 'Upcoming';
+      case 'Masih Lama': return 'On Track';
+      default: return status;
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Mendesak': return <AlertCircle size={16} className="text-red-600" />;
-      case 'Mendekati': return <Clock size={16} className="text-orange-600" />;
-      case 'Masih Lama': return <CheckCircle2 size={16} className="text-green-600" />;
+      case 'Mendesak': return <AlertCircle size={13} />;
+      case 'Mendekati': return <Clock size={13} />;
+      case 'Masih Lama': return <CheckCircle2 size={13} />;
       default: return null;
     }
   };
 
-  // Filter and sort
   const filteredTasks = useMemo(() => {
     let result = [...tasks];
 
-    // Search
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(t => {
-        const matchesTitle = t.title.toLowerCase().includes(query);
-        const matchesDescription = t.description?.toLowerCase().includes(query);
-        const matchesCategory = getCategoryName(t.categoryId).toLowerCase().includes(query);
-        return matchesTitle || matchesDescription || matchesCategory;
-      });
+      const q = searchQuery.toLowerCase();
+      result = result.filter(t =>
+        t.title.toLowerCase().includes(q) ||
+        t.description?.toLowerCase().includes(q) ||
+        getCategoryName(t.categoryId).toLowerCase().includes(q)
+      );
     }
 
     if (filterStatus !== 'all') result = result.filter(t => t.status === filterStatus);
@@ -73,38 +88,52 @@ export function Tasks() {
     if (filterCompleted === 'completed') result = result.filter(t => t.completed);
     if (filterCompleted === 'active') result = result.filter(t => !t.completed);
 
-    // Sort
     result.sort((a, b) => {
       if (sortBy === 'deadline') {
-        const dateA = new Date(a.deadline).getTime();
-        const dateB = new Date(b.deadline).getTime();
-        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+        return sortOrder === 'asc'
+          ? new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+          : new Date(b.deadline).getTime() - new Date(a.deadline).getTime();
       } else {
-        const statusOrder = { 'Mendesak': 3, 'Mendekati': 2, 'Masih Lama': 1 };
-        const statusA = statusOrder[a.status as keyof typeof statusOrder];
-        const statusB = statusOrder[b.status as keyof typeof statusOrder];
-        return sortOrder === 'asc' ? statusA - statusB : statusB - statusA;
+        const order = { 'Mendesak': 3, 'Mendekati': 2, 'Masih Lama': 1 };
+        const va = order[a.status as keyof typeof order] ?? 0;
+        const vb = order[b.status as keyof typeof order] ?? 0;
+        return sortOrder === 'asc' ? va - vb : vb - va;
       }
     });
 
     return result;
-  }, [tasks, searchQuery, filterStatus, filterCategory, filterCompleted, sortBy, sortOrder, taskCategories]);
+  }, [tasks, searchQuery, filterStatus, filterCategory, filterCompleted, sortBy, sortOrder]);
 
-  // Pagination
   const totalPages = Math.ceil(filteredTasks.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedTasks = viewMode === 'card' ? filteredTasks.slice(startIndex, endIndex) : filteredTasks;
+  const paginatedTasks = viewMode === 'card'
+    ? filteredTasks.slice(startIndex, startIndex + itemsPerPage)
+    : filteredTasks;
+
+  const activeFilterCount = [
+    filterStatus !== 'all',
+    filterCategory !== 'all',
+    filterCompleted !== 'all',
+  ].filter(Boolean).length;
 
   const handleFilterChange = (setter: any, value: any) => {
     setter(value);
     setCurrentPage(1);
   };
 
+  const resetFilters = () => {
+    setFilterStatus('all');
+    setFilterCategory('all');
+    setFilterCompleted('all');
+    setSortBy('deadline');
+    setSortOrder('asc');
+    setCurrentPage(1);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -118,258 +147,236 @@ export function Tasks() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 p-1">
+      {/* Header */}
+      <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl dark:text-white">Tugas</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Kelola semua tugas Anda</p>
+          <h1 className="text-3xl font-semibold text-foreground">Tasks</h1>
+          <p className="text-muted-foreground mt-1">Manage all your tasks</p>
         </div>
         <Button onClick={() => navigate('/tasks/new')} className="gap-2">
-          <Plus size={20} />
-          Tambah Tugas
+          <Plus size={18} />
+          Add Task
         </Button>
       </div>
 
-      {/* Search Bar and Filter */}
-      <Card className="dark:bg-gray-800 dark:border-gray-700">
-        <CardContent className="pt-6">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <Input
-                placeholder="Cari tugas (judul, deskripsi, kategori)..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              />
-            </div>
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                  <Filter size={20} />
-                </Button>
-              </SheetTrigger>
-              <SheetContent className="dark:bg-gray-800 dark:text-white overflow-y-auto">
-                <SheetHeader>
-                  <SheetTitle className="dark:text-white">Filter & Sortir</SheetTitle>
-                </SheetHeader>
-                <div className="space-y-4 mt-6">
-                  <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Filter Status</label>
-                    <Select value={filterStatus} onValueChange={(v) => handleFilterChange(setFilterStatus, v)}>
-                      <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Semua Status</SelectItem>
-                        <SelectItem value="Mendesak">Mendesak</SelectItem>
-                        <SelectItem value="Mendekati">Mendekati</SelectItem>
-                        <SelectItem value="Masih Lama">Masih Lama</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+      {/* Search + Filter */}
+      <div className="flex gap-2 items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+          <Input
+            placeholder="Search by title, description, or category..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 border border-border shadow-sm"
+          />
+        </div>
 
-                  <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Filter Kategori</label>
-                    <Select value={filterCategory} onValueChange={(v) => handleFilterChange(setFilterCategory, v)}>
-                      <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Semua Kategori</SelectItem>
-                        {taskCategories.map(cat => (
-                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Status Selesai</label>
-                    <Select value={filterCompleted} onValueChange={(v) => handleFilterChange(setFilterCompleted, v)}>
-                      <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Semua</SelectItem>
-                        <SelectItem value="active">Belum Selesai</SelectItem>
-                        <SelectItem value="completed">Sudah Selesai</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Urutkan</label>
-                    <div className="flex gap-2">
-                      <Select value={sortBy} onValueChange={(v: 'deadline' | 'status') => setSortBy(v)}>
-                        <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="deadline">Deadline</SelectItem>
-                          <SelectItem value="status">Status</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                        className="dark:bg-gray-700 dark:border-gray-600"
-                      >
-                        <ArrowUpDown size={16} />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t dark:border-gray-700">
-                    <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Tampilan</label>
-                    <div className="flex gap-2">
-                      <Button
-                        variant={viewMode === 'list' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setViewMode('list')}
-                        className="gap-2 flex-1"
-                      >
-                        <List size={16} />
-                        List
-                      </Button>
-                      <Button
-                        variant={viewMode === 'card' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setViewMode('card')}
-                        className="gap-2 flex-1"
-                      >
-                        <LayoutGrid size={16} />
-                        Card
-                      </Button>
-                    </div>
-                  </div>
-
-                  {viewMode === 'card' && (
-                    <div>
-                      <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Per halaman</label>
-                      <Select value={itemsPerPage.toString()} onValueChange={(v) => {
-                        setItemsPerPage(parseInt(v));
-                        setCurrentPage(1);
-                      }}>
-                        <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="5">5</SelectItem>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="20">20</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Task List/Cards */}
-      <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-3'}>
-        {paginatedTasks.map((task) => (
-          <Card
-            key={task.id}
-            className={`hover:shadow-lg transition-all cursor-pointer dark:bg-gray-800 dark:border-gray-700 ${task.completed ? 'bg-gray-50 dark:bg-gray-700/50 opacity-75' : ''}`}
-            onClick={() => navigate(`/tasks/${task.id}`)}
+        <div className="relative" ref={filterRef}>
+          <Button
+            variant="outline"
+            className="gap-2 relative"
+            onClick={() => setFilterOpen(!filterOpen)}
           >
-            <CardContent className="p-4">
-              <div className="space-y-3">
-                <h3 className={`text-lg dark:text-white ${task.completed ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}>
-                  {task.title}
-                </h3>
+            <Filter size={18} />
+            Filter
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
 
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant={getStatusColor(task.status)} className="gap-1">
-                    {getStatusIcon(task.status)}
-                    {task.status}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    style={{
-                      borderColor: getCategoryColor(task.categoryId),
-                      color: getCategoryColor(task.categoryId)
-                    }}
-                  >
-                    {getCategoryName(task.categoryId)}
-                  </Badge>
-                  {task.completed && (
-                    <Badge variant="secondary" className="gap-1">
-                      <CheckCircle2 size={12} />
-                      Selesai
-                    </Badge>
+          {filterOpen && (
+            <div className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <span className="font-semibold text-foreground">Filter & Sort</span>
+                <div className="flex items-center gap-2">
+                  {activeFilterCount > 0 && (
+                    <button onClick={resetFilters} className="text-xs text-primary hover:underline">
+                      Reset all
+                    </button>
                   )}
-                </div>
-
-                {task.description && (
-                  <p className={`text-sm text-gray-600 dark:text-gray-400 ${task.completed ? 'line-through' : ''}`}>
-                    {task.description}
-                  </p>
-                )}
-
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                    <Clock size={14} />
-                    {new Date(task.deadline).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}
-                  </p>
+                  <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground">
+                    <X size={18} />
+                  </button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+
+              <div className="p-4 space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</label>
+                  <Select value={filterStatus} onValueChange={(v) => handleFilterChange(setFilterStatus, v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="Mendesak">Urgent</SelectItem>
+                      <SelectItem value="Mendekati">Upcoming</SelectItem>
+                      <SelectItem value="Masih Lama">On Track</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</label>
+                  <Select value={filterCategory} onValueChange={(v) => handleFilterChange(setFilterCategory, v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {taskCategories.map(cat => (
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Completion</label>
+                  <Select value={filterCompleted} onValueChange={(v) => handleFilterChange(setFilterCompleted, v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="active">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sort by</label>
+                  <div className="flex gap-2">
+                    <Select value={sortBy} onValueChange={(v: 'deadline' | 'status') => setSortBy(v)}>
+                      <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="deadline">Deadline</SelectItem>
+                        <SelectItem value="status">Status</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
+                      <ArrowUpDown size={16} />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="border-t border-border pt-3 space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">View</label>
+                  <div className="flex gap-2">
+                    <Button variant={viewMode === 'list' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('list')} className="gap-2 flex-1">
+                      <List size={15} /> List
+                    </Button>
+                    <Button variant={viewMode === 'card' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('card')} className="gap-2 flex-1">
+                      <LayoutGrid size={15} /> Card
+                    </Button>
+                  </div>
+                </div>
+
+                {viewMode === 'card' && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Per page</label>
+                    <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {filteredTasks.length === 0 && (
-        <Card className="dark:bg-gray-800 dark:border-gray-700">
-          <CardContent className="p-12 text-center text-gray-500 dark:text-gray-400">
-            <p>Tidak ada tugas ditemukan</p>
+      {/* Results count */}
+      {filteredTasks.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} found
+        </p>
+      )}
+
+      {/* Task List/Cards */}
+      {filteredTasks.length === 0 ? (
+        <Card className="border border-border bg-card">
+          <CardContent className="py-16 text-center">
+            <p className="text-muted-foreground">No tasks found</p>
+            <p className="text-sm text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
           </CardContent>
         </Card>
+      ) : (
+        <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
+          {paginatedTasks.map((task) => (
+            <Card
+              key={task.id}
+              className={`hover:shadow-md transition-shadow cursor-pointer border border-border bg-card ${task.completed ? 'opacity-60' : ''}`}
+              onClick={() => navigate(`/tasks/${task.id}`)}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  {/* Status dot */}
+                  <div className={`mt-1 flex-shrink-0 w-2 h-2 rounded-full ${
+                    task.completed ? 'bg-gray-400' :
+                    task.status === 'Mendesak' ? 'bg-red-500' :
+                    task.status === 'Mendekati' ? 'bg-amber-500' : 'bg-green-500'
+                  }`} />
+
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium text-foreground ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
+                      {task.title}
+                    </p>
+
+                    <div className="flex items-center gap-2 flex-wrap mt-1.5">
+                      {!task.completed ? (
+                        <Badge variant={getStatusVariant(task.status) as any} className="gap-1 text-xs">
+                          {getStatusIcon(task.status)}
+                          {getStatusLabel(task.status)}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="gap-1 text-xs">
+                          <CheckCircle2 size={11} /> Completed
+                        </Badge>
+                      )}
+                      <span
+                        className="text-xs font-medium px-2 py-0.5 rounded-full border"
+                        style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}
+                      >
+                        {getCategoryName(task.categoryId)}
+                      </span>
+                    </div>
+
+                    {task.description && (
+                      <p className="text-xs text-muted-foreground mt-1 truncate">{task.description}</p>
+                    )}
+
+                    <p className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-1">
+                      <Clock size={11} />
+                      Due {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
 
       {/* Pagination */}
       {viewMode === 'card' && totalPages > 1 && (
-        <Card className="dark:bg-gray-800 dark:border-gray-700">
-          <CardContent className="p-4">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Menampilkan {startIndex + 1}-{Math.min(endIndex, filteredTasks.length)} dari {filteredTasks.length} tugas
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="dark:bg-gray-700 dark:border-gray-600"
-                >
-                  <ChevronLeft size={16} />
-                </Button>
-                <span className="text-sm dark:text-white">
-                  Halaman {currentPage} dari {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="dark:bg-gray-700 dark:border-gray-600"
-                >
-                  <ChevronRight size={16} />
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredTasks.length)} of {filteredTasks.length}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+              <ChevronLeft size={16} />
+            </Button>
+            <span className="text-sm text-foreground">Page {currentPage} of {totalPages}</span>
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+              <ChevronRight size={16} />
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

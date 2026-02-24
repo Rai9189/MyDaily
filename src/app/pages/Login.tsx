@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Logo } from '../components/Logo';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -11,7 +10,7 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 export function Login() {
   const navigate = useNavigate();
   const { signIn } = useAuth();
-  
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -24,12 +23,24 @@ export function Login() {
     setError(null);
 
     const { success, error: signInError } = await signIn(email, password);
-
-    // Set loading false immediately after getting response
     setLoading(false);
 
     if (success) {
-      // Check if PIN is already setup
+      // ✅ FIX Bug 2: Bersihkan PIN lama saat login akun baru
+      // Cek apakah email yang login sama dengan yang tersimpan sebelumnya
+      const lastEmail = localStorage.getItem('lastLoginEmail');
+      if (lastEmail && lastEmail !== email) {
+        // Akun berbeda — hapus PIN lama agar tidak terpakai
+        localStorage.removeItem('pin');
+        localStorage.removeItem('pinSetup');
+        localStorage.removeItem('pinType');
+        localStorage.removeItem('pinAttempts');
+        localStorage.removeItem('pinLockUntil');
+        sessionStorage.removeItem('pinUnlocked');
+      }
+      // Simpan email yang sedang login
+      localStorage.setItem('lastLoginEmail', email);
+
       const pinSetup = localStorage.getItem('pinSetup');
       if (pinSetup) {
         navigate('/pin-lock');
@@ -44,14 +55,15 @@ export function Login() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <Card className="w-full max-w-md dark:bg-gray-800 dark:border-gray-700">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <Logo size={64} />
+        <CardContent className="pt-6 pb-6">
+          <div className="flex justify-center mb-5">
+            <img
+              src="/logo.png"
+              alt="MyDaily"
+              className="w-full max-w-xs h-auto object-contain dark:invert"
+            />
           </div>
-          <CardTitle className="text-3xl dark:text-white">MyDaily</CardTitle>
-          <p className="text-gray-500 dark:text-gray-400 mt-2">Kelola hidupmu dengan mudah</p>
-        </CardHeader>
-        <CardContent>
+
           <form onSubmit={handleLogin} className="space-y-4">
             {error && (
               <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -59,7 +71,7 @@ export function Login() {
               </div>
             )}
 
-            <div>
+            <div className="space-y-1">
               <Label htmlFor="email" className="dark:text-gray-300">Email</Label>
               <Input
                 id="email"
@@ -73,7 +85,7 @@ export function Login() {
               />
             </div>
 
-            <div>
+            <div className="space-y-1">
               <Label htmlFor="password" className="dark:text-gray-300">Password</Label>
               <div className="relative">
                 <Input
@@ -97,15 +109,17 @@ export function Login() {
               </div>
             </div>
 
-            <Button
-              type="button"
-              variant="link"
-              className="p-0 h-auto text-sm"
-              onClick={() => navigate('/forgot-password')}
-              disabled={loading}
-            >
-              Lupa password?
-            </Button>
+            <div className="flex justify-start">
+              <Button
+                type="button"
+                variant="link"
+                className="p-0 h-auto text-sm"
+                onClick={() => navigate('/forgot-password')}
+                disabled={loading}
+              >
+                Lupa password?
+              </Button>
+            </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (

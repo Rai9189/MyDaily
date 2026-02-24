@@ -8,7 +8,8 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    // ✅ Gunakan bg-background agar ikut CSS variable tema
+    <div className="min-h-screen bg-background">
       <Sidebar />
       
       <main className="md:ml-64 pb-20 md:pb-0">

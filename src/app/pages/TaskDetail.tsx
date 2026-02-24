@@ -10,18 +10,18 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
-import { ArrowLeft, Upload, X, Loader2, FileText, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, X, Loader2, FileText, Image as ImageIcon, Trash2, Save, CheckCircle2 } from 'lucide-react';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 
 export function TaskDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isNew = id === 'new';
-  
+
   const { getTaskById, createTask, updateTask, deleteTask, completeTask } = useTasks();
   const { getCategoriesByType } = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
-  
+
   const task = isNew ? null : getTaskById(id!);
   const taskCategories = getCategoriesByType('task');
 
@@ -40,11 +40,8 @@ export function TaskDetail() {
   const [completing, setCompleting] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Load attachments if editing
   useEffect(() => {
-    if (!isNew && id) {
-      loadAttachments();
-    }
+    if (!isNew && id) loadAttachments();
   }, [id]);
 
   useEffect(() => {
@@ -65,79 +62,56 @@ export function TaskDetail() {
     if (data) setAttachments(data);
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'Mendesak':
-        return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
-      case 'Mendekati':
-        return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
-      case 'Masih Lama':
-        return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
-      default:
-        return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+      case 'Mendesak': return 'Urgent';
+      case 'Mendekati': return 'Upcoming';
+      case 'Masih Lama': return 'On Track';
+      default: return status;
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusClass = (status: string) => {
     switch (status) {
-      case 'Mendesak': return '🔴';
-      case 'Mendekati': return '🟡';
-      case 'Masih Lama': return '🟢';
-      default: return '⚪';
+      case 'Mendesak': return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
+      case 'Mendekati': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+      case 'Masih Lama': return 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300';
+      default: return 'bg-muted text-muted-foreground';
     }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !id) return;
-
     setUploading(true);
-
     for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const { success, data, error } = await uploadAttachment(file, 'task', id);
-      
-      if (success && data) {
-        setAttachments(prev => [...prev, data]);
-      } else {
-        alert(error || 'Gagal upload file');
-      }
+      const { success, data, error } = await uploadAttachment(files[i], 'task', id);
+      if (success && data) setAttachments(prev => [...prev, data]);
+      else alert(error || 'Failed to upload file');
     }
-
     setUploading(false);
     e.target.value = '';
   };
 
   const handleDeleteAttachment = async (attachmentId: string, url: string) => {
-    if (!confirm('Hapus lampiran ini?')) return;
-
+    if (!confirm('Remove this attachment?')) return;
     const { success, error } = await deleteAttachment(attachmentId, url);
-    if (success) {
-      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
-    } else {
-      alert(error || 'Gagal menghapus lampiran');
-    }
+    if (success) setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+    else alert(error || 'Failed to delete attachment');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-
     try {
       if (isNew) {
         const { success, error } = await createTask(formData);
-        if (success) {
-          navigate('/tasks');
-        } else {
-          alert(error || 'Gagal membuat tugas');
-        }
+        if (success) navigate('/tasks');
+        else alert(error || 'Failed to create task');
       } else {
         const { success, error } = await updateTask(id!, formData);
-        if (success) {
-          navigate('/tasks');
-        } else {
-          alert(error || 'Gagal update tugas');
-        }
+        if (success) navigate('/tasks');
+        else alert(error || 'Failed to update task');
       }
     } finally {
       setSubmitting(false);
@@ -146,67 +120,73 @@ export function TaskDetail() {
 
   const handleComplete = async () => {
     if (!id) return;
-    
     setCompleting(true);
     const { success, error } = await completeTask(id, completionNote);
-    if (success) {
-      navigate('/tasks');
-    } else {
-      alert(error || 'Gagal menyelesaikan tugas');
-      setCompleting(false);
-    }
+    if (success) navigate('/tasks');
+    else { alert(error || 'Failed to complete task'); setCompleting(false); }
   };
 
   const handleDelete = async () => {
-    if (!confirm('Yakin ingin menghapus tugas ini? Semua lampiran juga akan dihapus.')) return;
-    
+    if (!confirm('Delete this task? All attachments will also be removed.')) return;
     setDeleting(true);
     const { success, error } = await deleteTask(id!);
-    if (success) {
-      navigate('/tasks');
-    } else {
-      alert(error || 'Gagal menghapus tugas');
-      setDeleting(false);
-    }
+    if (success) navigate('/tasks');
+    else { alert(error || 'Failed to delete task'); setDeleting(false); }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
+    <div className="space-y-6 p-1">
+      {/* Header */}
+      <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate('/tasks')}>
           <ArrowLeft size={20} />
         </Button>
         <div>
-          <h1 className="text-3xl dark:text-white">
-            {isNew ? 'Tambah Tugas' : task?.completed ? 'Tugas Selesai' : 'Detail Tugas'}
+          <h1 className="text-3xl font-semibold text-foreground">
+            {isNew ? 'New Task' : task?.completed ? 'Completed Task' : 'Task Detail'}
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            {isNew ? 'Buat tugas baru dengan deadline' : 'Lihat dan kelola tugas'}
+          <p className="text-muted-foreground mt-0.5">
+            {isNew ? 'Create a new task with a deadline' : 'View and manage this task'}
           </p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <Card className="dark:bg-gray-800 dark:border-gray-700">
-          <CardHeader>
-            <CardTitle className="dark:text-white">Informasi Tugas</CardTitle>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Task Info Card */}
+        <Card className="border border-border bg-card">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold text-foreground">Task Info</CardTitle>
+              {!isNew && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 size={15} />}
+                  {deleting ? 'Deleting...' : 'Delete'}
+                </Button>
+              )}
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="title" className="dark:text-gray-300">Judul Tugas</Label>
+          <CardContent className="space-y-5 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="title">Task Title</Label>
               <Input
                 id="title"
-                placeholder="Contoh: Bayar tagihan listrik"
+                placeholder="e.g. Pay electricity bill"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 disabled={task?.completed}
                 required
-                className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
             </div>
 
-            <div>
-              <Label htmlFor="deadline" className="dark:text-gray-300">Deadline</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="deadline">Deadline</Label>
               <Input
                 id="deadline"
                 type="date"
@@ -214,20 +194,17 @@ export function TaskDetail() {
                 onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
                 disabled={task?.completed}
                 required
-                className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
             </div>
 
-            <div>
-              <Label htmlFor="category" className="dark:text-gray-300">Kategori</Label>
-              <Select 
+            <div className="space-y-1.5">
+              <Label htmlFor="category">Category</Label>
+              <Select
                 value={formData.categoryId}
-                onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
+                onValueChange={(v) => setFormData({ ...formData, categoryId: v })}
                 disabled={task?.completed}
               >
-                <SelectTrigger id="category" className="dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger id="category"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {taskCategories.map(cat => (
                     <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
@@ -236,169 +213,137 @@ export function TaskDetail() {
               </Select>
             </div>
 
+            {/* Status badge (edit mode) */}
             {!isNew && task && (
-              <div>
-                <Label className="dark:text-gray-300">Status</Label>
-                <div className="mt-2">
-                  <Badge className={`${getStatusColor(task.status)} text-lg py-2 px-4`}>
-                    {getStatusIcon(task.status)} {task.status}
-                  </Badge>
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-medium px-3 py-1.5 rounded-lg ${getStatusClass(task.status)}`}>
+                    {getStatusLabel(task.status)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">Auto-calculated from deadline</span>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  Status otomatis berdasarkan deadline
-                </p>
               </div>
             )}
 
-            <div>
-              <Label htmlFor="description" className="dark:text-gray-300">Deskripsi (Opsional)</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="description">
+                Description <span className="text-muted-foreground font-normal">(Optional)</span>
+              </Label>
               <Textarea
                 id="description"
-                placeholder="Tambahkan deskripsi tugas..."
+                placeholder="Add details about this task..."
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={3}
                 disabled={task?.completed}
-                className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
             </div>
           </CardContent>
         </Card>
 
-        {/* Attachments Section */}
+        {/* Attachments */}
         {!isNew && (
-          <Card className="dark:bg-gray-800 dark:border-gray-700">
-            <CardHeader>
-              <CardTitle className="dark:text-white">Lampiran Bukti</CardTitle>
+          <Card className="border border-border bg-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold text-foreground">Attachments</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label className="dark:text-gray-300">Upload Bukti (Maksimal 10MB)</Label>
-                <div className="mt-2 space-y-2">
-                  <Input
-                    type="file"
-                    accept="image/*,application/pdf"
-                    multiple
-                    onChange={handleFileUpload}
-                    disabled={uploading || task?.completed}
-                    className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Upload bukti penyelesaian atau dokumen terkait tugas.
-                  </p>
-                  
-                  {uploading && (
-                    <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Mengupload...
-                    </div>
-                  )}
-
-                  {attachments.length > 0 && (
-                    <div className="space-y-2 mt-3">
-                      {attachments.map((file) => (
-                        <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            {isImageFile(file.name) ? (
-                              <ImageIcon size={20} className="text-blue-600 flex-shrink-0" />
-                            ) : (
-                              <FileText size={20} className="text-red-600 flex-shrink-0" />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate dark:text-white">{file.name}</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {formatFileSize(file.size)}
-                              </p>
-                            </div>
-                            <a
-                              href={file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:underline flex-shrink-0"
-                            >
-                              Lihat
-                            </a>
-                          </div>
-                          {!task?.completed && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 ml-2 flex-shrink-0"
-                              onClick={() => handleDeleteAttachment(file.id, file.url)}
-                            >
-                              <X size={16} />
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+            <CardContent className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label>Upload Evidence <span className="text-muted-foreground font-normal">(Max 10MB)</span></Label>
+                <Input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  multiple
+                  onChange={handleFileUpload}
+                  disabled={uploading || task?.completed}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Upload proof of completion or related documents
+                </p>
+                {uploading && (
+                  <div className="flex items-center gap-2 text-sm text-primary">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Uploading...
+                  </div>
+                )}
               </div>
+
+              {attachments.length > 0 && (
+                <div className="space-y-2">
+                  {attachments.map((file) => (
+                    <div key={file.id} className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {isImageFile(file.name)
+                          ? <ImageIcon size={18} className="text-primary flex-shrink-0" />
+                          : <FileText size={18} className="text-red-500 flex-shrink-0" />
+                        }
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
+                          <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                        </div>
+                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex-shrink-0 mr-2">
+                          View
+                        </a>
+                      </div>
+                      {!task?.completed && (
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteAttachment(file.id, file.url)}>
+                          <X size={15} />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
 
+        {/* Mark as Complete */}
         {!isNew && task && !task.completed && (
-          <Card className="dark:bg-gray-800 dark:border-gray-700">
-            <CardHeader>
-              <CardTitle className="dark:text-white">Selesaikan Tugas</CardTitle>
+          <Card className="border border-border bg-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold text-foreground">Mark as Complete</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="completion-note" className="dark:text-gray-300">Catatan Penyelesaian (Opsional)</Label>
+            <CardContent className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="completion-note">
+                  Completion Note <span className="text-muted-foreground font-normal">(Optional)</span>
+                </Label>
                 <Textarea
                   id="completion-note"
-                  placeholder="Tambahkan catatan penyelesaian..."
+                  placeholder="Add a note about how this was completed..."
                   value={completionNote}
                   onChange={(e) => setCompletionNote(e.target.value)}
                   rows={3}
-                  className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 />
               </div>
-
-              <Button 
+              <Button
                 type="button"
                 onClick={handleComplete}
                 disabled={completing}
-                className="w-full bg-green-600 hover:bg-green-700"
+                className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white"
               >
-                {completing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Menyelesaikan...
-                  </>
-                ) : (
-                  '✓ Tandai Selesai'
-                )}
+                {completing
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Completing...</>
+                  : <><CheckCircle2 size={16} /> Mark as Complete</>
+                }
               </Button>
             </CardContent>
           </Card>
         )}
 
-        {isNew && (
-          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-            <p className="text-sm text-yellow-800 dark:text-yellow-300">
-              💡 <strong>Tips:</strong> Simpan tugas terlebih dahulu, lalu Anda bisa menambahkan lampiran.
-            </p>
-          </div>
-        )}
-
+        {/* Completed banner */}
         {task?.completed && (
-          <Card className="bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800">
-            <CardContent className="pt-6">
+          <Card className="border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20">
+            <CardContent className="py-5">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center text-2xl">
-                  ✓
+                <div className="w-10 h-10 bg-green-100 dark:bg-green-900/50 rounded-full flex items-center justify-center">
+                  <CheckCircle2 size={20} className="text-green-600 dark:text-green-400" />
                 </div>
                 <div>
-                  <p className="text-lg dark:text-white">Tugas Selesai</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Tugas ini telah diselesaikan</p>
+                  <p className="font-medium text-green-800 dark:text-green-300">Task Completed</p>
                   {task.completionNote && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                      Catatan: {task.completionNote}
-                    </p>
+                    <p className="text-sm text-green-700 dark:text-green-400 mt-0.5">Note: {task.completionNote}</p>
                   )}
                 </div>
               </div>
@@ -406,46 +351,26 @@ export function TaskDetail() {
           </Card>
         )}
 
-        <div className="flex gap-3">
-          {!task?.completed && (
-            <Button type="submit" className="flex-1" disabled={submitting}>
-              {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Menyimpan...
-                </>
-              ) : (
-                isNew ? 'Simpan Tugas' : 'Update Tugas'
-              )}
+        {/* Tip */}
+        {isNew && (
+          <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <p className="text-sm text-amber-800 dark:text-amber-300">
+              <strong>Tip:</strong> Save the task first, then you can add attachments.
+            </p>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        {!task?.completed && (
+          <div className="flex items-center gap-3 pt-2">
+            <Button type="submit" className="flex-1 gap-2" disabled={submitting}>
+              {submitting
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+                : <><Save size={16} />{isNew ? 'Save Task' : 'Update Task'}</>
+              }
             </Button>
-          )}
-          
-          {!isNew && (
-            <Button 
-              type="button"
-              variant="destructive" 
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Menghapus...
-                </>
-              ) : (
-                'Hapus'
-              )}
-            </Button>
-          )}
-          
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={() => navigate('/tasks')}
-          >
-            {task?.completed ? 'Kembali' : 'Batal'}
-          </Button>
-        </div>
+          </div>
+        )}
       </form>
     </div>
   );

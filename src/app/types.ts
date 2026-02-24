@@ -60,13 +60,18 @@ export interface Note {
   attachments?: Attachment[];
 }
 
+// ✅ FIX: Sesuaikan field User dengan kolom database (snake_case)
+// Database columns: id, name, email, avatar, pin_type, pin_hash, created_at, updated_at
 export interface User {
   id: string;
   name: string;
   email: string;
   avatar?: string;
-  pinType: 'numeric' | 'password';
-  pin?: string; // Hashed in real app
+  // ✅ snake_case agar cocok dengan kolom Supabase
+  pin_type?: 'numeric' | 'password';
+  pin_hash?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export type DateRange = 'today' | 'week' | 'month' | 'year' | 'custom';

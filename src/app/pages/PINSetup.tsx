@@ -1,6 +1,6 @@
 // src/app/pages/PINSetup.tsx
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -11,6 +11,7 @@ import { Shield, Loader2 } from 'lucide-react';
 
 export function PINSetup() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading: authLoading, updateProfile } = useAuth();
 
   const [pinType, setPinType] = useState<'pin4' | 'pin6' | 'password'>('pin4');
@@ -19,11 +20,12 @@ export function PINSetup() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Jika PIN sudah pernah dibuat, langsung redirect ke pin-lock.
-  // User tidak perlu membuat PIN baru setelah logout.
+  // ✅ FIX Bug 1: Cek apakah dari "forgot PIN" — kalau iya, jangan redirect meski pinSetup ada
   useEffect(() => {
+    const isForgotPin = location.state?.forgotPin === true;
     const pinAlreadySetup = localStorage.getItem('pinSetup');
-    if (pinAlreadySetup) {
+
+    if (pinAlreadySetup && !isForgotPin) {
       navigate('/pin-lock', { replace: true });
     }
   }, []);
@@ -32,22 +34,18 @@ export function PINSetup() {
     e.preventDefault();
     setError(null);
 
-    // Validation
     if (pinType === 'pin4' && pin.length !== 4) {
       setError('PIN harus 4 digit!');
       return;
     }
-
     if (pinType === 'pin6' && pin.length !== 6) {
       setError('PIN harus 6 digit!');
       return;
     }
-
     if (pinType === 'password' && pin.length < 6) {
       setError('Password minimal 6 karakter!');
       return;
     }
-
     if (pin !== confirmPin) {
       setError('PIN/Password tidak cocok!');
       return;
@@ -56,31 +54,23 @@ export function PINSetup() {
     setSubmitting(true);
 
     try {
-      // Simple hash function (untuk keamanan dasar)
-      const hashPin = btoa(pin); // Base64 encoding
+      const hashPin = btoa(pin);
 
-      // Simpan PIN ke localStorage terlebih dahulu
-      // Ini harus selalu berhasil terlepas dari kondisi user/network
       localStorage.setItem('pin', hashPin);
       localStorage.setItem('pinType', pinType);
       localStorage.setItem('pinSetup', 'true');
-      localStorage.setItem('pinUnlocked', 'true');
+      sessionStorage.setItem('pinUnlocked', 'true');
 
-      // Update profil user di database jika user sudah ter-load
-      // Jika gagal (misal user null atau network error), tidak masalah —
-      // PIN sudah tersimpan di localStorage dan user tetap bisa masuk
       if (user) {
         try {
           await updateProfile({
             pin_type: pinType === 'password' ? 'password' : 'numeric',
           });
         } catch (profileErr) {
-          // Gagal update profil tidak menghalangi user masuk
           console.warn('updateProfile gagal, tapi PIN tetap tersimpan:', profileErr);
         }
       }
 
-      // Navigasi ke dashboard
       navigate('/');
     } catch (err) {
       setError('Gagal menyimpan PIN. Silakan coba lagi.');
@@ -107,8 +97,8 @@ export function PINSetup() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -118,11 +108,13 @@ export function PINSetup() {
       <Card className="w-full max-w-md dark:bg-gray-800 dark:border-gray-700">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg">
               <Shield className="text-white" size={32} />
             </div>
           </div>
-          <CardTitle className="text-3xl dark:text-white">Buat PIN Keamanan</CardTitle>
+          <CardTitle className="text-3xl dark:text-white">
+            {location.state?.forgotPin ? 'Reset PIN Keamanan' : 'Buat PIN Keamanan'}
+          </CardTitle>
           <p className="text-gray-500 dark:text-gray-400 mt-2">
             Amankan aplikasi Anda dengan PIN tambahan
           </p>
@@ -163,7 +155,7 @@ export function PINSetup() {
               </RadioGroup>
             </div>
 
-            <div>
+            <div className="space-y-1">
               <Label htmlFor="pin" className="dark:text-gray-300">{getPinLabel()}</Label>
               <Input
                 id="pin"
@@ -178,7 +170,7 @@ export function PINSetup() {
               />
             </div>
 
-            <div>
+            <div className="space-y-1">
               <Label htmlFor="confirmPin" className="dark:text-gray-300">Konfirmasi {getPinLabel()}</Label>
               <Input
                 id="confirmPin"

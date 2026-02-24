@@ -11,19 +11,19 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
-import { ArrowLeft, Upload, X, Loader2, FileText, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, X, Loader2, FileText, Image as ImageIcon, Trash2, Save } from 'lucide-react';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 
 export function TransactionDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isNew = id === 'new';
-  
+
   const { getTransactionById, createTransaction, updateTransaction, deleteTransaction } = useTransactions();
   const { accounts } = useAccounts();
   const { getCategoriesByType } = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
-  
+
   const transaction = isNew ? null : getTransactionById(id!);
   const transactionCategories = getCategoriesByType('transaction');
 
@@ -41,11 +41,8 @@ export function TransactionDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Load attachments if editing
   useEffect(() => {
-    if (!isNew && id) {
-      loadAttachments();
-    }
+    if (!isNew && id) loadAttachments();
   }, [id]);
 
   useEffect(() => {
@@ -67,71 +64,44 @@ export function TransactionDetail() {
     if (data) setAttachments(data);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 
-  const getAccountName = (accountId: string) => {
-    return accounts.find(a => a.id === accountId)?.name || 'Unknown';
-  };
+  const getAccountName = (accountId: string) =>
+    accounts.find(a => a.id === accountId)?.name || 'Unknown';
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !id) return;
-
     setUploading(true);
-
     for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const { success, data, error } = await uploadAttachment(file, 'transaction', id);
-      
-      if (success && data) {
-        setAttachments(prev => [...prev, data]);
-      } else {
-        alert(error || 'Gagal upload file');
-      }
+      const { success, data, error } = await uploadAttachment(files[i], 'transaction', id);
+      if (success && data) setAttachments(prev => [...prev, data]);
+      else alert(error || 'Failed to upload file');
     }
-
     setUploading(false);
-    e.target.value = ''; // Reset input
+    e.target.value = '';
   };
 
   const handleDeleteAttachment = async (attachmentId: string, url: string) => {
-    if (!confirm('Hapus lampiran ini?')) return;
-
+    if (!confirm('Remove this attachment?')) return;
     const { success, error } = await deleteAttachment(attachmentId, url);
-    if (success) {
-      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
-    } else {
-      alert(error || 'Gagal menghapus lampiran');
-    }
+    if (success) setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+    else alert(error || 'Failed to delete attachment');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-
     try {
       if (isNew) {
-        const { success, data, error } = await createTransaction(formData);
-        if (success && data) {
-          // If there are attachments uploaded before save, we need to re-associate them
-          // For now, just navigate to list
-          navigate('/transactions');
-        } else {
-          alert(error || 'Gagal membuat transaksi');
-        }
+        const { success, error } = await createTransaction(formData);
+        if (success) navigate('/transactions');
+        else alert(error || 'Failed to create transaction');
       } else {
         const { success, error } = await updateTransaction(id!, formData);
-        if (success) {
-          navigate('/transactions');
-        } else {
-          alert(error || 'Gagal update transaksi');
-        }
+        if (success) navigate('/transactions');
+        else alert(error || 'Failed to update transaction');
       }
     } finally {
       setSubmitting(false);
@@ -139,47 +109,60 @@ export function TransactionDetail() {
   };
 
   const handleDelete = async () => {
-    if (!confirm('Yakin ingin menghapus transaksi ini? Semua lampiran juga akan dihapus.')) return;
-    
+    if (!confirm('Delete this transaction? All attachments will also be removed.')) return;
     setDeleting(true);
     const { success, error } = await deleteTransaction(id!);
-    if (success) {
-      navigate('/transactions');
-    } else {
-      alert(error || 'Gagal menghapus transaksi');
-      setDeleting(false);
-    }
+    if (success) navigate('/transactions');
+    else { alert(error || 'Failed to delete transaction'); setDeleting(false); }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
+    <div className="space-y-6 p-1">
+      {/* Header */}
+      <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate('/transactions')}>
           <ArrowLeft size={20} />
         </Button>
         <div>
-          <h1 className="text-3xl dark:text-white">
-            {isNew ? 'Tambah Transaksi' : 'Detail Transaksi'}
+          <h1 className="text-3xl font-semibold text-foreground">
+            {isNew ? 'New Transaction' : 'Transaction Detail'}
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            {isNew ? 'Buat transaksi baru' : 'Lihat detail transaksi'}
+          <p className="text-muted-foreground mt-0.5">
+            {isNew ? 'Record a new transaction' : 'View or edit this transaction'}
           </p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <Card className="dark:bg-gray-800 dark:border-gray-700">
-          <CardHeader>
-            <CardTitle className="dark:text-white">Informasi Transaksi</CardTitle>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Main Form */}
+        <Card className="border border-border bg-card">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold text-foreground">Transaction Info</CardTitle>
+              {/* ✅ Delete di pojok kanan atas card — tidak awkward, mudah ditemukan */}
+              {!isNew && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  {deleting
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <Trash2 size={15} />
+                  }
+                  {deleting ? 'Deleting...' : 'Delete'}
+                </Button>
+              )}
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="account" className="dark:text-gray-300">Akun Keuangan</Label>
-              <Select 
-                value={formData.accountId} 
-                onValueChange={(value) => setFormData({ ...formData, accountId: value })}
-              >
-                <SelectTrigger id="account" className="dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+          <CardContent className="space-y-5 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="account">Account</Label>
+              <Select value={formData.accountId} onValueChange={(v) => setFormData({ ...formData, accountId: v })}>
+                <SelectTrigger id="account">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -190,8 +173,8 @@ export function TransactionDetail() {
               </Select>
             </div>
 
-            <div>
-              <Label htmlFor="amount" className="dark:text-gray-300">Nominal</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="amount">Amount</Label>
               <Input
                 id="amount"
                 type="number"
@@ -199,45 +182,37 @@ export function TransactionDetail() {
                 value={formData.amount}
                 onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
                 required
-                className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
             </div>
 
-            <div>
-              <Label htmlFor="type" className="dark:text-gray-300">Jenis Transaksi</Label>
-              <Select 
-                value={formData.type}
-                onValueChange={(value: 'Masuk' | 'Keluar') => setFormData({ ...formData, type: value })}
-              >
-                <SelectTrigger id="type" className="dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <div className="space-y-1.5">
+              <Label htmlFor="type">Transaction Type</Label>
+              <Select value={formData.type} onValueChange={(v: 'Masuk' | 'Keluar') => setFormData({ ...formData, type: v })}>
+                <SelectTrigger id="type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Masuk">Pemasukan</SelectItem>
-                  <SelectItem value="Keluar">Pengeluaran</SelectItem>
+                  <SelectItem value="Masuk">Income</SelectItem>
+                  <SelectItem value="Keluar">Expense</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div>
-              <Label htmlFor="date" className="dark:text-gray-300">Tanggal</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="date">Date</Label>
               <Input
                 id="date"
                 type="date"
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 required
-                className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
             </div>
 
-            <div>
-              <Label htmlFor="category" className="dark:text-gray-300">Kategori</Label>
-              <Select 
-                value={formData.categoryId}
-                onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
-              >
-                <SelectTrigger id="category" className="dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <div className="space-y-1.5">
+              <Label htmlFor="category">Category</Label>
+              <Select value={formData.categoryId} onValueChange={(v) => setFormData({ ...formData, categoryId: v })}>
+                <SelectTrigger id="category">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -248,163 +223,122 @@ export function TransactionDetail() {
               </Select>
             </div>
 
-            <div>
-              <Label htmlFor="description" className="dark:text-gray-300">Deskripsi (Opsional)</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="description">Description <span className="text-muted-foreground font-normal">(Optional)</span></Label>
               <Textarea
                 id="description"
-                placeholder="Tambahkan deskripsi transaksi..."
+                placeholder="Add a note about this transaction..."
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={3}
-                className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
             </div>
           </CardContent>
         </Card>
 
-        {/* Attachments Section - Only show if not new or if transaction exists */}
+        {/* Attachments */}
         {!isNew && (
-          <Card className="dark:bg-gray-800 dark:border-gray-700">
-            <CardHeader>
-              <CardTitle className="dark:text-white">Lampiran</CardTitle>
+          <Card className="border border-border bg-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold text-foreground">Attachments</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label className="dark:text-gray-300">Upload File (Maksimal 10MB)</Label>
-                <div className="mt-2 space-y-2">
-                  <Input
-                    type="file"
-                    accept="image/*,application/pdf"
-                    multiple
-                    onChange={handleFileUpload}
-                    disabled={uploading}
-                    className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Tipe file: Gambar (JPEG, PNG, GIF, WebP) atau PDF. Maksimal 10MB per file.
-                  </p>
-                  
-                  {uploading && (
-                    <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Mengupload...
-                    </div>
-                  )}
-
-                  {attachments.length > 0 && (
-                    <div className="space-y-2 mt-3">
-                      {attachments.map((file) => (
-                        <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            {isImageFile(file.name) ? (
-                              <ImageIcon size={20} className="text-blue-600 flex-shrink-0" />
-                            ) : (
-                              <FileText size={20} className="text-red-600 flex-shrink-0" />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate dark:text-white">{file.name}</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {formatFileSize(file.size)}
-                              </p>
-                            </div>
-                            <a
-                              href={file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:underline flex-shrink-0"
-                            >
-                              Lihat
-                            </a>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 ml-2 flex-shrink-0"
-                            onClick={() => handleDeleteAttachment(file.id, file.url)}
-                          >
-                            <X size={16} />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+            <CardContent className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label>Upload File <span className="text-muted-foreground font-normal">(Max 10MB)</span></Label>
+                <Input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  multiple
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Supported: JPEG, PNG, GIF, WebP, PDF — max 10MB per file
+                </p>
+                {uploading && (
+                  <div className="flex items-center gap-2 text-sm text-primary">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Uploading...
+                  </div>
+                )}
               </div>
+
+              {attachments.length > 0 && (
+                <div className="space-y-2">
+                  {attachments.map((file) => (
+                    <div key={file.id} className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {isImageFile(file.name)
+                          ? <ImageIcon size={18} className="text-primary flex-shrink-0" />
+                          : <FileText size={18} className="text-red-500 flex-shrink-0" />
+                        }
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
+                          <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                        </div>
+                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex-shrink-0 mr-2">
+                          View
+                        </a>
+                      </div>
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteAttachment(file.id, file.url)}>
+                        <X size={15} />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
 
+        {/* Tip for new transaction */}
         {isNew && (
-          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-            <p className="text-sm text-yellow-800 dark:text-yellow-300">
-              💡 <strong>Tips:</strong> Simpan transaksi terlebih dahulu, lalu Anda bisa menambahkan lampiran.
+          <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <p className="text-sm text-amber-800 dark:text-amber-300">
+              <strong>Tip:</strong> Save the transaction first, then you can add attachments.
             </p>
           </div>
         )}
 
+        {/* Summary (edit mode only) */}
         {!isNew && transaction && (
-          <Card className="bg-gray-50 dark:bg-gray-800 dark:border-gray-700">
-            <CardHeader>
-              <CardTitle className="dark:text-white">Ringkasan</CardTitle>
+          <Card className="border border-border bg-muted/30">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold text-foreground">Summary</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">Akun:</span>
-                <span className="dark:text-white">{getAccountName(transaction.accountId)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">Jenis:</span>
+            <CardContent className="space-y-2.5 pt-2">
+              {[
+                { label: 'Account', value: getAccountName(transaction.accountId) },
+                { label: 'Date', value: new Date(transaction.date).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="text-foreground font-medium">{value}</span>
+                </div>
+              ))}
+              <div className="flex justify-between text-sm items-center">
+                <span className="text-muted-foreground">Type</span>
                 <Badge variant={transaction.type === 'Masuk' ? 'default' : 'destructive'}>
-                  {transaction.type}
+                  {transaction.type === 'Masuk' ? 'Income' : 'Expense'}
                 </Badge>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">Nominal:</span>
-                <span className={`dark:text-white ${transaction.type === 'Masuk' ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(transaction.amount)}
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Amount</span>
+                <span className={`font-semibold ${transaction.type === 'Masuk' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {transaction.type === 'Masuk' ? '+' : '-'}{formatCurrency(transaction.amount)}
                 </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">Tanggal:</span>
-                <span className="dark:text-white">{new Date(transaction.date).toLocaleDateString('id-ID')}</span>
               </div>
             </CardContent>
           </Card>
         )}
 
-        <div className="flex gap-3">
-          <Button type="submit" className="flex-1" disabled={submitting}>
-            {submitting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Menyimpan...
-              </>
-            ) : (
-              isNew ? 'Simpan Transaksi' : 'Update Transaksi'
-            )}
-          </Button>
-          
-          {!isNew && (
-            <Button 
-              type="button"
-              variant="destructive" 
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Menghapus...
-                </>
-              ) : (
-                'Hapus'
-              )}
-            </Button>
-          )}
-          
-          <Button type="button" variant="outline" onClick={() => navigate('/transactions')}>
-            Batal
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3 pt-2">
+          <Button type="submit" className="flex-1 gap-2" disabled={submitting}>
+            {submitting
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+              : <><Save size={16} />{isNew ? 'Save Transaction' : 'Update Transaction'}</>
+            }
           </Button>
         </div>
       </form>

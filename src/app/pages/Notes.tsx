@@ -1,168 +1,133 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotes } from '../context/NoteContext';
 import { useCategories } from '../context/CategoryContext';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../components/ui/sheet';
-import { Badge } from '../components/ui/badge';
-import { Plus, Search, Pin, Paperclip, List, LayoutGrid, ChevronLeft, ChevronRight, Edit, Filter, Loader2 } from 'lucide-react';
+import { Plus, Search, Pin, Paperclip, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Loader2, X } from 'lucide-react';
 
 export function Notes() {
   const navigate = useNavigate();
   const { notes, loading, error } = useNotes();
   const { getCategoriesByType } = useCategories();
-  
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState('all');
   const [viewMode, setViewMode] = useState<'list' | 'card'>('card');
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
 
   const noteCategories = getCategoriesByType('note');
 
-  const getCategoryName = (categoryId: string) => {
-    return noteCategories.find(c => c.id === categoryId)?.name || 'Lainnya';
-  };
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-  const getCategoryColor = (categoryId: string) => {
-    return noteCategories.find(c => c.id === categoryId)?.color || '#gray';
-  };
+  const getCategoryName = (categoryId: string) =>
+    noteCategories.find(c => c.id === categoryId)?.name || 'Other';
 
-  // Filter notes
+  const getCategoryColor = (categoryId: string) =>
+    noteCategories.find(c => c.id === categoryId)?.color || '#6b7280';
+
   const filteredNotes = useMemo(() => {
     let result = [...notes];
-
-    // Search filter
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(note => {
-        const matchesTitle = note.title.toLowerCase().includes(query);
-        const matchesContent = note.content.toLowerCase().includes(query);
-        return matchesTitle || matchesContent;
-      });
+      const q = searchQuery.toLowerCase();
+      result = result.filter(n =>
+        n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q)
+      );
     }
-
-    // Category filter
-    if (filterCategory !== 'all') {
-      result = result.filter(note => note.categoryId === filterCategory);
-    }
-
+    if (filterCategory !== 'all') result = result.filter(n => n.categoryId === filterCategory);
     return result;
   }, [notes, searchQuery, filterCategory]);
 
   const pinnedNotes = useMemo(() => filteredNotes.filter(n => n.pinned), [filteredNotes]);
   const regularNotes = useMemo(() => filteredNotes.filter(n => !n.pinned), [filteredNotes]);
 
-  // Pagination for regular notes
   const totalPages = Math.ceil(regularNotes.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedNotes = viewMode === 'list' ? regularNotes : regularNotes.slice(startIndex, endIndex);
+  const paginatedNotes = viewMode === 'list'
+    ? regularNotes
+    : regularNotes.slice(startIndex, startIndex + itemsPerPage);
 
-  const handleFilterChange = (value: string) => {
-    setFilterCategory(value);
-    setCurrentPage(1);
-  };
+  const activeFilterCount = [filterCategory !== 'all'].filter(Boolean).length;
 
-  const NoteCard = ({ note, isPinned }: { note: any, isPinned?: boolean }) => (
+  const NoteCard = ({ note, isPinned }: { note: any; isPinned?: boolean }) => (
     <Card
-      className={`hover:shadow-lg transition-shadow dark:bg-gray-800 dark:border-gray-700 ${isPinned ? 'border-blue-200 dark:border-blue-700' : ''}`}
+      className={`hover:shadow-md transition-shadow cursor-pointer border bg-card ${
+        isPinned ? 'border-primary/30' : 'border-border'
+      }`}
+      onClick={() => navigate(`/notes/${note.id}`)}
     >
-      <CardHeader>
-        <CardTitle className="text-base flex items-center justify-between">
-          <span className="line-clamp-1 flex-1 cursor-pointer dark:text-white" onClick={() => navigate(`/notes/${note.id}`)}>
-            {note.title}
-          </span>
-          <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-            {isPinned && <Pin size={16} className="text-blue-600" />}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/notes/${note.id}`);
-              }}
-            >
-              <Edit size={16} />
-            </Button>
-          </div>
-        </CardTitle>
-      </CardHeader>
-      <CardContent onClick={() => navigate(`/notes/${note.id}`)} className="cursor-pointer">
-        <div className="mb-3">
-          <Badge
-            variant="outline"
-            style={{
-              borderColor: getCategoryColor(note.categoryId),
-              color: getCategoryColor(note.categoryId)
-            }}
-          >
-            {getCategoryName(note.categoryId)}
-          </Badge>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h3 className="text-sm font-semibold text-foreground line-clamp-1 flex-1">{note.title}</h3>
+          {isPinned && <Pin size={14} className="text-primary flex-shrink-0 mt-0.5" />}
         </div>
-        <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-3">
-          {note.content}
-        </p>
-        <div className="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500">
-          <span>
-            {new Date(note.timestamp).toLocaleDateString('id-ID')}
+
+        <span
+          className="text-xs font-medium px-2 py-0.5 rounded-full border mb-2 inline-block"
+          style={{ borderColor: getCategoryColor(note.categoryId), color: getCategoryColor(note.categoryId) }}
+        >
+          {getCategoryName(note.categoryId)}
+        </span>
+
+        <p className="text-sm text-muted-foreground line-clamp-3 mt-2">{note.content}</p>
+
+        <div className="flex items-center justify-between mt-3">
+          <span className="text-xs text-muted-foreground/60">
+            {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
           </span>
           {note.attachments && note.attachments.length > 0 && (
-            <div className="flex items-center gap-1">
-              <Paperclip size={12} />
-              <span>{note.attachments.length}</span>
-            </div>
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Paperclip size={11} /> {note.attachments.length}
+            </span>
           )}
         </div>
       </CardContent>
     </Card>
   );
 
-  const NoteListItem = ({ note, isPinned }: { note: any, isPinned?: boolean }) => (
-    <Card className={`hover:shadow-md transition-shadow dark:bg-gray-800 dark:border-gray-700 ${isPinned ? 'border-blue-200 dark:border-blue-700' : ''}`}>
+  const NoteListItem = ({ note, isPinned }: { note: any; isPinned?: boolean }) => (
+    <Card
+      className={`hover:shadow-md transition-shadow cursor-pointer border bg-card ${
+        isPinned ? 'border-primary/30' : 'border-border'
+      }`}
+      onClick={() => navigate(`/notes/${note.id}`)}
+    >
       <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 cursor-pointer" onClick={() => navigate(`/notes/${note.id}`)}>
-            <div className="flex items-center gap-2 mb-2">
-              {isPinned && <Pin size={16} className="text-blue-600" />}
-              <h3 className="text-lg dark:text-white">{note.title}</h3>
+        <div className="flex items-start gap-3">
+          {isPinned && <Pin size={14} className="text-primary flex-shrink-0 mt-1" />}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-4">
+              <h3 className="text-sm font-semibold text-foreground">{note.title}</h3>
+              <span className="text-xs text-muted-foreground/60 flex-shrink-0">
+                {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
+              </span>
             </div>
-            <div className="mb-2">
-              <Badge
-                variant="outline"
-                style={{
-                  borderColor: getCategoryColor(note.categoryId),
-                  color: getCategoryColor(note.categoryId)
-                }}
-              >
-                {getCategoryName(note.categoryId)}
-              </Badge>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">
-              {note.content}
-            </p>
-            <div className="flex items-center gap-4 text-xs text-gray-400 dark:text-gray-500">
-              <span>{new Date(note.timestamp).toLocaleDateString('id-ID')}</span>
-              {note.attachments && note.attachments.length > 0 && (
-                <div className="flex items-center gap-1">
-                  <Paperclip size={12} />
-                  <span>{note.attachments.length} lampiran</span>
-                </div>
-              )}
-            </div>
+            <span
+              className="text-xs font-medium px-2 py-0.5 rounded-full border mt-1 inline-block"
+              style={{ borderColor: getCategoryColor(note.categoryId), color: getCategoryColor(note.categoryId) }}
+            >
+              {getCategoryName(note.categoryId)}
+            </span>
+            <p className="text-sm text-muted-foreground line-clamp-2 mt-1.5">{note.content}</p>
+            {note.attachments && note.attachments.length > 0 && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5">
+                <Paperclip size={11} /> {note.attachments.length} attachment{note.attachments.length !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1 dark:border-gray-600"
-            onClick={() => navigate(`/notes/${note.id}`)}
-          >
-            <Edit size={14} />
-            Edit
-          </Button>
         </div>
       </CardContent>
     </Card>
@@ -171,7 +136,7 @@ export function Notes() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -185,122 +150,132 @@ export function Notes() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 p-1">
+      {/* Header */}
+      <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl dark:text-white">Notes</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Simpan catatan pribadi Anda</p>
+          <h1 className="text-3xl font-semibold text-foreground">Notes</h1>
+          <p className="text-muted-foreground mt-1">Your personal notes</p>
         </div>
         <Button onClick={() => navigate('/notes/new')} className="gap-2">
-          <Plus size={20} />
-          Tambah Note
+          <Plus size={18} />
+          Add Note
         </Button>
       </div>
 
-      {/* Search Bar and Filter */}
-      <Card className="dark:bg-gray-800 dark:border-gray-700">
-        <CardContent className="pt-6">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <Input
-                placeholder="Cari notes (judul, konten)..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              />
-            </div>
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                  <Filter size={20} />
-                </Button>
-              </SheetTrigger>
-              <SheetContent className="dark:bg-gray-800 dark:text-white overflow-y-auto">
-                <SheetHeader>
-                  <SheetTitle className="dark:text-white">Filter & Tampilan</SheetTitle>
-                </SheetHeader>
-                <div className="space-y-4 mt-6">
-                  <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Filter Kategori</label>
-                    <Select value={filterCategory} onValueChange={handleFilterChange}>
-                      <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600">
-                        <SelectValue placeholder="Semua Kategori" />
-                      </SelectTrigger>
+      {/* Search + Filter */}
+      <div className="flex gap-2 items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+          <Input
+            placeholder="Search by title or content..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 border border-border shadow-sm"
+          />
+        </div>
+
+        <div className="relative" ref={filterRef}>
+          <Button
+            variant="outline"
+            className="gap-2 relative"
+            onClick={() => setFilterOpen(!filterOpen)}
+          >
+            <Filter size={18} />
+            Filter
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
+
+          {filterOpen && (
+            <div className="absolute right-0 top-full mt-2 w-72 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <span className="font-semibold text-foreground">Filter & View</span>
+                <div className="flex items-center gap-2">
+                  {activeFilterCount > 0 && (
+                    <button onClick={() => { setFilterCategory('all'); setCurrentPage(1); }} className="text-xs text-primary hover:underline">
+                      Reset all
+                    </button>
+                  )}
+                  <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground">
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</label>
+                  <Select value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setCurrentPage(1); }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {noteCategories.map(cat => (
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="border-t border-border pt-3 space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">View</label>
+                  <div className="flex gap-2">
+                    <Button variant={viewMode === 'list' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('list')} className="gap-2 flex-1">
+                      <List size={15} /> List
+                    </Button>
+                    <Button variant={viewMode === 'card' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('card')} className="gap-2 flex-1">
+                      <LayoutGrid size={15} /> Card
+                    </Button>
+                  </div>
+                </div>
+
+                {viewMode === 'card' && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Per page</label>
+                    <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Semua Kategori</SelectItem>
-                        {noteCategories.map(cat => (
-                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                        ))}
+                        <SelectItem value="3">3</SelectItem>
+                        <SelectItem value="6">6</SelectItem>
+                        <SelectItem value="12">12</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
-                  {/* View Options */}
-                  <div className="pt-4 border-t dark:border-gray-700">
-                    <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Tampilan</label>
-                    <div className="flex gap-2">
-                      <Button
-                        variant={viewMode === 'list' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setViewMode('list')}
-                        className="gap-2 flex-1"
-                      >
-                        <List size={16} />
-                        List
-                      </Button>
-                      <Button
-                        variant={viewMode === 'card' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setViewMode('card')}
-                        className="gap-2 flex-1"
-                      >
-                        <LayoutGrid size={16} />
-                        Card
-                      </Button>
-                    </div>
-                  </div>
-
-                  {viewMode === 'card' && (
-                    <div>
-                      <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">Per halaman</label>
-                      <Select value={itemsPerPage.toString()} onValueChange={(v) => {
-                        setItemsPerPage(parseInt(v));
-                        setCurrentPage(1);
-                      }}>
-                        <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="3">3</SelectItem>
-                          <SelectItem value="5">5</SelectItem>
-                          <SelectItem value="10">10</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Empty state */}
+      {filteredNotes.length === 0 && (
+        <Card className="border border-border bg-card">
+          <CardContent className="py-16 text-center">
+            <p className="text-muted-foreground">{searchQuery ? 'No notes found' : 'No notes yet'}</p>
+            <p className="text-sm text-muted-foreground/60 mt-1">
+              {searchQuery ? 'Try adjusting your search or filters' : 'Create your first note'}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Pinned Notes */}
       {pinnedNotes.length > 0 && (
         <div>
-          <div className="flex items-center gap-2 mb-4">
-            <Pin size={20} className="text-blue-600" />
-            <h2 className="text-xl dark:text-white">Catatan Terpin ({pinnedNotes.length})</h2>
+          <div className="flex items-center gap-2 mb-3">
+            <Pin size={16} className="text-primary" />
+            <h2 className="text-base font-semibold text-foreground">Pinned ({pinnedNotes.length})</h2>
           </div>
-          <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-3'}>
-            {pinnedNotes.map((note) => (
-              viewMode === 'card' ? (
-                <NoteCard key={note.id} note={note} isPinned />
-              ) : (
-                <NoteListItem key={note.id} note={note} isPinned />
-              )
-            ))}
+          <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
+            {pinnedNotes.map(note =>
+              viewMode === 'card'
+                ? <NoteCard key={note.id} note={note} isPinned />
+                : <NoteListItem key={note.id} note={note} isPinned />
+            )}
           </div>
         </div>
       )}
@@ -308,63 +283,35 @@ export function Notes() {
       {/* Regular Notes */}
       {regularNotes.length > 0 && (
         <div>
-          <h2 className="text-xl mb-4 dark:text-white">
-            Semua Catatan ({regularNotes.length})
+          <h2 className="text-base font-semibold text-foreground mb-3">
+            All Notes <span className="text-muted-foreground font-normal">({regularNotes.length})</span>
           </h2>
-          <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-3'}>
-            {paginatedNotes.map((note) => (
-              viewMode === 'card' ? (
-                <NoteCard key={note.id} note={note} />
-              ) : (
-                <NoteListItem key={note.id} note={note} />
-              )
-            ))}
+          <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
+            {paginatedNotes.map(note =>
+              viewMode === 'card'
+                ? <NoteCard key={note.id} note={note} />
+                : <NoteListItem key={note.id} note={note} />
+            )}
           </div>
         </div>
       )}
 
-      {filteredNotes.length === 0 && (
-        <Card className="dark:bg-gray-800 dark:border-gray-700">
-          <CardContent className="p-12 text-center text-gray-500 dark:text-gray-400">
-            <p>{searchQuery ? 'Tidak ada catatan ditemukan' : 'Belum ada catatan'}</p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Pagination */}
       {viewMode === 'card' && totalPages > 1 && (
-        <Card className="dark:bg-gray-800 dark:border-gray-700">
-          <CardContent className="p-4">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Menampilkan {startIndex + 1}-{Math.min(endIndex, regularNotes.length)} dari {regularNotes.length} catatan
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="dark:bg-gray-700 dark:border-gray-600"
-                >
-                  <ChevronLeft size={16} />
-                </Button>
-                <span className="text-sm dark:text-white">
-                  Halaman {currentPage} dari {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="dark:bg-gray-700 dark:border-gray-600"
-                >
-                  <ChevronRight size={16} />
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, regularNotes.length)} of {regularNotes.length}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+              <ChevronLeft size={16} />
+            </Button>
+            <span className="text-sm text-foreground">Page {currentPage} of {totalPages}</span>
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+              <ChevronRight size={16} />
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

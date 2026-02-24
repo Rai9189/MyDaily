@@ -1,52 +1,54 @@
 // src/app/components/Sidebar.tsx
-import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut, Moon, Sun } from 'lucide-react';
+import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
-import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { theme, toggleTheme } = useTheme();
   const { signOut } = useAuth();
 
   const navItems = [
     { path: '/', icon: Home, label: 'Dashboard' },
-    { path: '/transactions', icon: CreditCard, label: 'Transaksi' },
-    { path: '/tasks', icon: CheckSquare, label: 'Tugas' },
+    { path: '/transactions', icon: CreditCard, label: 'Transactions' },
+    { path: '/tasks', icon: CheckSquare, label: 'Tasks' },
     { path: '/notes', icon: FileText, label: 'Notes' },
-    { path: '/accounts', icon: Wallet, label: 'Akun' },
+    { path: '/accounts', icon: Wallet, label: 'Accounts' },
     { path: '/profile', icon: User, label: 'Profile' },
   ];
 
-  // Gunakan signOut dari AuthContext agar konsisten:
-  // hanya menghapus pinUnlocked, PIN lama tetap tersimpan untuk login berikutnya.
   const handleLogout = async () => {
+    sessionStorage.removeItem('pinUnlocked');
     await signOut();
     navigate('/login');
   };
 
   return (
-    <aside className="hidden md:flex md:flex-col w-64 bg-gradient-to-b from-blue-600 to-blue-800 dark:from-gray-900 dark:to-gray-800 text-white h-screen fixed left-0 top-0">
-      <div className="p-6 border-b border-blue-500 dark:border-gray-700">
-        <h1 className="text-2xl">MyDaily</h1>
-        <p className="text-sm text-blue-100 dark:text-gray-400 mt-1">Kelola hidupmu dengan mudah</p>
+    <aside
+      className="hidden md:flex md:flex-col w-64 h-screen fixed left-0 top-0"
+      style={{ background: 'linear-gradient(to bottom, var(--primary), color-mix(in srgb, var(--primary) 80%, black))' }}
+    >
+      <div className="p-5 border-b border-white/20">
+        <img
+          src="/logo.png"
+          alt="MyDaily"
+          className="w-full h-auto object-contain dark:invert"
+        />
       </div>
 
       <nav className="flex-1 p-4">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           const Icon = item.icon;
-
           return (
             <Link
               key={item.path}
               to={item.path}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-2 transition-colors ${
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors ${
                 isActive
-                  ? 'bg-white text-blue-600 dark:bg-gray-700 dark:text-white'
-                  : 'text-blue-100 hover:bg-blue-700 dark:text-gray-300 dark:hover:bg-gray-700'
+                  ? 'bg-white text-primary font-semibold'
+                  : 'text-white/80 hover:bg-white/15 hover:text-white'
               }`}
             >
               <Icon size={20} />
@@ -56,23 +58,15 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Theme Toggle & Logout */}
-      <div className="p-4 border-t border-blue-500 dark:border-gray-700 space-y-2">
+      {/* Sign Out — hanya muncul di desktop (sidebar) */}
+      <div className="p-4 border-t border-white/20">
         <Button
           variant="outline"
-          className="w-full gap-2 bg-blue-700 border-blue-500 text-white hover:bg-blue-600 dark:bg-gray-700 dark:border-gray-600 dark:hover:bg-gray-600"
-          onClick={toggleTheme}
-        >
-          {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-          {theme === 'light' ? 'Mode Gelap' : 'Mode Terang'}
-        </Button>
-        <Button
-          variant="outline"
-          className="w-full gap-2 text-white border-red-400 hover:bg-red-600 dark:border-red-500 dark:hover:bg-red-700"
+          className="w-full gap-2 text-white border-red-400/60 hover:bg-red-600/70 bg-transparent"
           onClick={handleLogout}
         >
-          <LogOut size={20} />
-          Keluar Akun
+          <LogOut size={18} />
+          Sign Out
         </Button>
       </div>
     </aside>

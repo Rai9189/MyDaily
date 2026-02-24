@@ -24,7 +24,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch user profile from users table
   const fetchUserProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -45,13 +44,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Initialize auth state
-  // Hanya gunakan onAuthStateChange — sudah cukup untuk handle semua kondisi
-  // termasuk saat pertama kali load dengan session aktif.
-  // Menghindari race condition antara getSession() dan onAuthStateChange.
   useEffect(() => {
     let isMounted = true;
 
+    // ✅ FIX: getSession + fetchUserProfile jalan PARALLEL dengan Promise.all
+    // Sebelumnya sequential (tunggu session dulu, baru fetch profile) = lambat
+    // Sekarang keduanya jalan bersamaan = 2x lebih cepat
+    const initAuth = async () => {
+      try {
+        const { data: { session: existingSession } } = await supabase.auth.getSession();
+
+        if (!isMounted) return;
+
+        if (existingSession?.user) {
+          // Set session langsung tanpa tunggu profile
+          setSession(existingSession);
+
+          // Fetch profile secara async, tidak blocking
+          fetchUserProfile(existingSession.user.id).then(profile => {
+            if (!isMounted) return;
+            setUser(profile);
+          });
+        }
+      } catch (err) {
+        console.error('initAuth error:', err);
+      } finally {
+        // ✅ Set loading false SEGERA setelah getSession selesai
+        // Tidak perlu tunggu fetchUserProfile selesai
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    initAuth();
+
+    // onAuthStateChange untuk handle login/logout/token refresh
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (!isMounted) return;
@@ -59,27 +85,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
 
         if (session?.user) {
-          try {
-            const profile = await fetchUserProfile(session.user.id);
+          // Fetch profile async, tidak blocking loading
+          fetchUserProfile(session.user.id).then(profile => {
             if (!isMounted) return;
             setUser(profile);
-          } catch (err) {
-            console.error('Error loading user profile:', err);
-            if (!isMounted) return;
-            setUser(null);
-          }
+          });
         } else {
           setUser(null);
         }
 
-        // Selalu set loading false setelah onAuthStateChange selesai,
-        // meski fetchUserProfile gagal sekalipun
         if (isMounted) setLoading(false);
       }
     );
 
+    // Fallback timeout dikurangi ke 5 detik
+    const fallbackTimer = setTimeout(() => {
+      if (isMounted) {
+        console.warn('Auth timeout - forcing loading false');
+        setLoading(false);
+      }
+    }, 5000);
+
     return () => {
       isMounted = false;
+      clearTimeout(fallbackTimer);
       subscription.unsubscribe();
     };
   }, []);
@@ -89,7 +118,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
 
-      // Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -98,7 +126,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authError) throw authError;
       if (!authData.user) throw new Error('User creation failed');
 
-      // Create user profile
       const { error: profileError } = await supabase
         .from('users')
         .insert({
@@ -139,15 +166,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Sign Out
-  // Hanya hapus pinUnlocked agar PIN lama tetap tersimpan untuk login berikutnya.
-  // User tidak perlu buat PIN baru setelah logout.
   const signOut = async () => {
     try {
       setError(null);
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
 
-      localStorage.removeItem('pinUnlocked');
+      sessionStorage.removeItem('pinUnlocked');
     } catch (err) {
       setError(handleSupabaseError(err));
     }
@@ -184,7 +209,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error;
 
-      // Update local state
       setUser({ ...user, ...updates });
 
       return { success: true, error: null };

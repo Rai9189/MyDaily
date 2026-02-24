@@ -2,12 +2,11 @@ import { useState } from 'react';
 import { useAccounts } from '../context/AccountContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Plus, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, Wallet, Smartphone, Banknote } from 'lucide-react';
 import { Account, AccountType } from '../types';
 
 export function Accounts() {
@@ -21,42 +20,25 @@ export function Accounts() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 
-  const getTypeColor = (type: string) => {
+  const getTypeStyle = (type: string) => {
     switch (type) {
-      case 'Bank':
-        return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300';
-      case 'E-Wallet':
-        return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
-      case 'Cash':
-        return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
-      default:
-        return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+      case 'Bank':     return { bg: 'bg-blue-100 dark:bg-blue-900/30',   text: 'text-blue-700 dark:text-blue-300',   icon: <Wallet size={14} /> };
+      case 'E-Wallet': return { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300', icon: <Smartphone size={14} /> };
+      case 'Cash':     return { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-300', icon: <Banknote size={14} /> };
+      default:         return { bg: 'bg-muted',                           text: 'text-muted-foreground',              icon: null };
     }
   };
 
   const handleOpenDialog = (account?: Account) => {
     if (account) {
       setEditingAccount(account);
-      setFormData({
-        name: account.name,
-        type: account.type,
-        balance: account.balance,
-      });
+      setFormData({ name: account.name, type: account.type, balance: account.balance });
     } else {
       setEditingAccount(null);
-      setFormData({
-        name: '',
-        type: 'Bank',
-        balance: 0,
-      });
+      setFormData({ name: '', type: 'Bank', balance: 0 });
     }
     setIsDialogOpen(true);
   };
@@ -64,22 +46,15 @@ export function Accounts() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-
     try {
       if (editingAccount) {
         const { success, error } = await updateAccount(editingAccount.id, formData);
-        if (success) {
-          setIsDialogOpen(false);
-        } else {
-          alert(error || 'Gagal update akun');
-        }
+        if (success) setIsDialogOpen(false);
+        else alert(error || 'Failed to update account');
       } else {
         const { success, error } = await createAccount(formData);
-        if (success) {
-          setIsDialogOpen(false);
-        } else {
-          alert(error || 'Gagal membuat akun');
-        }
+        if (success) setIsDialogOpen(false);
+        else alert(error || 'Failed to create account');
       }
     } finally {
       setSubmitting(false);
@@ -87,18 +62,17 @@ export function Accounts() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Yakin ingin menghapus akun ini?')) return;
-
+    if (!confirm('Delete this account?')) return;
     const { success, error } = await deleteAccount(id);
-    if (!success) {
-      alert(error || 'Gagal menghapus akun');
-    }
+    if (!success) alert(error || 'Failed to delete account');
   };
+
+  const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -112,45 +86,46 @@ export function Accounts() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 p-1">
+      {/* Header */}
+      <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl dark:text-white">Akun Keuangan</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Kelola semua akun keuangan Anda</p>
+          <h1 className="text-3xl font-semibold text-foreground">Accounts</h1>
+          <p className="text-muted-foreground mt-1">Manage your financial accounts</p>
         </div>
+
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2" onClick={() => handleOpenDialog()}>
-              <Plus size={20} />
-              Tambah Akun
+              <Plus size={18} />
+              Add Account
             </Button>
           </DialogTrigger>
-          <DialogContent className="dark:bg-gray-800 dark:border-gray-700">
+          <DialogContent className="bg-card border border-border">
             <DialogHeader>
-              <DialogTitle className="dark:text-white">
-                {editingAccount ? 'Edit Akun' : 'Tambah Akun Baru'}
+              <DialogTitle className="text-foreground text-lg font-semibold">
+                {editingAccount ? 'Edit Account' : 'Add New Account'}
               </DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-              <div>
-                <Label htmlFor="name" className="dark:text-gray-300">Nama Akun</Label>
+            <form onSubmit={handleSubmit} className="space-y-5 mt-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="name">Account Name</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Contoh: BCA Utama"
+                  placeholder="e.g. BCA Main, GoPay"
                   required
-                  className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 />
               </div>
 
-              <div>
-                <Label htmlFor="type" className="dark:text-gray-300">Tipe Akun</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="type">Account Type</Label>
                 <Select
                   value={formData.type}
                   onValueChange={(value: AccountType) => setFormData({ ...formData, type: value })}
                 >
-                  <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                  <SelectTrigger id="type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -161,8 +136,8 @@ export function Accounts() {
                 </Select>
               </div>
 
-              <div>
-                <Label htmlFor="balance" className="dark:text-gray-300">Saldo Awal</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="balance">Initial Balance</Label>
                 <Input
                   id="balance"
                   type="number"
@@ -170,106 +145,97 @@ export function Accounts() {
                   onChange={(e) => setFormData({ ...formData, balance: Number(e.target.value) })}
                   placeholder="0"
                   required
-                  className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 />
               </div>
 
-              <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Menyimpan...
-                  </>
-                ) : (
-                  editingAccount ? 'Update Akun' : 'Simpan Akun'
-                )}
+              <Button type="submit" className="w-full gap-2" disabled={submitting}>
+                {submitting
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+                  : editingAccount ? 'Update Account' : 'Save Account'
+                }
               </Button>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {accounts.map((account) => (
-          <Card key={account.id} className="hover:shadow-lg transition-shadow dark:bg-gray-800 dark:border-gray-700">
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-lg dark:text-white">{account.name}</CardTitle>
-                  <Badge className={`mt-2 ${getTypeColor(account.type)}`}>
-                    {account.type}
-                  </Badge>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => handleOpenDialog(account)}
-                  >
-                    <Edit size={16} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                    onClick={() => handleDelete(account.id)}
-                  >
-                    <Trash2 size={16} />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Saldo Saat Ini</p>
-                <p className="text-2xl mt-1 dark:text-white">{formatCurrency(account.balance)}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {accounts.length === 0 && (
-        <Card className="dark:bg-gray-800 dark:border-gray-700">
-          <CardContent className="p-12 text-center text-gray-500 dark:text-gray-400">
-            <p>Belum ada akun keuangan. Klik tombol "Tambah Akun" untuk memulai.</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Summary */}
-      <Card className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 dark:border-gray-700">
-        <CardHeader>
-          <CardTitle className="dark:text-white">Ringkasan</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Summary Card */}
+      <Card className="bg-primary text-primary-foreground border-0 shadow-lg">
+        <CardContent className="pt-6 pb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Akun</p>
-              <p className="text-2xl dark:text-white">{accounts.length}</p>
+              <p className="text-sm opacity-70 mb-1">Total Balance</p>
+              <p className="text-2xl font-bold">{formatCurrency(totalBalance)}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Saldo</p>
-              <p className="text-2xl dark:text-white">
-                {formatCurrency(accounts.reduce((sum, acc) => sum + acc.balance, 0))}
-              </p>
+              <p className="text-sm opacity-70 mb-1">Total Accounts</p>
+              <p className="text-2xl font-bold">{accounts.length}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Bank</p>
-              <p className="text-2xl dark:text-white">
-                {accounts.filter(a => a.type === 'Bank').length}
-              </p>
+              <p className="text-sm opacity-70 mb-1">Bank</p>
+              <p className="text-2xl font-bold">{accounts.filter(a => a.type === 'Bank').length}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">E-Wallet</p>
-              <p className="text-2xl dark:text-white">
-                {accounts.filter(a => a.type === 'E-Wallet').length}
-              </p>
+              <p className="text-sm opacity-70 mb-1">E-Wallet</p>
+              <p className="text-2xl font-bold">{accounts.filter(a => a.type === 'E-Wallet').length}</p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Account Cards */}
+      {accounts.length === 0 ? (
+        <Card className="border border-border bg-card">
+          <CardContent className="py-16 text-center">
+            <p className="text-muted-foreground">No accounts yet</p>
+            <p className="text-sm text-muted-foreground/60 mt-1">Click "Add Account" to get started</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {accounts.map((account) => {
+            const style = getTypeStyle(account.type);
+            return (
+              <Card key={account.id} className="hover:shadow-md transition-shadow border border-border bg-card">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <p className="font-semibold text-foreground">{account.name}</p>
+                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full mt-1.5 ${style.bg} ${style.text}`}>
+                        {style.icon}
+                        {account.type}
+                      </span>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() => handleOpenDialog(account)}
+                      >
+                        <Edit size={15} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDelete(account.id)}
+                      >
+                        <Trash2 size={15} />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Current Balance</p>
+                    <p className="text-2xl font-bold text-foreground">{formatCurrency(account.balance)}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
