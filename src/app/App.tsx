@@ -25,7 +25,9 @@ import { Profile } from './pages/Profile';
 import { Categories } from './pages/Categories';
 import { Loader2 } from 'lucide-react';
 
-// Wrapper semua data provider — hanya dirender setelah user terautentikasi
+// ✅ FIX: DataProviders dipindah ke sini — satu instance untuk semua route
+// Sebelumnya setiap route punya DataProviders sendiri → context berbeda-beda
+// → transactions[] di /transactions/new tidak sama dengan yang di /transactions
 function DataProviders({ children }: { children: React.ReactNode }) {
   return (
     <CategoryProvider>
@@ -65,7 +67,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/pin-setup" replace />;
   }
 
-  // ✅ FIX: Gunakan sessionStorage agar otomatis terhapus saat browser/tab ditutup
   const pinUnlocked = sessionStorage.getItem('pinUnlocked');
   if (!pinUnlocked) {
     return <Navigate to="/pin-lock" replace />;
@@ -88,9 +89,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
   if (user) {
     const pinSetup = localStorage.getItem('pinSetup');
-    // ✅ FIX: Gunakan sessionStorage agar otomatis terhapus saat browser/tab ditutup
     const pinUnlocked = sessionStorage.getItem('pinUnlocked');
-
     if (!pinSetup) return <Navigate to="/pin-setup" replace />;
     if (!pinUnlocked) return <Navigate to="/pin-lock" replace />;
     return <Navigate to="/" replace />;
@@ -99,114 +98,40 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// ✅ FIX: AppRoutes dipisah agar bisa akses useAuth di dalam BrowserRouter
+function AppRoutes() {
+  return (
+    <DataProviders>
+      <Routes>
+        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+        <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+        <Route path="/pin-setup" element={<PINSetup />} />
+        <Route path="/pin-lock" element={<PINLock />} />
+        <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
+        <Route path="/accounts" element={<ProtectedRoute><Layout><Accounts /></Layout></ProtectedRoute>} />
+        <Route path="/transactions" element={<ProtectedRoute><Layout><Transactions /></Layout></ProtectedRoute>} />
+        <Route path="/transactions/new" element={<ProtectedRoute><Layout><TransactionDetail /></Layout></ProtectedRoute>} />
+        <Route path="/transactions/:id" element={<ProtectedRoute><Layout><TransactionDetail /></Layout></ProtectedRoute>} />
+        <Route path="/tasks" element={<ProtectedRoute><Layout><Tasks /></Layout></ProtectedRoute>} />
+        <Route path="/tasks/new" element={<ProtectedRoute><Layout><TaskDetail /></Layout></ProtectedRoute>} />
+        <Route path="/tasks/:id" element={<ProtectedRoute><Layout><TaskDetail /></Layout></ProtectedRoute>} />
+        <Route path="/notes" element={<ProtectedRoute><Layout><Notes /></Layout></ProtectedRoute>} />
+        <Route path="/notes/new" element={<ProtectedRoute><Layout><NoteDetail /></Layout></ProtectedRoute>} />
+        <Route path="/notes/:id" element={<ProtectedRoute><Layout><NoteDetail /></Layout></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
+        <Route path="/categories" element={<ProtectedRoute><Layout><Categories /></Layout></ProtectedRoute>} />
+      </Routes>
+    </DataProviders>
+  );
+}
+
 export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-            <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-            <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
-
-            {/* Auth Setup Routes */}
-            <Route path="/pin-setup" element={<PINSetup />} />
-            <Route path="/pin-lock" element={<PINLock />} />
-
-            {/* Protected Routes — DataProviders hanya mount setelah auth OK */}
-            <Route path="/" element={
-              <ProtectedRoute>
-                <DataProviders>
-                  <Layout><Dashboard /></Layout>
-                </DataProviders>
-              </ProtectedRoute>
-            } />
-            <Route path="/accounts" element={
-              <ProtectedRoute>
-                <DataProviders>
-                  <Layout><Accounts /></Layout>
-                </DataProviders>
-              </ProtectedRoute>
-            } />
-            <Route path="/transactions" element={
-              <ProtectedRoute>
-                <DataProviders>
-                  <Layout><Transactions /></Layout>
-                </DataProviders>
-              </ProtectedRoute>
-            } />
-            <Route path="/transactions/new" element={
-              <ProtectedRoute>
-                <DataProviders>
-                  <Layout><TransactionDetail /></Layout>
-                </DataProviders>
-              </ProtectedRoute>
-            } />
-            <Route path="/transactions/:id" element={
-              <ProtectedRoute>
-                <DataProviders>
-                  <Layout><TransactionDetail /></Layout>
-                </DataProviders>
-              </ProtectedRoute>
-            } />
-            <Route path="/tasks" element={
-              <ProtectedRoute>
-                <DataProviders>
-                  <Layout><Tasks /></Layout>
-                </DataProviders>
-              </ProtectedRoute>
-            } />
-            <Route path="/tasks/new" element={
-              <ProtectedRoute>
-                <DataProviders>
-                  <Layout><TaskDetail /></Layout>
-                </DataProviders>
-              </ProtectedRoute>
-            } />
-            <Route path="/tasks/:id" element={
-              <ProtectedRoute>
-                <DataProviders>
-                  <Layout><TaskDetail /></Layout>
-                </DataProviders>
-              </ProtectedRoute>
-            } />
-            <Route path="/notes" element={
-              <ProtectedRoute>
-                <DataProviders>
-                  <Layout><Notes /></Layout>
-                </DataProviders>
-              </ProtectedRoute>
-            } />
-            <Route path="/notes/new" element={
-              <ProtectedRoute>
-                <DataProviders>
-                  <Layout><NoteDetail /></Layout>
-                </DataProviders>
-              </ProtectedRoute>
-            } />
-            <Route path="/notes/:id" element={
-              <ProtectedRoute>
-                <DataProviders>
-                  <Layout><NoteDetail /></Layout>
-                </DataProviders>
-              </ProtectedRoute>
-            } />
-            <Route path="/profile" element={
-              <ProtectedRoute>
-                <DataProviders>
-                  <Layout><Profile /></Layout>
-                </DataProviders>
-              </ProtectedRoute>
-            } />
-            <Route path="/categories" element={
-              <ProtectedRoute>
-                <DataProviders>
-                  <Layout><Categories /></Layout>
-                </DataProviders>
-              </ProtectedRoute>
-            } />
-          </Routes>
+          <AppRoutes />
         </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>

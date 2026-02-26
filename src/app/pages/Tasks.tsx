@@ -7,11 +7,11 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
-import { Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2, X } from 'lucide-react';
+import { Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2, X, Pencil, Trash2 } from 'lucide-react';
 
 export function Tasks() {
   const navigate = useNavigate();
-  const { tasks, loading, error } = useTasks();
+  const { tasks, loading, error, deleteTask } = useTasks();
   const { getCategoriesByType } = useCategories();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -24,6 +24,7 @@ export function Tasks() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
   const taskCategories = getCategoriesByType('task');
@@ -73,7 +74,6 @@ export function Tasks() {
 
   const filteredTasks = useMemo(() => {
     let result = [...tasks];
-
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(t =>
@@ -82,12 +82,10 @@ export function Tasks() {
         getCategoryName(t.categoryId).toLowerCase().includes(q)
       );
     }
-
     if (filterStatus !== 'all') result = result.filter(t => t.status === filterStatus);
     if (filterCategory !== 'all') result = result.filter(t => t.categoryId === filterCategory);
     if (filterCompleted === 'completed') result = result.filter(t => t.completed);
     if (filterCompleted === 'active') result = result.filter(t => !t.completed);
-
     result.sort((a, b) => {
       if (sortBy === 'deadline') {
         return sortOrder === 'asc'
@@ -100,7 +98,6 @@ export function Tasks() {
         return sortOrder === 'asc' ? va - vb : vb - va;
       }
     });
-
     return result;
   }, [tasks, searchQuery, filterStatus, filterCategory, filterCompleted, sortBy, sortOrder]);
 
@@ -130,6 +127,20 @@ export function Tasks() {
     setCurrentPage(1);
   };
 
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!confirm('Delete this task?')) return;
+    setDeletingId(id);
+    const { success, error } = await deleteTask(id);
+    if (!success) alert(error || 'Failed to delete task');
+    setDeletingId(null);
+  };
+
+  const handleEdit = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    navigate(`/tasks/${id}`);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -148,38 +159,26 @@ export function Tasks() {
 
   return (
     <div className="space-y-6 p-1">
-      {/* Header */}
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-semibold text-foreground">Tasks</h1>
           <p className="text-muted-foreground mt-1">Manage all your tasks</p>
         </div>
         <Button onClick={() => navigate('/tasks/new')} className="gap-2">
-          <Plus size={18} />
-          Add Task
+          <Plus size={18} /> Add Task
         </Button>
       </div>
 
-      {/* Search + Filter */}
       <div className="flex gap-2 items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-          <Input
-            placeholder="Search by title, description, or category..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 border border-border shadow-sm"
-          />
+          <Input placeholder="Search by title, description, or category..." value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 border border-border shadow-sm" />
         </div>
 
         <div className="relative" ref={filterRef}>
-          <Button
-            variant="outline"
-            className="gap-2 relative"
-            onClick={() => setFilterOpen(!filterOpen)}
-          >
-            <Filter size={18} />
-            Filter
+          <Button variant="outline" className="gap-2 relative" onClick={() => setFilterOpen(!filterOpen)}>
+            <Filter size={18} /> Filter
             {activeFilterCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
                 {activeFilterCount}
@@ -192,17 +191,10 @@ export function Tasks() {
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <span className="font-semibold text-foreground">Filter & Sort</span>
                 <div className="flex items-center gap-2">
-                  {activeFilterCount > 0 && (
-                    <button onClick={resetFilters} className="text-xs text-primary hover:underline">
-                      Reset all
-                    </button>
-                  )}
-                  <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground">
-                    <X size={18} />
-                  </button>
+                  {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-primary hover:underline">Reset all</button>}
+                  <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
                 </div>
               </div>
-
               <div className="p-4 space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</label>
@@ -216,20 +208,16 @@ export function Tasks() {
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</label>
                   <Select value={filterCategory} onValueChange={(v) => handleFilterChange(setFilterCategory, v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Categories</SelectItem>
-                      {taskCategories.map(cat => (
-                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                      ))}
+                      {taskCategories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Completion</label>
                   <Select value={filterCompleted} onValueChange={(v) => handleFilterChange(setFilterCompleted, v)}>
@@ -241,7 +229,6 @@ export function Tasks() {
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sort by</label>
                   <div className="flex gap-2">
@@ -257,7 +244,6 @@ export function Tasks() {
                     </Button>
                   </div>
                 </div>
-
                 <div className="border-t border-border pt-3 space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">View</label>
                   <div className="flex gap-2">
@@ -269,7 +255,6 @@ export function Tasks() {
                     </Button>
                   </div>
                 </div>
-
                 {viewMode === 'card' && (
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Per page</label>
@@ -289,14 +274,12 @@ export function Tasks() {
         </div>
       </div>
 
-      {/* Results count */}
       {filteredTasks.length > 0 && (
         <p className="text-sm text-muted-foreground">
           {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} found
         </p>
       )}
 
-      {/* Task List/Cards */}
       {filteredTasks.length === 0 ? (
         <Card className="border border-border bg-card">
           <CardContent className="py-16 text-center">
@@ -307,11 +290,7 @@ export function Tasks() {
       ) : (
         <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
           {paginatedTasks.map((task) => (
-            <Card
-              key={task.id}
-              className={`hover:shadow-md transition-shadow cursor-pointer border border-border bg-card ${task.completed ? 'opacity-60' : ''}`}
-              onClick={() => navigate(`/tasks/${task.id}`)}
-            >
+            <Card key={task.id} className={`hover:shadow-md transition-shadow border border-border bg-card ${task.completed ? 'opacity-60' : ''}`}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
                   {/* Status dot */}
@@ -321,11 +300,11 @@ export function Tasks() {
                     task.status === 'Mendekati' ? 'bg-amber-500' : 'bg-green-500'
                   }`} />
 
-                  <div className="flex-1 min-w-0">
+                  {/* Info — klik untuk buka detail */}
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/tasks/${task.id}`)}>
                     <p className={`text-sm font-medium text-foreground ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
                       {task.title}
                     </p>
-
                     <div className="flex items-center gap-2 flex-wrap mt-1.5">
                       {!task.completed ? (
                         <Badge variant={getStatusVariant(task.status) as any} className="gap-1 text-xs">
@@ -337,22 +316,32 @@ export function Tasks() {
                           <CheckCircle2 size={11} /> Completed
                         </Badge>
                       )}
-                      <span
-                        className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                        style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}
-                      >
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
+                        style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}>
                         {getCategoryName(task.categoryId)}
                       </span>
                     </div>
-
                     {task.description && (
                       <p className="text-xs text-muted-foreground mt-1 truncate">{task.description}</p>
                     )}
-
                     <p className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-1">
                       <Clock size={11} />
                       Due {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
+                  </div>
+
+                  {/* ✅ Tombol Edit + Delete sejajar horizontal */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={(e) => handleEdit(e, task.id)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                      title="Edit task">
+                      <Pencil size={14} />
+                    </button>
+                    <button onClick={(e) => handleDelete(e, task.id)} disabled={deletingId === task.id}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                      title="Delete task">
+                      {deletingId === task.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    </button>
                   </div>
                 </div>
               </CardContent>
@@ -361,7 +350,6 @@ export function Tasks() {
         </div>
       )}
 
-      {/* Pagination */}
       {viewMode === 'card' && totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">

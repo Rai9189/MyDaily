@@ -18,13 +18,26 @@ interface TaskContextType {
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
+// ✅ FIX: Map data Supabase (snake_case) ke Task type (camelCase)
+function mapToTask(row: any): Task {
+  return {
+    id: row.id,
+    categoryId: row.category_id,
+    title: row.title,
+    description: row.description || '',
+    deadline: row.deadline,
+    status: row.status,
+    completed: row.completed,
+    completionNote: row.completion_note || '',
+  };
+}
+
 export function TaskProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch tasks
   const fetchTasks = async () => {
     if (!user) {
       setTasks([]);
@@ -44,7 +57,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
       if (fetchError) throw fetchError;
 
-      setTasks(data || []);
+      // ✅ FIX: Map semua row ke camelCase
+      setTasks((data || []).map(mapToTask));
     } catch (err) {
       setError(handleSupabaseError(err));
     } finally {
@@ -52,17 +66,14 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Auto-fetch when user changes
   useEffect(() => {
     fetchTasks();
   }, [user]);
 
-  // Get task by ID
   const getTaskById = (id: string) => {
     return tasks.find(t => t.id === id);
   };
 
-  // Create task (status will be auto-calculated by database trigger)
   const createTask = async (task: Omit<Task, 'id' | 'status'>) => {
     try {
       setError(null);
@@ -84,10 +95,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
       if (insertError) throw insertError;
 
-      // Add to local state
-      setTasks(prev => [...prev, data]);
+      // ✅ FIX: Map hasil insert ke camelCase sebelum masuk state
+      const mapped = mapToTask(data);
+      setTasks(prev => [...prev, mapped]);
 
-      return { success: true, data, error: null };
+      return { success: true, data: mapped, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
       setError(errorMessage);
@@ -95,12 +107,13 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Update task
   const updateTask = async (id: string, updates: Partial<Task>) => {
     try {
       setError(null);
 
-      // Prepare update object (convert camelCase to snake_case for DB)
+      // ✅ FIX: Guard id valid
+      if (!id || id === 'new') throw new Error('Invalid task ID');
+
       const dbUpdates: any = {};
       if (updates.categoryId !== undefined) dbUpdates.category_id = updates.categoryId;
       if (updates.title !== undefined) dbUpdates.title = updates.title;
@@ -116,7 +129,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
       if (updateError) throw updateError;
 
-      // Update local state
       setTasks(prev =>
         prev.map(t => (t.id === id ? { ...t, ...updates } : t))
       );
@@ -129,7 +141,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Delete task
   const deleteTask = async (id: string) => {
     try {
       setError(null);
@@ -141,7 +152,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
       if (deleteError) throw deleteError;
 
-      // Remove from local state
       setTasks(prev => prev.filter(t => t.id !== id));
 
       return { success: true, error: null };
@@ -152,7 +162,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Complete task
   const completeTask = async (id: string, note?: string) => {
     try {
       setError(null);
@@ -168,12 +177,9 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
       if (updateError) throw updateError;
 
-      // Update local state
       setTasks(prev =>
         prev.map(t =>
-          t.id === id
-            ? { ...t, completed: true, completionNote: note }
-            : t
+          t.id === id ? { ...t, completed: true, completionNote: note } : t
         )
       );
 
@@ -185,7 +191,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Refresh tasks
   const refreshTasks = async () => {
     await fetchTasks();
   };

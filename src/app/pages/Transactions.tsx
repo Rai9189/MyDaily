@@ -5,14 +5,13 @@ import { useAccounts } from '../context/AccountContext';
 import { useCategories } from '../context/CategoryContext';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, TrendingUp, TrendingDown, Paperclip, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2, X } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Paperclip, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2, X, Pencil, Trash2 } from 'lucide-react';
 
 export function Transactions() {
   const navigate = useNavigate();
-  const { transactions, loading, error } = useTransactions();
+  const { transactions, loading, error, deleteTransaction } = useTransactions();
   const { accounts } = useAccounts();
   const { categories, getCategoriesByType } = useCategories();
 
@@ -26,11 +25,11 @@ export function Transactions() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
   const transactionCategories = getCategoriesByType('transaction');
 
-  // Close filter popup on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
@@ -104,6 +103,20 @@ export function Transactions() {
     setCurrentPage(1);
   };
 
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Jangan trigger navigate ke detail
+    if (!confirm('Delete this transaction?')) return;
+    setDeletingId(id);
+    const { success, error } = await deleteTransaction(id);
+    if (!success) alert(error || 'Failed to delete transaction');
+    setDeletingId(null);
+  };
+
+  const handleEdit = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Jangan trigger navigate ke detail
+    navigate(`/transactions/${id}`);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -146,13 +159,8 @@ export function Transactions() {
           />
         </div>
 
-        {/* Filter Popup Trigger */}
         <div className="relative" ref={filterRef}>
-          <Button
-            variant="outline"
-            className="gap-2 relative"
-            onClick={() => setFilterOpen(!filterOpen)}
-          >
+          <Button variant="outline" className="gap-2 relative" onClick={() => setFilterOpen(!filterOpen)}>
             <Filter size={18} />
             Filter
             {activeFilterCount > 0 && (
@@ -162,20 +170,13 @@ export function Transactions() {
             )}
           </Button>
 
-          {/* Filter Popup */}
           {filterOpen && (
             <div className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
-              {/* Popup Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <span className="font-semibold text-foreground">Filter & Sort</span>
                 <div className="flex items-center gap-2">
                   {activeFilterCount > 0 && (
-                    <button
-                      onClick={resetFilters}
-                      className="text-xs text-primary hover:underline"
-                    >
-                      Reset all
-                    </button>
+                    <button onClick={resetFilters} className="text-xs text-primary hover:underline">Reset all</button>
                   )}
                   <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground">
                     <X size={18} />
@@ -184,29 +185,21 @@ export function Transactions() {
               </div>
 
               <div className="p-4 space-y-4">
-                {/* Account */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Account</label>
                   <Select value={filterAccount} onValueChange={(v) => handleFilterChange(setFilterAccount, v)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Accounts</SelectItem>
-                      {accounts.map(acc => (
-                        <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
-                      ))}
+                      {accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* Type */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</label>
                   <Select value={filterType} onValueChange={(v) => handleFilterChange(setFilterType, v)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Types</SelectItem>
                       <SelectItem value="Masuk">Income</SelectItem>
@@ -215,67 +208,41 @@ export function Transactions() {
                   </Select>
                 </div>
 
-                {/* Category */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</label>
                   <Select value={filterCategory} onValueChange={(v) => handleFilterChange(setFilterCategory, v)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Categories</SelectItem>
-                      {transactionCategories.map(cat => (
-                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                      ))}
+                      {transactionCategories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* Sort */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sort by</label>
                   <div className="flex gap-2">
                     <Select value={sortBy} onValueChange={(v: 'date' | 'amount') => setSortBy(v)}>
-                      <SelectTrigger className="flex-1">
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="date">Date</SelectItem>
                         <SelectItem value="amount">Amount</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                      title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
-                    >
+                    <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
                       <ArrowUpDown size={16} />
                     </Button>
                   </div>
                 </div>
 
-                {/* Divider */}
                 <div className="border-t border-border pt-3 space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">View</label>
                   <div className="flex gap-2">
-                    <Button
-                      variant={viewMode === 'list' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setViewMode('list')}
-                      className="gap-2 flex-1"
-                    >
-                      <List size={15} />
-                      List
+                    <Button variant={viewMode === 'list' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('list')} className="gap-2 flex-1">
+                      <List size={15} /> List
                     </Button>
-                    <Button
-                      variant={viewMode === 'card' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setViewMode('card')}
-                      className="gap-2 flex-1"
-                    >
-                      <LayoutGrid size={15} />
-                      Card
+                    <Button variant={viewMode === 'card' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('card')} className="gap-2 flex-1">
+                      <LayoutGrid size={15} /> Card
                     </Button>
                   </div>
                 </div>
@@ -284,9 +251,7 @@ export function Transactions() {
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Per page</label>
                     <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="5">5</SelectItem>
                         <SelectItem value="10">10</SelectItem>
@@ -301,7 +266,6 @@ export function Transactions() {
         </div>
       </div>
 
-      {/* Results count */}
       {filteredTransactions.length > 0 && (
         <p className="text-sm text-muted-foreground">
           {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''} found
@@ -321,13 +285,15 @@ export function Transactions() {
           {paginatedTransactions.map((transaction) => (
             <Card
               key={transaction.id}
-              className="hover:shadow-md transition-shadow cursor-pointer border border-border bg-card"
-              onClick={() => navigate(`/transactions/${transaction.id}`)}
+              className="hover:shadow-md transition-shadow border border-border bg-card"
             >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
-                  {/* Left */}
-                  <div className="flex items-start gap-3 min-w-0">
+                  {/* Left — info utama, klik untuk buka detail */}
+                  <div
+                    className="flex items-start gap-3 min-w-0 flex-1 cursor-pointer"
+                    onClick={() => navigate(`/transactions/${transaction.id}`)}
+                  >
                     <div className={`mt-0.5 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
                       transaction.type === 'Masuk' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'
                     }`}>
@@ -361,12 +327,35 @@ export function Transactions() {
                     </div>
                   </div>
 
-                  {/* Right - Amount */}
-                  <p className={`text-base font-semibold flex-shrink-0 ${
-                    transaction.type === 'Masuk' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                  }`}>
-                    {transaction.type === 'Masuk' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                  </p>
+                  {/* Right — amount + action buttons */}
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    <p className={`text-base font-semibold ${
+                      transaction.type === 'Masuk' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      {transaction.type === 'Masuk' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                    </p>
+                    {/* ✅ Tombol Edit + Delete sejajar horizontal */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => handleEdit(e, transaction.id)}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                        title="Edit transaction"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => handleDelete(e, transaction.id)}
+                        disabled={deletingId === transaction.id}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                        title="Delete transaction"
+                      >
+                        {deletingId === transaction.id
+                          ? <Loader2 size={14} className="animate-spin" />
+                          : <Trash2 size={14} />
+                        }
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

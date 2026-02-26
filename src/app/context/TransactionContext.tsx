@@ -17,13 +17,26 @@ interface TransactionContextType {
 
 const TransactionContext = createContext<TransactionContextType | undefined>(undefined);
 
+// ✅ FIX: Map data Supabase (snake_case) ke Transaction type (camelCase)
+function mapToTransaction(row: any): Transaction {
+  return {
+    id: row.id,
+    accountId: row.account_id,
+    categoryId: row.category_id,
+    amount: row.amount,
+    type: row.type,
+    date: row.date,
+    description: row.description || '',
+    attachments: row.attachments || [],
+  };
+}
+
 export function TransactionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch transactions
   const fetchTransactions = async () => {
     if (!user) {
       setTransactions([]);
@@ -43,7 +56,8 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
       if (fetchError) throw fetchError;
 
-      setTransactions(data || []);
+      // ✅ FIX: Map semua row ke camelCase
+      setTransactions((data || []).map(mapToTransaction));
     } catch (err) {
       setError(handleSupabaseError(err));
     } finally {
@@ -51,17 +65,14 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Auto-fetch when user changes
   useEffect(() => {
     fetchTransactions();
   }, [user]);
 
-  // Get transaction by ID
   const getTransactionById = (id: string) => {
     return transactions.find(t => t.id === id);
   };
 
-  // Create transaction
   const createTransaction = async (transaction: Omit<Transaction, 'id'>) => {
     try {
       setError(null);
@@ -83,10 +94,11 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
       if (insertError) throw insertError;
 
-      // Add to local state
-      setTransactions(prev => [data, ...prev]);
+      // ✅ FIX: Map hasil insert ke camelCase sebelum masuk state
+      const mapped = mapToTransaction(data);
+      setTransactions(prev => [mapped, ...prev]);
 
-      return { success: true, data, error: null };
+      return { success: true, data: mapped, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
       setError(errorMessage);
@@ -94,12 +106,15 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Update transaction
   const updateTransaction = async (id: string, updates: Partial<Transaction>) => {
     try {
       setError(null);
 
-      // Prepare update object (convert camelCase to snake_case for DB)
+      // ✅ FIX: Pastikan id valid sebelum update
+      if (!id || id === 'new') {
+        throw new Error('Invalid transaction ID');
+      }
+
       const dbUpdates: any = {};
       if (updates.accountId !== undefined) dbUpdates.account_id = updates.accountId;
       if (updates.categoryId !== undefined) dbUpdates.category_id = updates.categoryId;
@@ -115,7 +130,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
       if (updateError) throw updateError;
 
-      // Update local state
+      // ✅ FIX: Update local state dengan camelCase
       setTransactions(prev =>
         prev.map(t => (t.id === id ? { ...t, ...updates } : t))
       );
@@ -128,7 +143,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Delete transaction
   const deleteTransaction = async (id: string) => {
     try {
       setError(null);
@@ -140,7 +154,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
       if (deleteError) throw deleteError;
 
-      // Remove from local state
       setTransactions(prev => prev.filter(t => t.id !== id));
 
       return { success: true, error: null };
@@ -151,7 +164,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Refresh transactions
   const refreshTransactions = async () => {
     await fetchTransactions();
   };

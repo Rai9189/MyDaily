@@ -1,36 +1,50 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTasks } from '../context/TaskContext';
 import { useCategories } from '../context/CategoryContext';
 import { useAttachments } from '../context/AttachmentContext';
+import { usePendingAttachments } from '../hooks/usePendingAttachments';
+import { PendingAttachmentPicker } from '../components/PendingAttachmentPicker';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Badge } from '../components/ui/badge';
-import { ArrowLeft, X, Loader2, FileText, Image as ImageIcon, Trash2, Save, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, X, Loader2, FileText, Image as ImageIcon, Save, CheckCircle2 } from 'lucide-react';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 
 export function TaskDetail() {
   const navigate = useNavigate();
-  const { id } = useParams();
-  const isNew = id === 'new';
+  const location = useLocation();
+  const params = useParams();
 
-  const { getTaskById, createTask, updateTask, deleteTask, completeTask } = useTasks();
+  const idFromParams = params.id;
+  const idFromUrl = location.pathname.split('/tasks/')[1];
+  const id = idFromParams || idFromUrl;
+  const isNew = id === 'new' || !id;
+
+  const { getTaskById, createTask, updateTask, completeTask } = useTasks();
   const { getCategoriesByType } = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
+
+  const {
+    pendingFiles,
+    addFiles,
+    removeFile: removePendingFile,
+    uploadAllPending,
+    isUploading: isUploadingPending,
+  } = usePendingAttachments();
 
   const task = isNew ? null : getTaskById(id!);
   const taskCategories = getCategoriesByType('task');
 
   const [formData, setFormData] = useState({
-    title: task?.title || '',
-    deadline: task?.deadline || new Date().toISOString().split('T')[0],
-    categoryId: task?.categoryId || (taskCategories[0]?.id || ''),
-    description: task?.description || '',
-    completed: task?.completed || false,
+    title: '',
+    deadline: new Date().toISOString().split('T')[0],
+    categoryId: '',
+    description: '',
+    completed: false,
   });
 
   const [completionNote, setCompletionNote] = useState('');
@@ -38,14 +52,19 @@ export function TaskDetail() {
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [completing, setCompleting] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const isBusy = submitting || isUploadingPending;
 
   useEffect(() => {
-    if (!isNew && id) loadAttachments();
-  }, [id]);
+    if (isNew) {
+      setFormData(prev => ({
+        ...prev,
+        categoryId: prev.categoryId || taskCategories[0]?.id || '',
+      }));
+    }
+  }, [taskCategories.length, isNew]);
 
   useEffect(() => {
-    if (task) {
+    if (!isNew && task) {
       setFormData({
         title: task.title,
         deadline: task.deadline,
@@ -54,7 +73,11 @@ export function TaskDetail() {
         completed: task.completed,
       });
     }
-  }, [task]);
+  }, [isNew, task?.id]);
+
+  useEffect(() => {
+    if (!isNew && id) loadAttachments();
+  }, [id]);
 
   const loadAttachments = async () => {
     if (!id) return;
@@ -102,14 +125,23 @@ export function TaskDetail() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.title.trim()) return alert('Please enter a task title');
+    if (!formData.categoryId) return alert('Please select a category');
+
     setSubmitting(true);
     try {
       if (isNew) {
-        const { success, error } = await createTask(formData);
-        if (success) navigate('/tasks');
-        else alert(error || 'Failed to create task');
+        // ✅ Create task dulu → dapat ID → upload pending files
+        const { success, data, error } = await createTask(formData);
+        if (!success || !data) { alert(error || 'Failed to create task'); return; }
+        if (pendingFiles.length > 0) {
+          const { error: uploadError } = await uploadAllPending('task', data.id);
+          if (uploadError) alert(`Task saved, but some attachments failed:\n${uploadError}`);
+        }
+        navigate('/tasks');
       } else {
-        const { success, error } = await updateTask(id!, formData);
+        if (!id || id === 'new') { alert('Invalid task ID'); return; }
+        const { success, error } = await updateTask(id, formData);
         if (success) navigate('/tasks');
         else alert(error || 'Failed to update task');
       }
@@ -126,17 +158,8 @@ export function TaskDetail() {
     else { alert(error || 'Failed to complete task'); setCompleting(false); }
   };
 
-  const handleDelete = async () => {
-    if (!confirm('Delete this task? All attachments will also be removed.')) return;
-    setDeleting(true);
-    const { success, error } = await deleteTask(id!);
-    if (success) navigate('/tasks');
-    else { alert(error || 'Failed to delete task'); setDeleting(false); }
-  };
-
   return (
     <div className="space-y-6 p-1">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate('/tasks')}>
           <ArrowLeft size={20} />
@@ -152,68 +175,37 @@ export function TaskDetail() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Task Info Card */}
         <Card className="border border-border bg-card">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-semibold text-foreground">Task Info</CardTitle>
-              {!isNew && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
-                >
-                  {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 size={15} />}
-                  {deleting ? 'Deleting...' : 'Delete'}
-                </Button>
-              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-5 pt-2">
             <div className="space-y-1.5">
               <Label htmlFor="title">Task Title</Label>
-              <Input
-                id="title"
-                placeholder="e.g. Pay electricity bill"
-                value={formData.title}
+              <Input id="title" placeholder="e.g. Pay electricity bill" value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                disabled={task?.completed}
-                required
-              />
+                disabled={task?.completed} required />
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="deadline">Deadline</Label>
-              <Input
-                id="deadline"
-                type="date"
-                value={formData.deadline}
+              <Input id="deadline" type="date" value={formData.deadline}
                 onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                disabled={task?.completed}
-                required
-              />
+                disabled={task?.completed} required />
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="category">Category</Label>
-              <Select
-                value={formData.categoryId}
-                onValueChange={(v) => setFormData({ ...formData, categoryId: v })}
-                disabled={task?.completed}
-              >
-                <SelectTrigger id="category"><SelectValue /></SelectTrigger>
+              <Select value={formData.categoryId} onValueChange={(v) => setFormData({ ...formData, categoryId: v })} disabled={task?.completed}>
+                <SelectTrigger id="category"><SelectValue placeholder="Select category" /></SelectTrigger>
                 <SelectContent>
-                  {taskCategories.map(cat => (
-                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                  ))}
+                  {taskCategories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Status badge (edit mode) */}
             {!isNew && task && (
               <div className="space-y-1.5">
                 <Label>Status</Label>
@@ -230,19 +222,25 @@ export function TaskDetail() {
               <Label htmlFor="description">
                 Description <span className="text-muted-foreground font-normal">(Optional)</span>
               </Label>
-              <Textarea
-                id="description"
-                placeholder="Add details about this task..."
-                value={formData.description}
+              <Textarea id="description" placeholder="Add details about this task..." value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={3}
-                disabled={task?.completed}
-              />
+                rows={3} disabled={task?.completed} />
             </div>
+
+            {/* ✅ Attachment picker saat create baru */}
+            {isNew && (
+              <PendingAttachmentPicker
+                pendingFiles={pendingFiles}
+                onAddFiles={addFiles}
+                onRemoveFile={removePendingFile}
+                isUploading={isUploadingPending}
+                disabled={isBusy}
+              />
+            )}
           </CardContent>
         </Card>
 
-        {/* Attachments */}
+        {/* Attachments (edit mode) */}
         {!isNew && (
           <Card className="border border-border bg-card">
             <CardHeader className="pb-2">
@@ -251,39 +249,21 @@ export function TaskDetail() {
             <CardContent className="space-y-4 pt-2">
               <div className="space-y-1.5">
                 <Label>Upload Evidence <span className="text-muted-foreground font-normal">(Max 10MB)</span></Label>
-                <Input
-                  type="file"
-                  accept="image/*,application/pdf"
-                  multiple
-                  onChange={handleFileUpload}
-                  disabled={uploading || task?.completed}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Upload proof of completion or related documents
-                </p>
-                {uploading && (
-                  <div className="flex items-center gap-2 text-sm text-primary">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Uploading...
-                  </div>
-                )}
+                <Input type="file" accept="image/*,application/pdf" multiple onChange={handleFileUpload} disabled={uploading || task?.completed} />
+                <p className="text-xs text-muted-foreground">Upload proof of completion or related documents</p>
+                {uploading && <div className="flex items-center gap-2 text-sm text-primary"><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</div>}
               </div>
-
               {attachments.length > 0 && (
                 <div className="space-y-2">
                   {attachments.map((file) => (
                     <div key={file.id} className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        {isImageFile(file.name)
-                          ? <ImageIcon size={18} className="text-primary flex-shrink-0" />
-                          : <FileText size={18} className="text-red-500 flex-shrink-0" />
-                        }
+                        {isImageFile(file.name) ? <ImageIcon size={18} className="text-primary flex-shrink-0" /> : <FileText size={18} className="text-red-500 flex-shrink-0" />}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
                           <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
                         </div>
-                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex-shrink-0 mr-2">
-                          View
-                        </a>
+                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex-shrink-0 mr-2">View</a>
                       </div>
                       {!task?.completed && (
                         <Button type="button" variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteAttachment(file.id, file.url)}>
@@ -306,33 +286,16 @@ export function TaskDetail() {
             </CardHeader>
             <CardContent className="space-y-4 pt-2">
               <div className="space-y-1.5">
-                <Label htmlFor="completion-note">
-                  Completion Note <span className="text-muted-foreground font-normal">(Optional)</span>
-                </Label>
-                <Textarea
-                  id="completion-note"
-                  placeholder="Add a note about how this was completed..."
-                  value={completionNote}
-                  onChange={(e) => setCompletionNote(e.target.value)}
-                  rows={3}
-                />
+                <Label htmlFor="completion-note">Completion Note <span className="text-muted-foreground font-normal">(Optional)</span></Label>
+                <Textarea id="completion-note" placeholder="Add a note about how this was completed..." value={completionNote} onChange={(e) => setCompletionNote(e.target.value)} rows={3} />
               </div>
-              <Button
-                type="button"
-                onClick={handleComplete}
-                disabled={completing}
-                className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white"
-              >
-                {completing
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Completing...</>
-                  : <><CheckCircle2 size={16} /> Mark as Complete</>
-                }
+              <Button type="button" onClick={handleComplete} disabled={completing} className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white">
+                {completing ? <><Loader2 className="w-4 h-4 animate-spin" /> Completing...</> : <><CheckCircle2 size={16} /> Mark as Complete</>}
               </Button>
             </CardContent>
           </Card>
         )}
 
-        {/* Completed banner */}
         {task?.completed && (
           <Card className="border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20">
             <CardContent className="py-5">
@@ -342,30 +305,18 @@ export function TaskDetail() {
                 </div>
                 <div>
                   <p className="font-medium text-green-800 dark:text-green-300">Task Completed</p>
-                  {task.completionNote && (
-                    <p className="text-sm text-green-700 dark:text-green-400 mt-0.5">Note: {task.completionNote}</p>
-                  )}
+                  {task.completionNote && <p className="text-sm text-green-700 dark:text-green-400 mt-0.5">Note: {task.completionNote}</p>}
                 </div>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Tip */}
-        {isNew && (
-          <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-            <p className="text-sm text-amber-800 dark:text-amber-300">
-              <strong>Tip:</strong> Save the task first, then you can add attachments.
-            </p>
-          </div>
-        )}
-
-        {/* Action Buttons */}
         {!task?.completed && (
           <div className="flex items-center gap-3 pt-2">
-            <Button type="submit" className="flex-1 gap-2" disabled={submitting}>
-              {submitting
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+            <Button type="submit" className="flex-1 gap-2" disabled={isBusy}>
+              {isBusy
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> {isUploadingPending ? 'Uploading...' : 'Saving...'}</>
                 : <><Save size={16} />{isNew ? 'Save Task' : 'Update Task'}</>
               }
             </Button>

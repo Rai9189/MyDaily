@@ -16,6 +16,10 @@ export interface Category {
   name: string;
   type: 'transaction' | 'task' | 'note';
   color?: string;
+  // ✅ FIX: subtype untuk filter category Income vs Expense
+  // Isi 'income' untuk kategori pemasukan, 'expense' untuk pengeluaran
+  // Jika tidak diisi, category akan tampil di kedua type transaksi
+  subtype?: 'income' | 'expense';
 }
 
 export interface Attachment {
@@ -67,7 +71,6 @@ export interface User {
   name: string;
   email: string;
   avatar?: string;
-  // ✅ snake_case agar cocok dengan kolom Supabase
   pin_type?: 'numeric' | 'password';
   pin_hash?: string;
   created_at?: string;

@@ -18,13 +18,24 @@ interface NoteContextType {
 
 const NoteContext = createContext<NoteContextType | undefined>(undefined);
 
+// ✅ FIX: Map data Supabase (snake_case) ke Note type (camelCase)
+function mapToNote(row: any): Note {
+  return {
+    id: row.id,
+    categoryId: row.category_id,
+    title: row.title,
+    content: row.content,
+    pinned: row.pinned,
+    timestamp: row.created_at,
+  };
+}
+
 export function NoteProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch notes
   const fetchNotes = async () => {
     if (!user) {
       setNotes([]);
@@ -45,13 +56,8 @@ export function NoteProvider({ children }: { children: ReactNode }) {
 
       if (fetchError) throw fetchError;
 
-      // Convert created_at to timestamp format for compatibility
-      const notesWithTimestamp = (data || []).map(note => ({
-        ...note,
-        timestamp: note.created_at,
-      }));
-
-      setNotes(notesWithTimestamp);
+      // ✅ FIX: Map semua row ke camelCase
+      setNotes((data || []).map(mapToNote));
     } catch (err) {
       setError(handleSupabaseError(err));
     } finally {
@@ -59,17 +65,14 @@ export function NoteProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Auto-fetch when user changes
   useEffect(() => {
     fetchNotes();
   }, [user]);
 
-  // Get note by ID
   const getNoteById = (id: string) => {
     return notes.find(n => n.id === id);
   };
 
-  // Create note
   const createNote = async (note: Omit<Note, 'id' | 'timestamp'>) => {
     try {
       setError(null);
@@ -89,14 +92,11 @@ export function NoteProvider({ children }: { children: ReactNode }) {
 
       if (insertError) throw insertError;
 
-      // Add to local state with timestamp
-      const noteWithTimestamp = {
-        ...data,
-        timestamp: data.created_at,
-      };
-      setNotes(prev => [noteWithTimestamp, ...prev]);
+      // ✅ FIX: Map hasil insert ke camelCase sebelum masuk state
+      const mapped = mapToNote(data);
+      setNotes(prev => [mapped, ...prev]);
 
-      return { success: true, data: noteWithTimestamp, error: null };
+      return { success: true, data: mapped, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
       setError(errorMessage);
@@ -104,12 +104,13 @@ export function NoteProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Update note
   const updateNote = async (id: string, updates: Partial<Note>) => {
     try {
       setError(null);
 
-      // Prepare update object (convert camelCase to snake_case for DB)
+      // ✅ FIX: Guard id valid
+      if (!id || id === 'new') throw new Error('Invalid note ID');
+
       const dbUpdates: any = {};
       if (updates.categoryId !== undefined) dbUpdates.category_id = updates.categoryId;
       if (updates.title !== undefined) dbUpdates.title = updates.title;
@@ -123,7 +124,6 @@ export function NoteProvider({ children }: { children: ReactNode }) {
 
       if (updateError) throw updateError;
 
-      // Update local state
       setNotes(prev =>
         prev.map(n => (n.id === id ? { ...n, ...updates } : n))
       );
@@ -136,7 +136,6 @@ export function NoteProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Delete note
   const deleteNote = async (id: string) => {
     try {
       setError(null);
@@ -148,7 +147,6 @@ export function NoteProvider({ children }: { children: ReactNode }) {
 
       if (deleteError) throw deleteError;
 
-      // Remove from local state
       setNotes(prev => prev.filter(n => n.id !== id));
 
       return { success: true, error: null };
@@ -159,15 +157,12 @@ export function NoteProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Toggle pin
   const togglePin = async (id: string) => {
     const note = notes.find(n => n.id === id);
     if (!note) return { success: false, error: 'Note not found' };
-
     return updateNote(id, { pinned: !note.pinned });
   };
 
-  // Refresh notes
   const refreshNotes = async () => {
     await fetchNotes();
   };
