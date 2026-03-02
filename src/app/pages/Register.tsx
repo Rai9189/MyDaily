@@ -25,12 +25,12 @@ export function Register() {
     setError(null);
 
     if (password.length < 8) {
-      setError('Password minimal 8 karakter');
+      setError('Password must be at least 8 characters.');
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Password tidak cocok!');
+      setError('Passwords do not match!');
       return;
     }
 
@@ -39,9 +39,11 @@ export function Register() {
     const { success, error: signUpError } = await signUp(email, password, name);
 
     if (success) {
+      // Setelah register, App.tsx/PublicRoute akan redirect ke /pin-setup otomatis
+      // karena user sudah login tapi belum punya PIN
       navigate('/pin-setup');
     } else {
-      setError(signUpError || 'Registrasi gagal. Silakan coba lagi.');
+      setError(signUpError || 'Registration failed. Please try again.');
     }
 
     setLoading(false);
@@ -51,7 +53,6 @@ export function Register() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <Card className="w-full max-w-md dark:bg-gray-800 dark:border-gray-700">
         <CardContent className="pt-6 pb-6">
-          {/* ✅ Logo normal di light mode, invert di dark mode */}
           <div className="flex justify-center mb-5">
             <img
               src="/logo.png"
@@ -68,7 +69,7 @@ export function Register() {
             )}
 
             <div className="space-y-1">
-              <Label htmlFor="name" className="dark:text-gray-300">Nama Lengkap</Label>
+              <Label htmlFor="name" className="dark:text-gray-300">Full Name</Label>
               <Input
                 id="name"
                 type="text"
@@ -86,7 +87,7 @@ export function Register() {
               <Input
                 id="email"
                 type="email"
-                placeholder="nama@example.com"
+                placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -101,7 +102,7 @@ export function Register() {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Minimal 8 karakter"
+                  placeholder="At least 8 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -121,12 +122,12 @@ export function Register() {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="confirmPassword" className="dark:text-gray-300">Konfirmasi Password</Label>
+              <Label htmlFor="confirmPassword" className="dark:text-gray-300">Confirm Password</Label>
               <div className="relative">
                 <Input
                   id="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="Ulangi password"
+                  placeholder="Repeat your password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
@@ -148,15 +149,15 @@ export function Register() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Mendaftar...
+                  Registering...
                 </>
               ) : (
-                'Daftar'
+                'Register'
               )}
             </Button>
 
             <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-              Sudah punya akun?{' '}
+              Already have an account?{' '}
               <Button
                 type="button"
                 variant="link"
@@ -164,7 +165,7 @@ export function Register() {
                 onClick={() => navigate('/login')}
                 disabled={loading}
               >
-                Masuk
+                Sign in
               </Button>
             </div>
           </form>

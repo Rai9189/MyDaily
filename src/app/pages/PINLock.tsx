@@ -1,3 +1,4 @@
+// src/app/pages/PINLock.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -8,7 +9,7 @@ import { Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export function PINLock() {
   const navigate = useNavigate();
-  const { user, signOut, loading: authLoading } = useAuth();
+  const { user, signOut, loading: authLoading, verifyPin, hasPin } = useAuth();
 
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
@@ -19,36 +20,55 @@ export function PINLock() {
   const [pinType, setPinType] = useState<'pin4' | 'pin6' | 'password'>('pin4');
   const [loading, setLoading] = useState(false);
 
-  const savedPin = localStorage.getItem('pin');
   const MAX_ATTEMPTS = 5;
   const LOCK_DURATION = 30;
 
+  // Redirect ke login jika tidak ada user
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/login', { replace: true });
     }
   }, [authLoading, user, navigate]);
 
+  // Tentukan pinType dari data user di Supabase
   useEffect(() => {
-    const type = localStorage.getItem('pinType') as 'pin4' | 'pin6' | 'password' || 'pin4';
-    setPinType(type);
+    if (user?.pin_type) {
+      // pin_type di DB: 'numeric' atau 'password'
+      // Kita perlu tentukan apakah numeric itu pin4 atau pin6
+      // Cek panjang pin_hash sebagai petunjuk (btoa('1234') = 8 char, btoa('123456') = 12 char)
+      if (user.pin_type === 'password') {
+        setPinType('password');
+      } else {
+        // Decode panjang hash untuk tahu pin4 atau pin6
+        try {
+          const decoded = atob(user.pin_hash || '');
+          setPinType(decoded.length === 6 ? 'pin6' : 'pin4');
+        } catch {
+          setPinType('pin4');
+        }
+      }
+    }
+  }, [user]);
 
-    const lockUntil = localStorage.getItem('pinLockUntil');
+  // Restore lock state dari sessionStorage (hanya untuk lock timer, bukan PIN)
+  useEffect(() => {
+    const lockUntil = sessionStorage.getItem('pinLockUntil');
     if (lockUntil) {
       const remaining = Math.floor((parseInt(lockUntil) - Date.now()) / 1000);
       if (remaining > 0) {
         setLocked(true);
         setLockTimer(remaining);
       } else {
-        localStorage.removeItem('pinLockUntil');
-        localStorage.removeItem('pinAttempts');
+        sessionStorage.removeItem('pinLockUntil');
+        sessionStorage.removeItem('pinAttempts');
       }
     }
 
-    const savedAttempts = localStorage.getItem('pinAttempts');
+    const savedAttempts = sessionStorage.getItem('pinAttempts');
     if (savedAttempts) setAttempts(parseInt(savedAttempts));
   }, []);
 
+  // Countdown timer
   useEffect(() => {
     if (locked && lockTimer > 0) {
       const timer = setTimeout(() => setLockTimer(lockTimer - 1), 1000);
@@ -56,29 +76,37 @@ export function PINLock() {
     } else if (locked && lockTimer === 0) {
       setLocked(false);
       setAttempts(0);
-      localStorage.removeItem('pinLockUntil');
-      localStorage.removeItem('pinAttempts');
+      sessionStorage.removeItem('pinLockUntil');
+      sessionStorage.removeItem('pinAttempts');
     }
   }, [locked, lockTimer]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (locked) { setError(`Too many attempts. Try again in ${lockTimer} seconds.`); return; }
+    if (locked) {
+      setError(`Too many attempts. Try again in ${lockTimer} seconds.`);
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
-      const hashedInput = btoa(pin);
-      if (hashedInput === savedPin) {
-        sessionStorage.setItem('pinUnlocked', 'true');
-        localStorage.removeItem('pinAttempts');
-        localStorage.removeItem('pinLockUntil');
+
+    try {
+      // Verifikasi PIN dari Supabase
+      const { success } = await verifyPin(pin);
+
+      if (success) {
+        // Bersihkan lock state
+        sessionStorage.removeItem('pinAttempts');
+        sessionStorage.removeItem('pinLockUntil');
         navigate('/');
       } else {
         const newAttempts = attempts + 1;
         setAttempts(newAttempts);
-        localStorage.setItem('pinAttempts', newAttempts.toString());
+        sessionStorage.setItem('pinAttempts', newAttempts.toString());
+
         if (newAttempts >= MAX_ATTEMPTS) {
           const lockUntil = Date.now() + LOCK_DURATION * 1000;
-          localStorage.setItem('pinLockUntil', lockUntil.toString());
+          sessionStorage.setItem('pinLockUntil', lockUntil.toString());
           setLocked(true);
           setLockTimer(LOCK_DURATION);
           setError(`Too many failed attempts! Wait ${LOCK_DURATION} seconds.`);
@@ -87,8 +115,9 @@ export function PINLock() {
         }
         setPin('');
       }
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   const handleSwitchAccount = async () => {
@@ -102,6 +131,7 @@ export function PINLock() {
   };
 
   const getMaxLength = () => pinType === 'pin4' ? 4 : pinType === 'pin6' ? 6 : undefined;
+
   const getPinLabel = () => {
     switch (pinType) {
       case 'pin4': return '4-Digit PIN';
@@ -125,7 +155,6 @@ export function PINLock() {
       <Card className="w-full max-w-md dark:bg-gray-800 dark:border-gray-700">
         <CardContent className="pt-6 pb-6">
 
-          {/* ✅ Logo — center */}
           <div className="flex justify-center mb-3">
             <img
               src="/logo.png"
@@ -134,7 +163,6 @@ export function PINLock() {
             />
           </div>
 
-          {/* ✅ Hello — center */}
           <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-5">
             {user?.name ? `Hello, ${user.name}` : 'Enter your PIN'}
           </p>
@@ -173,10 +201,8 @@ export function PINLock() {
                 {getPinLabel()}
               </Label>
 
-              {/* ✅ PIN Input: numerik pakai dot display custom, password pakai input biasa */}
               {isNumericPin ? (
                 <div className="relative">
-                  {/* Input tersembunyi untuk menangkap input */}
                   <input
                     type={showPin ? 'text' : 'password'}
                     inputMode="numeric"
@@ -193,7 +219,6 @@ export function PINLock() {
                     className="opacity-0 absolute inset-0 w-full h-full cursor-default"
                     onFocus={(e) => e.target.select()}
                   />
-                  {/* ✅ Visual display: kotak-kotak dot yang benar-benar center */}
                   <div
                     className="flex items-center justify-center gap-3 h-12 w-full rounded-md border border-input bg-input-background dark:bg-gray-700 dark:border-gray-600 cursor-text relative"
                     onClick={() => document.querySelector<HTMLInputElement>('input[inputmode="numeric"]')?.focus()}
@@ -213,7 +238,6 @@ export function PINLock() {
                         )}
                       </div>
                     ))}
-                    {/* Eye toggle */}
                     <button
                       type="button"
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -225,7 +249,6 @@ export function PINLock() {
                   </div>
                 </div>
               ) : (
-                /* Password mode: input teks biasa */
                 <div className="relative">
                   <input
                     type={showPin ? 'text' : 'password'}
@@ -249,7 +272,6 @@ export function PINLock() {
               )}
             </div>
 
-            {/* ✅ Unlock — center */}
             <button
               type="submit"
               disabled={locked || loading}

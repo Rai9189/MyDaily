@@ -9,7 +9,7 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export function Login() {
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { signIn, hasPin } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,29 +26,11 @@ export function Login() {
     setLoading(false);
 
     if (success) {
-      // ✅ FIX Bug 2: Bersihkan PIN lama saat login akun baru
-      // Cek apakah email yang login sama dengan yang tersimpan sebelumnya
-      const lastEmail = localStorage.getItem('lastLoginEmail');
-      if (lastEmail && lastEmail !== email) {
-        // Akun berbeda — hapus PIN lama agar tidak terpakai
-        localStorage.removeItem('pin');
-        localStorage.removeItem('pinSetup');
-        localStorage.removeItem('pinType');
-        localStorage.removeItem('pinAttempts');
-        localStorage.removeItem('pinLockUntil');
-        sessionStorage.removeItem('pinUnlocked');
-      }
-      // Simpan email yang sedang login
-      localStorage.setItem('lastLoginEmail', email);
-
-      const pinSetup = localStorage.getItem('pinSetup');
-      if (pinSetup) {
-        navigate('/pin-lock');
-      } else {
-        navigate('/pin-setup');
-      }
+      // Routing sepenuhnya ditangani oleh PublicRoute di App.tsx
+      // Tidak perlu cek localStorage apapun di sini
+      // hasPin() akan dibaca dari user state yang di-fetch setelah signIn
     } else {
-      setError(signInError || 'Login gagal. Periksa email dan password Anda.');
+      setError(signInError || 'Login failed. Please check your email and password.');
     }
   };
 
@@ -76,7 +58,7 @@ export function Login() {
               <Input
                 id="email"
                 type="email"
-                placeholder="nama@example.com"
+                placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -91,7 +73,7 @@ export function Login() {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Masukkan password"
+                  placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -117,7 +99,7 @@ export function Login() {
                 onClick={() => navigate('/forgot-password')}
                 disabled={loading}
               >
-                Lupa password?
+                Forgot password?
               </Button>
             </div>
 
@@ -125,15 +107,15 @@ export function Login() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Masuk...
+                  Signing in...
                 </>
               ) : (
-                'Masuk'
+                'Sign In'
               )}
             </Button>
 
             <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-              Belum punya akun?{' '}
+              Don't have an account?{' '}
               <Button
                 type="button"
                 variant="link"
@@ -141,7 +123,7 @@ export function Login() {
                 onClick={() => navigate('/register')}
                 disabled={loading}
               >
-                Daftar sekarang
+                Register now
               </Button>
             </div>
           </form>

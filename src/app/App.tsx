@@ -25,9 +25,6 @@ import { Profile } from './pages/Profile';
 import { Categories } from './pages/Categories';
 import { Loader2 } from 'lucide-react';
 
-// ✅ FIX: DataProviders dipindah ke sini — satu instance untuk semua route
-// Sebelumnya setiap route punya DataProviders sendiri → context berbeda-beda
-// → transactions[] di /transactions/new tidak sama dengan yang di /transactions
 function DataProviders({ children }: { children: React.ReactNode }) {
   return (
     <CategoryProvider>
@@ -46,51 +43,47 @@ function DataProviders({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Auth Guard Component
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+    </div>
+  );
+}
+
+// Protected Route - user harus login, punya PIN, dan sudah unlock
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, session, loading, profileLoading, hasPin } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
+  // Tunggu auth loading selesai
+  if (loading) return <LoadingScreen />;
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+  // Tidak ada session → belum login
+  if (!session) return <Navigate to="/login" replace />;
 
-  const pinSetup = localStorage.getItem('pinSetup');
-  if (!pinSetup) {
-    return <Navigate to="/pin-setup" replace />;
-  }
+  // Ada session tapi profile masih loading → tampilkan loading
+  if (profileLoading && !user) return <LoadingScreen />;
 
+  // Profile sudah ada, cek PIN
+  if (!hasPin()) return <Navigate to="/pin-setup" replace />;
   const pinUnlocked = sessionStorage.getItem('pinUnlocked');
-  if (!pinUnlocked) {
-    return <Navigate to="/pin-lock" replace />;
-  }
+  if (!pinUnlocked) return <Navigate to="/pin-lock" replace />;
 
   return <>{children}</>;
 }
 
-// Public Route - redirect ke dashboard jika sudah login
+// Public Route - redirect ke dalam app jika sudah login & unlock
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, session, loading, profileLoading, hasPin } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
+  if (loading) return <LoadingScreen />;
 
-  if (user) {
-    const pinSetup = localStorage.getItem('pinSetup');
+  // Ada session → sudah login, redirect ke dalam app
+  if (session) {
+    // Tunggu profile selesai dulu untuk tahu apakah punya PIN
+    if (profileLoading && !user) return <LoadingScreen />;
+    if (!hasPin()) return <Navigate to="/pin-setup" replace />;
     const pinUnlocked = sessionStorage.getItem('pinUnlocked');
-    if (!pinSetup) return <Navigate to="/pin-setup" replace />;
     if (!pinUnlocked) return <Navigate to="/pin-lock" replace />;
     return <Navigate to="/" replace />;
   }
@@ -98,7 +91,6 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// ✅ FIX: AppRoutes dipisah agar bisa akses useAuth di dalam BrowserRouter
 function AppRoutes() {
   return (
     <DataProviders>
@@ -121,6 +113,7 @@ function AppRoutes() {
         <Route path="/notes/:id" element={<ProtectedRoute><Layout><NoteDetail /></Layout></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
         <Route path="/categories" element={<ProtectedRoute><Layout><Categories /></Layout></ProtectedRoute>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </DataProviders>
   );

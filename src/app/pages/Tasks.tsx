@@ -7,7 +7,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
-import { Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2, X, Pencil, Trash2 } from 'lucide-react';
+import { Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2, X, Edit, Trash2 } from 'lucide-react';
 
 export function Tasks() {
   const navigate = useNavigate();
@@ -31,25 +31,19 @@ export function Tasks() {
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
-        setFilterOpen(false);
-      }
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setFilterOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const getCategoryName = (categoryId: string) =>
-    taskCategories.find(c => c.id === categoryId)?.name || 'Other';
-
-  const getCategoryColor = (categoryId: string) =>
-    taskCategories.find(c => c.id === categoryId)?.color || '#6b7280';
+  const getCategoryName = (id: string) => taskCategories.find(c => c.id === id)?.name || 'Other';
+  const getCategoryColor = (id: string) => taskCategories.find(c => c.id === id)?.color || '#6b7280';
 
   const getStatusVariant = (status: string) => {
     switch (status) {
       case 'Mendesak': return 'destructive';
       case 'Mendekati': return 'default';
-      case 'Masih Lama': return 'secondary';
       default: return 'secondary';
     }
   };
@@ -87,16 +81,13 @@ export function Tasks() {
     if (filterCompleted === 'completed') result = result.filter(t => t.completed);
     if (filterCompleted === 'active') result = result.filter(t => !t.completed);
     result.sort((a, b) => {
-      if (sortBy === 'deadline') {
-        return sortOrder === 'asc'
-          ? new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
-          : new Date(b.deadline).getTime() - new Date(a.deadline).getTime();
-      } else {
-        const order = { 'Mendesak': 3, 'Mendekati': 2, 'Masih Lama': 1 };
-        const va = order[a.status as keyof typeof order] ?? 0;
-        const vb = order[b.status as keyof typeof order] ?? 0;
-        return sortOrder === 'asc' ? va - vb : vb - va;
-      }
+      if (sortBy === 'deadline') return sortOrder === 'asc'
+        ? new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+        : new Date(b.deadline).getTime() - new Date(a.deadline).getTime();
+      const order = { 'Mendesak': 3, 'Mendekati': 2, 'Masih Lama': 1 };
+      const va = order[a.status as keyof typeof order] ?? 0;
+      const vb = order[b.status as keyof typeof order] ?? 0;
+      return sortOrder === 'asc' ? va - vb : vb - va;
     });
     return result;
   }, [tasks, searchQuery, filterStatus, filterCategory, filterCompleted, sortBy, sortOrder]);
@@ -107,24 +98,11 @@ export function Tasks() {
     ? filteredTasks.slice(startIndex, startIndex + itemsPerPage)
     : filteredTasks;
 
-  const activeFilterCount = [
-    filterStatus !== 'all',
-    filterCategory !== 'all',
-    filterCompleted !== 'all',
-  ].filter(Boolean).length;
-
-  const handleFilterChange = (setter: any, value: any) => {
-    setter(value);
-    setCurrentPage(1);
-  };
-
+  const activeFilterCount = [filterStatus !== 'all', filterCategory !== 'all', filterCompleted !== 'all'].filter(Boolean).length;
+  const handleFilterChange = (setter: any, value: any) => { setter(value); setCurrentPage(1); };
   const resetFilters = () => {
-    setFilterStatus('all');
-    setFilterCategory('all');
-    setFilterCompleted('all');
-    setSortBy('deadline');
-    setSortOrder('asc');
-    setCurrentPage(1);
+    setFilterStatus('all'); setFilterCategory('all'); setFilterCompleted('all');
+    setSortBy('deadline'); setSortOrder('asc'); setCurrentPage(1);
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
@@ -141,21 +119,8 @@ export function Tasks() {
     navigate(`/tasks/${id}`);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-        <p className="text-red-600 dark:text-red-400">Error: {error}</p>
-      </div>
-    );
-  }
+  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  if (error) return <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-lg"><p className="text-red-600 dark:text-red-400">Error: {error}</p></div>;
 
   return (
     <div className="space-y-6 p-1">
@@ -164,9 +129,7 @@ export function Tasks() {
           <h1 className="text-3xl font-semibold text-foreground">Tasks</h1>
           <p className="text-muted-foreground mt-1">Manage all your tasks</p>
         </div>
-        <Button onClick={() => navigate('/tasks/new')} className="gap-2">
-          <Plus size={18} /> Add Task
-        </Button>
+        <Button onClick={() => navigate('/tasks/new')} className="gap-2"><Plus size={18} /> Add Task</Button>
       </div>
 
       <div className="flex gap-2 items-center">
@@ -175,7 +138,6 @@ export function Tasks() {
           <Input placeholder="Search by title, description, or category..." value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 border border-border shadow-sm" />
         </div>
-
         <div className="relative" ref={filterRef}>
           <Button variant="outline" className="gap-2 relative" onClick={() => setFilterOpen(!filterOpen)}>
             <Filter size={18} /> Filter
@@ -185,7 +147,6 @@ export function Tasks() {
               </span>
             )}
           </Button>
-
           {filterOpen && (
             <div className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -239,20 +200,14 @@ export function Tasks() {
                         <SelectItem value="status">Status</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
-                      <ArrowUpDown size={16} />
-                    </Button>
+                    <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}><ArrowUpDown size={16} /></Button>
                   </div>
                 </div>
                 <div className="border-t border-border pt-3 space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">View</label>
                   <div className="flex gap-2">
-                    <Button variant={viewMode === 'list' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('list')} className="gap-2 flex-1">
-                      <List size={15} /> List
-                    </Button>
-                    <Button variant={viewMode === 'card' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('card')} className="gap-2 flex-1">
-                      <LayoutGrid size={15} /> Card
-                    </Button>
+                    <Button variant={viewMode === 'list' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('list')} className="gap-2 flex-1"><List size={15} /> List</Button>
+                    <Button variant={viewMode === 'card' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('card')} className="gap-2 flex-1"><LayoutGrid size={15} /> Card</Button>
                   </div>
                 </div>
                 {viewMode === 'card' && (
@@ -274,10 +229,11 @@ export function Tasks() {
         </div>
       </div>
 
+      {/* ✅ Header like Transactions */}
       {filteredTasks.length > 0 && (
-        <p className="text-sm text-muted-foreground">
-          {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} found
-        </p>
+        <h2 className="text-base font-semibold text-foreground">
+          All Tasks <span className="text-muted-foreground font-normal">({filteredTasks.length})</span>
+        </h2>
       )}
 
       {filteredTasks.length === 0 ? (
@@ -293,55 +249,49 @@ export function Tasks() {
             <Card key={task.id} className={`hover:shadow-md transition-shadow border border-border bg-card ${task.completed ? 'opacity-60' : ''}`}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
-                  {/* Status dot */}
                   <div className={`mt-1 flex-shrink-0 w-2 h-2 rounded-full ${
                     task.completed ? 'bg-gray-400' :
                     task.status === 'Mendesak' ? 'bg-red-500' :
                     task.status === 'Mendekati' ? 'bg-amber-500' : 'bg-green-500'
                   }`} />
-
-                  {/* Info — klik untuk buka detail */}
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/tasks/${task.id}`)}>
-                    <p className={`text-sm font-medium text-foreground ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
+                    {/* ✅ Title: semibold dark */}
+                    <p className={`text-sm font-semibold text-foreground ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
                       {task.title}
                     </p>
                     <div className="flex items-center gap-2 flex-wrap mt-1.5">
                       {!task.completed ? (
                         <Badge variant={getStatusVariant(task.status) as any} className="gap-1 text-xs">
-                          {getStatusIcon(task.status)}
-                          {getStatusLabel(task.status)}
+                          {getStatusIcon(task.status)}{getStatusLabel(task.status)}
                         </Badge>
                       ) : (
-                        <Badge variant="secondary" className="gap-1 text-xs">
-                          <CheckCircle2 size={11} /> Completed
-                        </Badge>
+                        <Badge variant="secondary" className="gap-1 text-xs"><CheckCircle2 size={11} /> Completed</Badge>
                       )}
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
                         style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}>
                         {getCategoryName(task.categoryId)}
                       </span>
                     </div>
-                    {task.description && (
-                      <p className="text-xs text-muted-foreground mt-1 truncate">{task.description}</p>
-                    )}
+                    {/* ✅ Description: smaller, muted */}
+                    {task.description && <p className="text-xs text-muted-foreground mt-1 truncate">{task.description}</p>}
                     <p className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-1">
                       <Clock size={11} />
                       Due {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
                   </div>
-
-                  {/* ✅ Tombol Edit + Delete sejajar horizontal */}
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button onClick={(e) => handleEdit(e, task.id)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
-                      title="Edit task">
-                      <Pencil size={14} />
-                    </button>
-                    <button onClick={(e) => handleDelete(e, task.id)} disabled={deletingId === task.id}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
-                      title="Delete task">
-                      {deletingId === task.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                    </button>
+                  <div className="flex items-center gap-0 flex-shrink-0">
+                    {/* ✅ Edit: ghost hover foreground */}
+                    <Button variant="ghost" size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                      onClick={(e) => handleEdit(e, task.id)} title="Edit">
+                      <Edit size={15} />
+                    </Button>
+                    {/* ✅ Delete: ghost hover red bg */}
+                    <Button variant="ghost" size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
+                      onClick={(e) => handleDelete(e, task.id)} disabled={deletingId === task.id} title="Delete">
+                      {deletingId === task.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -352,17 +302,11 @@ export function Tasks() {
 
       {viewMode === 'card' && totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredTasks.length)} of {filteredTasks.length}
-          </p>
+          <p className="text-sm text-muted-foreground">Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredTasks.length)} of {filteredTasks.length}</p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
-              <ChevronLeft size={16} />
-            </Button>
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft size={16} /></Button>
             <span className="text-sm text-foreground">Page {currentPage} of {totalPages}</span>
-            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
-              <ChevronRight size={16} />
-            </Button>
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}><ChevronRight size={16} /></Button>
           </div>
         </div>
       )}
