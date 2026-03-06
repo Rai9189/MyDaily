@@ -13,7 +13,7 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
-import { ArrowLeft, X, Loader2, FileText, Image as ImageIcon, Trash2, Save } from 'lucide-react';
+import { ArrowLeft, X, Loader2, FileText, Image as ImageIcon, Save } from 'lucide-react';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 
 function formatAmountDisplay(value: number): string {
@@ -47,7 +47,6 @@ export function TransactionDetail() {
   const { getCategoriesByType } = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
 
-  // ✅ Pending attachments untuk mode "new"
   const {
     pendingFiles,
     addFiles,
@@ -63,7 +62,7 @@ export function TransactionDetail() {
   const [formData, setFormData] = useState({
     accountId: '',
     amount: 0,
-    type: 'Keluar' as 'Masuk' | 'Keluar',
+    type: 'expense' as 'income' | 'expense',
     date: new Date().toISOString().split('T')[0],
     categoryId: '',
     description: '',
@@ -72,6 +71,7 @@ export function TransactionDetail() {
   const [attachments, setAttachments] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
   useEffect(() => {
     if (isNew) {
       setFormData(prev => ({
@@ -100,9 +100,10 @@ export function TransactionDetail() {
     if (!isNew && id) loadAttachments();
   }, [id]);
 
+  // Filter categories by subtype matching transaction type
   const filteredCategories = allTransactionCategories.filter(cat => {
     if (!(cat as any).subtype) return true;
-    return (cat as any).subtype === (formData.type === 'Masuk' ? 'income' : 'expense');
+    return (cat as any).subtype === formData.type;
   });
   const displayCategories = filteredCategories.length > 0 ? filteredCategories : allTransactionCategories;
 
@@ -124,10 +125,10 @@ export function TransactionDetail() {
     setFormData(prev => ({ ...prev, amount: parseAmountInput(formatted) }));
   };
 
-  const handleTypeChange = (v: 'Masuk' | 'Keluar') => {
+  const handleTypeChange = (v: 'income' | 'expense') => {
     const newFiltered = allTransactionCategories.filter(cat => {
       if (!(cat as any).subtype) return true;
-      return (cat as any).subtype === (v === 'Masuk' ? 'income' : 'expense');
+      return (cat as any).subtype === v;
     });
     const newCategories = newFiltered.length > 0 ? newFiltered : allTransactionCategories;
     setFormData(prev => ({ ...prev, type: v, categoryId: newCategories[0]?.id || prev.categoryId }));
@@ -162,13 +163,8 @@ export function TransactionDetail() {
     setSubmitting(true);
     try {
       if (isNew) {
-        // ✅ Create transaction dulu
         const { success, data, error } = await createTransaction(formData);
-        if (!success || !data) {
-          alert(error || 'Failed to create transaction');
-          return;
-        }
-        // ✅ Lalu upload semua pending files dengan ID yang baru dapat
+        if (!success || !data) { alert(error || 'Failed to create transaction'); return; }
         if (pendingFiles.length > 0) {
           const { error: uploadError } = await uploadAllPending('transaction', data.id);
           if (uploadError) alert(`Transaction saved, but some attachments failed:\n${uploadError}`);
@@ -206,9 +202,7 @@ export function TransactionDetail() {
       <form onSubmit={handleSubmit} className="space-y-5">
         <Card className="border border-border bg-card">
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold text-foreground">Transaction Info</CardTitle>
-              </div>
+            <CardTitle className="text-base font-semibold text-foreground">Transaction Info</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5 pt-2">
             <div className="space-y-1.5">
@@ -234,8 +228,8 @@ export function TransactionDetail() {
               <Select value={formData.type} onValueChange={handleTypeChange}>
                 <SelectTrigger id="type"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Masuk">Income</SelectItem>
-                  <SelectItem value="Keluar">Expense</SelectItem>
+                  <SelectItem value="income">Income</SelectItem>
+                  <SelectItem value="expense">Expense</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -260,7 +254,6 @@ export function TransactionDetail() {
               <Textarea id="description" placeholder="Add a note about this transaction..." value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} />
             </div>
 
-            {/* ✅ Attachment picker langsung di form saat mode new */}
             {isNew && (
               <PendingAttachmentPicker
                 pendingFiles={pendingFiles}
@@ -309,6 +302,7 @@ export function TransactionDetail() {
           </Card>
         )}
 
+        {/* Summary (edit mode) */}
         {!isNew && transaction && (
           <Card className="border border-border bg-muted/30">
             <CardHeader className="pb-2">
@@ -326,14 +320,14 @@ export function TransactionDetail() {
               ))}
               <div className="flex justify-between text-sm items-center">
                 <span className="text-muted-foreground">Type</span>
-                <Badge variant={transaction.type === 'Masuk' ? 'default' : 'destructive'}>
-                  {transaction.type === 'Masuk' ? 'Income' : 'Expense'}
+                <Badge variant={transaction.type === 'income' ? 'default' : 'destructive'}>
+                  {transaction.type === 'income' ? 'Income' : 'Expense'}
                 </Badge>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Amount</span>
-                <span className={`font-semibold ${transaction.type === 'Masuk' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                  {transaction.type === 'Masuk' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                <span className={`font-semibold ${transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                 </span>
               </div>
             </CardContent>

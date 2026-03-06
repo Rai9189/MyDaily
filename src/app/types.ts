@@ -9,17 +9,15 @@ export interface Account {
   balance: number;
 }
 
-export type TransactionType = 'Masuk' | 'Keluar';
+export type TransactionType = 'income' | 'expense';
 
 export interface Category {
   id: string;
   name: string;
   type: 'transaction' | 'task' | 'note';
   color?: string;
-  // ✅ FIX: subtype untuk filter category Income vs Expense
-  // Isi 'income' untuk kategori pemasukan, 'expense' untuk pengeluaran
-  // Jika tidak diisi, category akan tampil di kedua type transaksi
   subtype?: 'income' | 'expense';
+  parentId?: string | null; // ✅ null = parent category, string = subcategory
 }
 
 export interface Attachment {
@@ -40,7 +38,7 @@ export interface Transaction {
   attachments?: Attachment[];
 }
 
-export type TaskStatus = 'Masih Lama' | 'Mendekati' | 'Mendesak';
+export type TaskStatus = 'on_track' | 'upcoming' | 'urgent' | 'overdue';
 
 export interface Task {
   id: string;
@@ -64,8 +62,6 @@ export interface Note {
   attachments?: Attachment[];
 }
 
-// ✅ FIX: Sesuaikan field User dengan kolom database (snake_case)
-// Database columns: id, name, email, avatar, pin_type, pin_hash, created_at, updated_at
 export interface User {
   id: string;
   name: string;

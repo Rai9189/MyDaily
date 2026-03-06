@@ -7,7 +7,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
-import { Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2, X, Edit, Trash2 } from 'lucide-react';
+import { Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2, X, Edit, Trash2, CalendarX } from 'lucide-react';
 
 export function Tasks() {
   const navigate = useNavigate();
@@ -42,27 +42,40 @@ export function Tasks() {
 
   const getStatusVariant = (status: string) => {
     switch (status) {
-      case 'Mendesak': return 'destructive';
-      case 'Mendekati': return 'default';
-      default: return 'secondary';
+      case 'overdue':   return 'destructive';
+      case 'urgent':    return 'destructive';
+      case 'upcoming':  return 'default';
+      default:          return 'secondary';
     }
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'Mendesak': return 'Urgent';
-      case 'Mendekati': return 'Upcoming';
-      case 'Masih Lama': return 'On Track';
-      default: return status;
+      case 'overdue':   return 'Overdue';
+      case 'urgent':    return 'Urgent';
+      case 'upcoming':  return 'Upcoming';
+      case 'on_track':  return 'On Track';
+      default:          return status;
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Mendesak': return <AlertCircle size={13} />;
-      case 'Mendekati': return <Clock size={13} />;
-      case 'Masih Lama': return <CheckCircle2 size={13} />;
-      default: return null;
+      case 'overdue':   return <CalendarX size={13} />;
+      case 'urgent':    return <AlertCircle size={13} />;
+      case 'upcoming':  return <Clock size={13} />;
+      case 'on_track':  return <CheckCircle2 size={13} />;
+      default:          return null;
+    }
+  };
+
+  const getDotColor = (task: any) => {
+    if (task.completed) return 'bg-gray-400';
+    switch (task.status) {
+      case 'overdue':   return 'bg-red-700';
+      case 'urgent':    return 'bg-red-500';
+      case 'upcoming':  return 'bg-amber-500';
+      default:          return 'bg-green-500';
     }
   };
 
@@ -80,14 +93,15 @@ export function Tasks() {
     if (filterCategory !== 'all') result = result.filter(t => t.categoryId === filterCategory);
     if (filterCompleted === 'completed') result = result.filter(t => t.completed);
     if (filterCompleted === 'active') result = result.filter(t => !t.completed);
+
     result.sort((a, b) => {
       if (sortBy === 'deadline') return sortOrder === 'asc'
         ? new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
         : new Date(b.deadline).getTime() - new Date(a.deadline).getTime();
-      const order = { 'Mendesak': 3, 'Mendekati': 2, 'Masih Lama': 1 };
+      const order = { overdue: 4, urgent: 3, upcoming: 2, on_track: 1 };
       const va = order[a.status as keyof typeof order] ?? 0;
       const vb = order[b.status as keyof typeof order] ?? 0;
-      return sortOrder === 'asc' ? va - vb : vb - va;
+      return sortOrder === 'asc' ? vb - va : va - vb;
     });
     return result;
   }, [tasks, searchQuery, filterStatus, filterCategory, filterCompleted, sortBy, sortOrder]);
@@ -163,9 +177,10 @@ export function Tasks() {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="Mendesak">Urgent</SelectItem>
-                      <SelectItem value="Mendekati">Upcoming</SelectItem>
-                      <SelectItem value="Masih Lama">On Track</SelectItem>
+                      <SelectItem value="overdue">Overdue</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                      <SelectItem value="upcoming">Upcoming</SelectItem>
+                      <SelectItem value="on_track">On Track</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -229,7 +244,6 @@ export function Tasks() {
         </div>
       </div>
 
-      {/* ✅ Header like Transactions */}
       {filteredTasks.length > 0 && (
         <h2 className="text-base font-semibold text-foreground">
           All Tasks <span className="text-muted-foreground font-normal">({filteredTasks.length})</span>
@@ -246,54 +260,78 @@ export function Tasks() {
       ) : (
         <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
           {paginatedTasks.map((task) => (
-            <Card key={task.id} className={`hover:shadow-md transition-shadow border border-border bg-card ${task.completed ? 'opacity-60' : ''}`}>
+            <Card key={task.id} className={`hover:shadow-md transition-shadow border border-border bg-card ${task.completed ? 'opacity-60' : ''} ${!task.completed && task.status === 'overdue' ? 'border-red-300 dark:border-red-800' : ''}`}>
               <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <div className={`mt-1 flex-shrink-0 w-2 h-2 rounded-full ${
-                    task.completed ? 'bg-gray-400' :
-                    task.status === 'Mendesak' ? 'bg-red-500' :
-                    task.status === 'Mendekati' ? 'bg-amber-500' : 'bg-green-500'
-                  }`} />
-                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/tasks/${task.id}`)}>
-                    {/* ✅ Title: semibold dark */}
-                    <p className={`text-sm font-semibold text-foreground ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
-                      {task.title}
-                    </p>
-                    <div className="flex items-center gap-2 flex-wrap mt-1.5">
-                      {!task.completed ? (
-                        <Badge variant={getStatusVariant(task.status) as any} className="gap-1 text-xs">
-                          {getStatusIcon(task.status)}{getStatusLabel(task.status)}
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className="gap-1 text-xs"><CheckCircle2 size={11} /> Completed</Badge>
-                      )}
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                        style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}>
-                        {getCategoryName(task.categoryId)}
-                      </span>
+                {viewMode === 'list' ? (
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-1 flex-shrink-0 w-2 h-2 rounded-full ${getDotColor(task)}`} />
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/tasks/${task.id}`)}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
+                          style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}>
+                          {getCategoryName(task.categoryId)}
+                        </span>
+                        {!task.completed ? (
+                          <Badge variant={getStatusVariant(task.status) as any} className="gap-1 text-xs">
+                            {getStatusIcon(task.status)}{getStatusLabel(task.status)}
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="gap-1 text-xs"><CheckCircle2 size={11} /> Completed</Badge>
+                        )}
+                      </div>
+                      <p className={`text-sm font-semibold text-foreground mt-1.5 ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
+                        {task.title}
+                      </p>
+                      {task.description && <p className="text-xs text-muted-foreground mt-1 truncate">{task.description}</p>}
                     </div>
-                    {/* ✅ Description: smaller, muted */}
-                    {task.description && <p className="text-xs text-muted-foreground mt-1 truncate">{task.description}</p>}
-                    <p className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-1">
-                      <Clock size={11} />
-                      Due {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </p>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <p className={`text-base font-bold flex items-center gap-1 ${!task.completed && task.status === 'overdue' ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
+                        <Clock size={13} className="text-muted-foreground" />
+                        {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                      <div className="flex items-center gap-0">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={(e) => handleEdit(e, task.id)}><Edit size={15} /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white" onClick={(e) => handleDelete(e, task.id)} disabled={deletingId === task.id}>
+                          {deletingId === task.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-0 flex-shrink-0">
-                    {/* ✅ Edit: ghost hover foreground */}
-                    <Button variant="ghost" size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                      onClick={(e) => handleEdit(e, task.id)} title="Edit">
-                      <Edit size={15} />
-                    </Button>
-                    {/* ✅ Delete: ghost hover red bg */}
-                    <Button variant="ghost" size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
-                      onClick={(e) => handleDelete(e, task.id)} disabled={deletingId === task.id} title="Delete">
-                      {deletingId === task.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                    </Button>
+                ) : (
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/tasks/${task.id}`)}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
+                          style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}>
+                          {getCategoryName(task.categoryId)}
+                        </span>
+                        {!task.completed ? (
+                          <Badge variant={getStatusVariant(task.status) as any} className="gap-1 text-xs">
+                            {getStatusIcon(task.status)}{getStatusLabel(task.status)}
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="gap-1 text-xs"><CheckCircle2 size={11} /> Completed</Badge>
+                        )}
+                      </div>
+                      <p className={`text-sm font-semibold text-foreground mt-2 ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
+                        {task.title}
+                      </p>
+                      {task.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.description}</p>}
+                    </div>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <p className={`text-base font-bold flex items-center gap-1 ${!task.completed && task.status === 'overdue' ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
+                        <Clock size={13} className="text-muted-foreground" />
+                        {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                      <div className="flex items-center gap-0">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={(e) => handleEdit(e, task.id)}><Edit size={15} /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white" onClick={(e) => handleDelete(e, task.id)} disabled={deletingId === task.id}>
+                          {deletingId === task.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           ))}

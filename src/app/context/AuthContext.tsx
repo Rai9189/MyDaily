@@ -1,5 +1,5 @@
 // src/app/context/AuthContext.tsx
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { supabase, handleSupabaseError } from '../../lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { User } from '../types';
@@ -28,6 +28,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ✅ Flag: apakah initAuth() sudah selesai
+  // Mencegah onAuthStateChange berjalan sebelum init selesai (race condition)
+  const initialized = useRef(false);
 
   const fetchUserProfile = async (userId: string, retries = 3): Promise<User | null> => {
     for (let attempt = 1; attempt <= retries; attempt++) {
@@ -58,73 +62,87 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    // onAuthStateChange handle SEMUA event termasuk INITIAL_SESSION dan SIGNED_IN
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        console.log('onAuthStateChange event:', _event, 'session:', !!session);
+    const initAuth = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+
         if (!isMounted) return;
 
-        // Bersihkan storage corrupt jika tidak ada session saat init
-        if (_event === 'INITIAL_SESSION' && !session) {
+        if (!initialSession) {
           Object.keys(localStorage).forEach(key => {
             if (key.startsWith('sb-')) localStorage.removeItem(key);
           });
           sessionStorage.removeItem('pinUnlocked');
           setUser(null);
           setSession(null);
-          setLoading(false);
-          setProfileLoading(false);
-          return;
-        }
+        } else {
+          setSession(initialSession);
+          setProfileLoading(true);
 
-        // Token refresh — hanya update session, tidak perlu re-fetch profile
+          const profile = await fetchUserProfile(initialSession.user.id);
+          if (!isMounted) return;
+
+          setUser(profile);
+          setProfileLoading(false);
+        }
+      } catch (err) {
+        console.error('initAuth error:', err);
+        if (isMounted) setProfileLoading(false);
+      } finally {
+        // ✅ Selalu set loading false & tandai initialized, apapun hasilnya
+        if (isMounted) {
+          initialized.current = true;
+          setLoading(false);
+        }
+      }
+    };
+
+    initAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        console.log('onAuthStateChange event:', _event, 'session:', !!session);
+        if (!isMounted) return;
+
+        // ✅ Tunggu initAuth selesai dulu — cegah race condition
+        if (!initialized.current) return;
+
+        // Token refresh — update session saja
         if (_event === 'TOKEN_REFRESHED') {
           setSession(session);
           return;
         }
 
-        // SIGNED_IN dari tab focus — skip jika user sudah sama
-        if (_event === 'SIGNED_IN' && user?.id === session?.user?.id && user !== null) {
-          setSession(session);
-          setLoading(false);
+        // SIGNED_OUT
+        if (_event === 'SIGNED_OUT' || !session) {
+          setUser(null);
+          setSession(null);
           return;
         }
 
-        setSession(session);
-        // Set loading false SEGERA agar routing tidak stuck
-        setLoading(false);
+        // Tab refocus / re-auth, user sama — skip re-fetch
+        if (_event === 'SIGNED_IN') {
+          setSession(session);
+          // Hanya re-fetch jika user berbeda (ganti akun)
+          const currentUserId = user?.id;
+          if (currentUserId && currentUserId === session.user.id) return;
 
-        if (session?.user) {
-          // Fetch profile di background — tidak blok routing
+          // User baru login — fetch profile
           setProfileLoading(true);
           const profile = await fetchUserProfile(session.user.id);
           if (!isMounted) return;
           setUser(profile);
           setProfileLoading(false);
-        } else {
-          setUser(null);
-          setProfileLoading(false);
         }
       }
     );
 
-    // Fallback timeout — clear loading DAN profileLoading
-    const fallbackTimer = setTimeout(() => {
-      if (isMounted) {
-        console.warn('Auth timeout - forcing loading false');
-        setLoading(false);
-        setProfileLoading(false);
-      }
-    }, 8000);
-
     return () => {
       isMounted = false;
-      clearTimeout(fallbackTimer);
       subscription.unsubscribe();
     };
   }, []);
 
-  // Sign Up
   const signUp = async (email: string, password: string, name: string) => {
     try {
       setError(null);
@@ -144,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           name,
           email,
           pin_type: 'numeric',
-          pin_hash: null, // PIN belum di-setup
+          pin_hash: null,
         });
 
       if (profileError) throw profileError;
@@ -157,7 +175,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Sign In
   const signIn = async (email: string, password: string) => {
     try {
       setError(null);
@@ -177,18 +194,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Sign Out
   const signOut = async () => {
     try {
       setError(null);
       await supabase.auth.signOut();
 
-      // Bersihkan semua storage
       sessionStorage.removeItem('pinUnlocked');
       sessionStorage.removeItem('pinAttempts');
       sessionStorage.removeItem('pinLockUntil');
 
-      // Clear Supabase stale keys dari localStorage
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('sb-')) localStorage.removeItem(key);
       });
@@ -200,7 +214,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Reset Password
   const resetPassword = async (email: string) => {
     try {
       setError(null);
@@ -218,7 +231,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Update Profile
   const updateProfile = async (updates: Partial<User>) => {
     try {
       setError(null);
@@ -241,13 +253,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Save PIN ke Supabase
   const savePin = async (pin: string, pinType: 'pin4' | 'pin6' | 'password') => {
     try {
       setError(null);
       if (!user) throw new Error('No user logged in');
 
-      const pinHash = btoa(pin); // simple hash, bisa diganti bcrypt jika perlu
+      const pinHash = btoa(pin);
       const dbPinType = pinType === 'password' ? 'password' : 'numeric';
 
       const { error } = await supabase
@@ -260,10 +271,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error;
 
-      // Update local user state
       setUser(prev => prev ? { ...prev, pin_hash: pinHash, pin_type: dbPinType } : prev);
-
-      // Set session sebagai sudah unlock
       sessionStorage.setItem('pinUnlocked', 'true');
 
       return { success: true, error: null };
@@ -274,14 +282,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Verify PIN - gunakan user state jika ada, fallback ke DB
   const verifyPin = async (pin: string) => {
     try {
       setError(null);
 
       const pinHash = btoa(pin);
 
-      // Gunakan user state jika pin_hash sudah ada (lebih cepat, tanpa DB call)
       if (user?.pin_hash) {
         if (pinHash !== user.pin_hash) {
           return { success: false, error: 'Wrong PIN' };
@@ -290,7 +296,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: true, error: null };
       }
 
-      // Fallback: fetch dari DB jika user state belum ada pin_hash
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       if (!currentSession?.user) throw new Error('No active session');
 
@@ -315,7 +320,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Cek apakah user sudah punya PIN
   const hasPin = () => {
     return !!(user?.pin_hash);
   };

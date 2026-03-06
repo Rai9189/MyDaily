@@ -68,16 +68,37 @@ export function Notes() {
     navigate(`/notes/${id}`);
   };
 
+  // ─── CARD MODE ───
   const NoteCard = ({ note, isPinned }: { note: any; isPinned?: boolean }) => (
     <Card className={`hover:shadow-md transition-shadow bg-card ${isPinned ? 'border-2 border-primary/40' : 'border border-border'}`}>
       <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <h3 className="text-sm font-semibold text-foreground line-clamp-1 flex-1 cursor-pointer"
-            onClick={() => navigate(`/notes/${note.id}`)}>
-            {note.title}
-          </h3>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/notes/${note.id}`)}>
+            {/* 1. Category */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
+                style={{ borderColor: getCategoryColor(note.categoryId), color: getCategoryColor(note.categoryId) }}>
+                {getCategoryName(note.categoryId)}
+              </span>
+              {isPinned && <Pin size={13} className="text-primary" />}
+            </div>
+            {/* 2. Title */}
+            <h3 className="text-sm font-semibold text-foreground line-clamp-1 mt-2">{note.title}</h3>
+            {/* 3. Description / Content */}
+            <p className="text-sm text-muted-foreground line-clamp-3 mt-1">{note.content}</p>
+            {/* 4. Date + attachments */}
+            <div className="flex items-center justify-between mt-3">
+              <span className="text-xs text-muted-foreground/60">
+                {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+              {note.attachments && note.attachments.length > 0 && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Paperclip size={11} /> {note.attachments.length}
+                </span>
+              )}
+            </div>
+          </div>
           <div className="flex items-center gap-0 flex-shrink-0">
-            {isPinned && <Pin size={13} className="text-primary mr-1" />}
             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
               onClick={(e) => handleEdit(e, note.id)} title="Edit note">
               <Edit size={15} />
@@ -89,51 +110,37 @@ export function Notes() {
             </Button>
           </div>
         </div>
-        <div className="cursor-pointer" onClick={() => navigate(`/notes/${note.id}`)}>
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full border mb-2 inline-block"
-            style={{ borderColor: getCategoryColor(note.categoryId), color: getCategoryColor(note.categoryId) }}>
-            {getCategoryName(note.categoryId)}
-          </span>
-          <p className="text-sm text-muted-foreground line-clamp-3 mt-2">{note.content}</p>
-          <div className="flex items-center justify-between mt-3">
-            <span className="text-xs text-muted-foreground/60">
-              {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-            </span>
-            {note.attachments && note.attachments.length > 0 && (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Paperclip size={11} /> {note.attachments.length}
-              </span>
-            )}
-          </div>
-        </div>
       </CardContent>
     </Card>
   );
 
+  // ─── LIST MODE ───
   const NoteListItem = ({ note, isPinned }: { note: any; isPinned?: boolean }) => (
     <Card className={`hover:shadow-md transition-shadow bg-card ${isPinned ? 'border-2 border-primary/40' : 'border border-border'}`}>
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
           {isPinned && <Pin size={14} className="text-primary flex-shrink-0 mt-1" />}
           <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/notes/${note.id}`)}>
-            <div className="flex items-start justify-between gap-4">
-              {/* ✅ Title: semibold dark */}
-              <h3 className="text-sm font-semibold text-foreground">{note.title}</h3>
-              <span className="text-xs text-muted-foreground/60 flex-shrink-0">
-                {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
-              </span>
-            </div>
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full border mt-1 inline-block"
+            {/* 1. Category */}
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
               style={{ borderColor: getCategoryColor(note.categoryId), color: getCategoryColor(note.categoryId) }}>
               {getCategoryName(note.categoryId)}
             </span>
-            {/* ✅ Content: smaller, muted */}
-            <p className="text-xs text-muted-foreground line-clamp-2 mt-1.5">{note.content}</p>
-            {note.attachments && note.attachments.length > 0 && (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5">
-                <Paperclip size={11} /> {note.attachments.length} attachment{note.attachments.length !== 1 ? 's' : ''}
+            {/* 2. Title */}
+            <h3 className="text-sm font-semibold text-foreground mt-1.5">{note.title}</h3>
+            {/* 3. Content */}
+            <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{note.content}</p>
+            {/* 4. Date + Attachments */}
+            <div className="flex items-center gap-3 mt-1.5">
+              <span className="text-xs text-muted-foreground/60">
+                {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
               </span>
-            )}
+              {note.attachments && note.attachments.length > 0 && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Paperclip size={11} /> {note.attachments.length} attachment{note.attachments.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-0 flex-shrink-0">
             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
@@ -254,7 +261,6 @@ export function Notes() {
 
       {regularNotes.length > 0 && (
         <div>
-          {/* ✅ Header like Transactions */}
           <h2 className="text-base font-semibold text-foreground mb-3">
             All Notes <span className="text-muted-foreground font-normal">({regularNotes.length})</span>
           </h2>

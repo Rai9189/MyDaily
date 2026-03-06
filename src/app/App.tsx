@@ -55,16 +55,10 @@ function LoadingScreen() {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, session, loading, profileLoading, hasPin } = useAuth();
 
-  // Tunggu auth loading selesai
   if (loading) return <LoadingScreen />;
-
-  // Tidak ada session → belum login
   if (!session) return <Navigate to="/login" replace />;
-
-  // Ada session tapi profile masih loading → tampilkan loading
   if (profileLoading && !user) return <LoadingScreen />;
 
-  // Profile sudah ada, cek PIN
   if (!hasPin()) return <Navigate to="/pin-setup" replace />;
   const pinUnlocked = sessionStorage.getItem('pinUnlocked');
   if (!pinUnlocked) return <Navigate to="/pin-lock" replace />;
@@ -78,15 +72,31 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
   if (loading) return <LoadingScreen />;
 
-  // Ada session → sudah login, redirect ke dalam app
   if (session) {
-    // Tunggu profile selesai dulu untuk tahu apakah punya PIN
     if (profileLoading && !user) return <LoadingScreen />;
     if (!hasPin()) return <Navigate to="/pin-setup" replace />;
     const pinUnlocked = sessionStorage.getItem('pinUnlocked');
     if (!pinUnlocked) return <Navigate to="/pin-lock" replace />;
     return <Navigate to="/" replace />;
   }
+
+  return <>{children}</>;
+}
+
+// ✅ FIX: PIN Route - harus login, tapi belum tentu punya PIN atau sudah unlock
+// Sebelumnya /pin-setup dan /pin-lock tidak diproteksi sama sekali,
+// sehingga saat user=null sementara (profile belum load), router bisa
+// masuk ke /pin-setup tanpa cek apapun.
+function PINRoute({ children }: { children: React.ReactNode }) {
+  const { session, loading, profileLoading, user } = useAuth();
+
+  if (loading) return <LoadingScreen />;
+
+  // Belum login sama sekali → ke login
+  if (!session) return <Navigate to="/login" replace />;
+
+  // Session ada tapi profile masih loading → tunggu
+  if (profileLoading && !user) return <LoadingScreen />;
 
   return <>{children}</>;
 }
@@ -98,8 +108,11 @@ function AppRoutes() {
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
         <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
-        <Route path="/pin-setup" element={<PINSetup />} />
-        <Route path="/pin-lock" element={<PINLock />} />
+
+        {/* ✅ FIX: Gunakan PINRoute agar /pin-setup & /pin-lock hanya bisa diakses saat sudah login */}
+        <Route path="/pin-setup" element={<PINRoute><PINSetup /></PINRoute>} />
+        <Route path="/pin-lock" element={<PINRoute><PINLock /></PINRoute>} />
+
         <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
         <Route path="/accounts" element={<ProtectedRoute><Layout><Accounts /></Layout></ProtectedRoute>} />
         <Route path="/transactions" element={<ProtectedRoute><Layout><Transactions /></Layout></ProtectedRoute>} />

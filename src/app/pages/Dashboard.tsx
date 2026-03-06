@@ -5,9 +5,9 @@ import { useTasks } from '../context/TaskContext';
 import { useNotes } from '../context/NoteContext';
 import { useCategories } from '../context/CategoryContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { AlertCircle, Wallet, TrendingUp, TrendingDown, Pin, Loader2 } from 'lucide-react';
+import { AlertCircle, Wallet, TrendingUp, TrendingDown, Pin, Loader2, CalendarX } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 
 export function Dashboard() {
@@ -22,7 +22,15 @@ export function Dashboard() {
 
   const totalBalance = useMemo(() => accounts.reduce((sum, acc) => sum + acc.balance, 0), [accounts]);
 
-  const urgentTasks = useMemo(() => tasks.filter(t => t.status === 'Mendesak' && !t.completed), [tasks]);
+  // ✅ Urgent = urgent + overdue tasks
+  const urgentTasks = useMemo(() =>
+    tasks.filter(t => (t.status === 'urgent' || t.status === 'overdue') && !t.completed),
+    [tasks]
+  );
+  const overdueTasks = useMemo(() =>
+    tasks.filter(t => t.status === 'overdue' && !t.completed),
+    [tasks]
+  );
   const pinnedNotes = useMemo(() => notes.filter(n => n.pinned), [notes]);
 
   const filteredTransactions = useMemo(() => {
@@ -32,19 +40,20 @@ export function Dashboard() {
     );
   }, [transactions]);
 
+  // ✅ Updated: 'income' / 'expense'
   const thisMonthIncome = useMemo(() =>
-    filteredTransactions.filter(t => t.type === 'Masuk').reduce((sum, t) => sum + t.amount, 0),
+    filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0),
     [filteredTransactions]
   );
 
   const thisMonthExpense = useMemo(() =>
-    filteredTransactions.filter(t => t.type === 'Keluar').reduce((sum, t) => sum + t.amount, 0),
+    filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0),
     [filteredTransactions]
   );
 
   const categoryChartData = useMemo(() => {
     const byCategory = filteredTransactions
-      .filter(t => t.type === 'Keluar')
+      .filter(t => t.type === 'expense')
       .reduce((acc, t) => {
         const category = categories.find(c => c.id === t.categoryId);
         const name = category?.name || 'Other';
@@ -55,10 +64,12 @@ export function Dashboard() {
     return Object.values(byCategory);
   }, [filteredTransactions, categories]);
 
+  // ✅ Updated: English status values + added overdue
   const taskStatusData = useMemo(() => [
-    { name: 'Urgent',    value: tasks.filter(t => t.status === 'Mendesak'    && !t.completed).length, color: '#ef4444' },
-    { name: 'Upcoming',  value: tasks.filter(t => t.status === 'Mendekati'   && !t.completed).length, color: '#f59e0b' },
-    { name: 'On Track',  value: tasks.filter(t => t.status === 'Masih Lama'  && !t.completed).length, color: '#10b981' },
+    { name: 'Overdue',  value: tasks.filter(t => t.status === 'overdue'   && !t.completed).length, color: '#b91c1c' },
+    { name: 'Urgent',   value: tasks.filter(t => t.status === 'urgent'    && !t.completed).length, color: '#ef4444' },
+    { name: 'Upcoming', value: tasks.filter(t => t.status === 'upcoming'  && !t.completed).length, color: '#f59e0b' },
+    { name: 'On Track', value: tasks.filter(t => t.status === 'on_track'  && !t.completed).length, color: '#10b981' },
   ], [tasks]);
 
   if (accountsLoading || transactionsLoading || tasksLoading || notesLoading) {
@@ -101,7 +112,7 @@ export function Dashboard() {
               </div>
               <p className="text-2xl font-bold text-foreground">{formatCurrency(thisMonthIncome)}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                {filteredTransactions.filter(t => t.type === 'Masuk').length} transaction(s)
+                {filteredTransactions.filter(t => t.type === 'income').length} transaction(s)
               </p>
             </CardContent>
           </Card>
@@ -114,7 +125,7 @@ export function Dashboard() {
               </div>
               <p className="text-2xl font-bold text-foreground">{formatCurrency(thisMonthExpense)}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                {filteredTransactions.filter(t => t.type === 'Keluar').length} transaction(s)
+                {filteredTransactions.filter(t => t.type === 'expense').length} transaction(s)
               </p>
             </CardContent>
           </Card>
@@ -166,7 +177,7 @@ export function Dashboard() {
         </Card>
       )}
 
-      {/* Task Status */}
+      {/* Task Status Chart */}
       <Card className="border border-border bg-card">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold text-foreground">Task Status</CardTitle>
@@ -195,18 +206,45 @@ export function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Urgent Tasks */}
-      {urgentTasks.length > 0 && (
-        <Card className="border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+      {/* Overdue Tasks — ditampilkan terpisah dengan warna lebih gelap */}
+      {overdueTasks.length > 0 && (
+        <Card className="border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400 text-base">
-              <AlertCircle size={18} />
-              Urgent Tasks ({urgentTasks.length})
+            <CardTitle className="flex items-center gap-2 text-red-800 dark:text-red-300 text-base">
+              <CalendarX size={18} />
+              Overdue Tasks ({overdueTasks.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {urgentTasks.slice(0, 5).map((task) => (
+              {overdueTasks.slice(0, 5).map((task) => (
+                <div key={task.id} className="flex justify-between items-center p-3 bg-white dark:bg-gray-800 rounded-lg border border-red-200 dark:border-red-800">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{task.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Due: {new Date(task.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  </div>
+                  <Badge variant="destructive" className="text-xs">Overdue</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Urgent Tasks */}
+      {urgentTasks.filter(t => t.status === 'urgent').length > 0 && (
+        <Card className="border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400 text-base">
+              <AlertCircle size={18} />
+              Urgent Tasks ({urgentTasks.filter(t => t.status === 'urgent').length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {urgentTasks.filter(t => t.status === 'urgent').slice(0, 5).map((task) => (
                 <div key={task.id} className="flex justify-between items-center p-3 bg-white dark:bg-gray-800 rounded-lg border border-red-100 dark:border-red-900">
                   <div>
                     <p className="text-sm font-medium text-foreground">{task.title}</p>

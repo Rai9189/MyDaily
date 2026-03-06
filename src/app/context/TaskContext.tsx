@@ -1,7 +1,7 @@
 // src/app/context/TaskContext.tsx
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase, handleSupabaseError } from '../../lib/supabase';
-import { Task } from '../types';
+import { Task, TaskStatus } from '../types';
 import { useAuth } from './AuthContext';
 
 interface TaskContextType {
@@ -18,7 +18,20 @@ interface TaskContextType {
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
-// ✅ FIX: Map data Supabase (snake_case) ke Task type (camelCase)
+function computeStatus(deadline: string, completed: boolean): TaskStatus {
+  if (completed) return 'on_track';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const deadlineDate = new Date(deadline);
+  deadlineDate.setHours(0, 0, 0, 0);
+  const daysLeft = Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (daysLeft < 0) return 'overdue';
+  if (daysLeft <= 3) return 'urgent';
+  if (daysLeft <= 7) return 'upcoming';
+  return 'on_track';
+}
+
 function mapToTask(row: any): Task {
   return {
     id: row.id,
@@ -26,7 +39,7 @@ function mapToTask(row: any): Task {
     title: row.title,
     description: row.description || '',
     deadline: row.deadline,
-    status: row.status,
+    status: computeStatus(row.deadline, row.completed),
     completed: row.completed,
     completionNote: row.completion_note || '',
   };
@@ -57,7 +70,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
       if (fetchError) throw fetchError;
 
-      // ✅ FIX: Map semua row ke camelCase
       setTasks((data || []).map(mapToTask));
     } catch (err) {
       setError(handleSupabaseError(err));
@@ -70,9 +82,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     fetchTasks();
   }, [user]);
 
-  const getTaskById = (id: string) => {
-    return tasks.find(t => t.id === id);
-  };
+  const getTaskById = (id: string) => tasks.find(t => t.id === id);
 
   const createTask = async (task: Omit<Task, 'id' | 'status'>) => {
     try {
@@ -95,7 +105,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
       if (insertError) throw insertError;
 
-      // ✅ FIX: Map hasil insert ke camelCase sebelum masuk state
       const mapped = mapToTask(data);
       setTasks(prev => [...prev, mapped]);
 
@@ -110,8 +119,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const updateTask = async (id: string, updates: Partial<Task>) => {
     try {
       setError(null);
-
-      // ✅ FIX: Guard id valid
       if (!id || id === 'new') throw new Error('Invalid task ID');
 
       const dbUpdates: any = {};
@@ -130,7 +137,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       if (updateError) throw updateError;
 
       setTasks(prev =>
-        prev.map(t => (t.id === id ? { ...t, ...updates } : t))
+        prev.map(t => {
+          if (t.id !== id) return t;
+          const merged = { ...t, ...updates };
+          return { ...merged, status: computeStatus(merged.deadline, merged.completed) };
+        })
       );
 
       return { success: true, error: null };
@@ -144,16 +155,9 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const deleteTask = async (id: string) => {
     try {
       setError(null);
-
-      const { error: deleteError } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', id);
-
+      const { error: deleteError } = await supabase.from('tasks').delete().eq('id', id);
       if (deleteError) throw deleteError;
-
       setTasks(prev => prev.filter(t => t.id !== id));
-
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -165,24 +169,18 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const completeTask = async (id: string, note?: string) => {
     try {
       setError(null);
-
       const { error: updateError } = await supabase
         .from('tasks')
-        .update({
-          completed: true,
-          completion_note: note,
-          completed_at: new Date().toISOString(),
-        })
+        .update({ completed: true, completion_note: note, completed_at: new Date().toISOString() })
         .eq('id', id);
-
       if (updateError) throw updateError;
-
       setTasks(prev =>
         prev.map(t =>
-          t.id === id ? { ...t, completed: true, completionNote: note } : t
+          t.id === id
+            ? { ...t, completed: true, completionNote: note, status: computeStatus(t.deadline, true) }
+            : t
         )
       );
-
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -191,29 +189,15 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refreshTasks = async () => {
-    await fetchTasks();
-  };
+  const refreshTasks = async () => { await fetchTasks(); };
 
-  const value = {
-    tasks,
-    loading,
-    error,
-    createTask,
-    updateTask,
-    deleteTask,
-    completeTask,
-    getTaskById,
-    refreshTasks,
-  };
+  const value = { tasks, loading, error, createTask, updateTask, deleteTask, completeTask, getTaskById, refreshTasks };
 
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;
 }
 
 export function useTasks() {
   const context = useContext(TaskContext);
-  if (!context) {
-    throw new Error('useTasks must be used within TaskProvider');
-  }
+  if (!context) throw new Error('useTasks must be used within TaskProvider');
   return context;
 }

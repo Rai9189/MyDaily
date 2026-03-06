@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAccounts } from '../context/AccountContext';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -19,6 +19,7 @@ export function Accounts() {
     balance: 0,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [balanceDisplay, setBalanceDisplay] = useState('');
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
@@ -36,11 +37,21 @@ export function Accounts() {
     if (account) {
       setEditingAccount(account);
       setFormData({ name: account.name, type: account.type, balance: account.balance });
+      setBalanceDisplay(account.balance > 0 ? account.balance.toLocaleString('id-ID') : '');
     } else {
       setEditingAccount(null);
       setFormData({ name: '', type: 'Bank', balance: 0 });
+      setBalanceDisplay('');
     }
     setIsDialogOpen(true);
+  };
+
+  const handleBalanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Ambil hanya angka
+    const raw = e.target.value.replace(/\D/g, '');
+    const numeric = raw === '' ? 0 : parseInt(raw, 10);
+    setFormData({ ...formData, balance: numeric });
+    setBalanceDisplay(raw === '' ? '' : numeric.toLocaleString('id-ID'));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -136,16 +147,24 @@ export function Accounts() {
                 </Select>
               </div>
 
+              {/* ✅ Initial Balance dengan prefix Rp + format angka + tidak bisa minus */}
               <div className="space-y-1.5">
                 <Label htmlFor="balance">Initial Balance</Label>
-                <Input
-                  id="balance"
-                  type="number"
-                  value={formData.balance}
-                  onChange={(e) => setFormData({ ...formData, balance: Number(e.target.value) })}
-                  placeholder="0"
-                  required
-                />
+                <div className="flex rounded-md border border-input overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                  <span className="flex items-center px-3 bg-muted text-muted-foreground text-sm font-medium border-r border-input select-none">
+                    Rp
+                  </span>
+                  <Input
+                    id="balance"
+                    type="text"
+                    inputMode="numeric"
+                    value={balanceDisplay}
+                    onChange={handleBalanceChange}
+                    placeholder="0"
+                    required
+                    className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                </div>
               </div>
 
               <Button type="submit" className="w-full gap-2" disabled={submitting}>
@@ -198,37 +217,46 @@ export function Accounts() {
             return (
               <Card key={account.id} className="hover:shadow-md transition-shadow border border-border bg-card">
                 <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <p className="font-semibold text-foreground">{account.name}</p>
-                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full mt-1.5 ${style.bg} ${style.text}`}>
+                  <div className="flex items-start justify-between gap-2">
+
+                    {/* ✅ Kiri: Type badge (category) → Nama akun (judul) → Balance */}
+                    <div className="flex-1 min-w-0">
+                      {/* 1. Category (Type badge) */}
+                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${style.bg} ${style.text}`}>
                         {style.icon}
                         {account.type}
                       </span>
+                      {/* 2. Judul (Account name) */}
+                      <p className="font-semibold text-foreground mt-2">{account.name}</p>
+                      {/* 3. Balance */}
+                      <div className="mt-3">
+                        <p className="text-xs text-muted-foreground mb-0.5">Current Balance</p>
+                        <p className="text-2xl font-bold text-foreground">{formatCurrency(account.balance)}</p>
+                      </div>
                     </div>
-                    <div className="flex gap-1">
+
+                    {/* ✅ Kanan: tombol edit & delete bersampingan */}
+                    <div className="flex items-center gap-0 flex-shrink-0">
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-muted-foreground hover:text-foreground"
                         onClick={() => handleOpenDialog(account)}
+                        title="Edit"
                       >
                         <Edit size={15} />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
                         onClick={() => handleDelete(account.id)}
+                        title="Delete"
                       >
                         <Trash2 size={15} />
                       </Button>
                     </div>
-                  </div>
 
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Current Balance</p>
-                    <p className="text-2xl font-bold text-foreground">{formatCurrency(account.balance)}</p>
                   </div>
                 </CardContent>
               </Card>

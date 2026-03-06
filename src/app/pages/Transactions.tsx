@@ -179,8 +179,8 @@ export function Transactions() {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="Masuk">Income</SelectItem>
-                      <SelectItem value="Keluar">Expense</SelectItem>
+                      <SelectItem value="income">Income</SelectItem>
+                      <SelectItem value="expense">Expense</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -233,7 +233,6 @@ export function Transactions() {
         </div>
       </div>
 
-      {/* ✅ Header section like Notes: "All Transactions (count)" */}
       {filteredTransactions.length > 0 && (
         <h2 className="text-base font-semibold text-foreground">
           All Transactions <span className="text-muted-foreground font-normal">({filteredTransactions.length})</span>
@@ -253,17 +252,15 @@ export function Transactions() {
             <Card key={transaction.id} className="hover:shadow-md transition-shadow border border-border bg-card">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
-                  {/* Left: icon + info */}
                   <div className="flex items-start gap-3 min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/transactions/${transaction.id}`)}>
                     <div className={`mt-0.5 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                      transaction.type === 'Masuk' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'
+                      transaction.type === 'income' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'
                     }`}>
-                      {transaction.type === 'Masuk'
+                      {transaction.type === 'income'
                         ? <TrendingUp size={16} className="text-green-600 dark:text-green-400" />
                         : <TrendingDown size={16} className="text-red-600 dark:text-red-400" />}
                     </div>
-                    <div className="min-w-0">
-                      {/* Category badge */}
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
                           style={{ borderColor: getCategoryColor(transaction.categoryId), color: getCategoryColor(transaction.categoryId) }}>
@@ -275,9 +272,7 @@ export function Transactions() {
                           </span>
                         )}
                       </div>
-                      {/* ✅ Account name: darker, slightly larger */}
-                      <p className="text-sm font-semibold text-foreground mt-1">{getAccountName(transaction.accountId)}</p>
-                      {/* ✅ Description: smaller, muted */}
+                      <p className="text-sm font-semibold text-foreground mt-1.5">{getAccountName(transaction.accountId)}</p>
                       {transaction.description && (
                         <p className="text-xs text-muted-foreground truncate mt-0.5">{transaction.description}</p>
                       )}
@@ -286,33 +281,14 @@ export function Transactions() {
                       </p>
                     </div>
                   </div>
-
-                  {/* Right: amount + buttons */}
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <p className={`text-base font-semibold ${transaction.type === 'Masuk' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {transaction.type === 'Masuk' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                    <p className={`text-base font-semibold ${transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                     </p>
                     <div className="flex items-center gap-1">
-                      {/* ✅ Edit: ghost, hover foreground */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={(e) => handleEdit(e, transaction.id)}
-                      >
-                        <Edit size={15} />
-                      </Button>
-                      {/* ✅ Delete: ghost, hover red background + white icon */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
-                        onClick={(e) => handleDelete(e, transaction.id)}
-                        disabled={deletingId === transaction.id}
-                      >
-                        {deletingId === transaction.id
-                          ? <Loader2 size={15} className="animate-spin" />
-                          : <Trash2 size={15} />}
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={(e) => handleEdit(e, transaction.id)}><Edit size={15} /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white" onClick={(e) => handleDelete(e, transaction.id)} disabled={deletingId === transaction.id}>
+                        {deletingId === transaction.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                       </Button>
                     </div>
                   </div>

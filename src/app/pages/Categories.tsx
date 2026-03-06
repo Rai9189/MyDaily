@@ -5,15 +5,33 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Plus, Edit, Trash2, Search, Loader2, Save } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Plus, Edit, Trash2, Search, Loader2, Save, ChevronRight, FolderOpen, Tag } from 'lucide-react';
 import { Category } from '../types';
 
+type DialogMode = 'add-parent' | 'add-sub' | 'edit';
+
 export function Categories() {
-  const { categories, loading, error, getCategoriesByType, createCategory, updateCategory, deleteCategory } = useCategories();
+  const {
+    categories,
+    loading,
+    error,
+    getCategoriesByType,
+    getSubcategories,
+    hasSubcategories,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+  } = useCategories();
+
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'transaction' | 'task' | 'note'>('transaction');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<DialogMode>('add-parent');
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [selectedParent, setSelectedParent] = useState<Category | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     name: '',
     type: 'transaction' as 'transaction' | 'task' | 'note',
@@ -21,23 +39,29 @@ export function Categories() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  const filterCategories = (items: Category[]) => {
-    if (!searchQuery) return items;
-    return items.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  // ─── Dialog Handlers ───────────────────────────────────────
+
+  const openAddParent = (type: 'transaction' | 'task' | 'note') => {
+    setDialogMode('add-parent');
+    setEditingCategory(null);
+    setSelectedParent(null);
+    setFormData({ name: '', type, color: '#3b82f6' });
+    setIsDialogOpen(true);
   };
 
-  const transactionCategories = filterCategories(getCategoriesByType('transaction'));
-  const taskCategories = filterCategories(getCategoriesByType('task'));
-  const noteCategories = filterCategories(getCategoriesByType('note'));
+  const openAddSub = (parent: Category) => {
+    setDialogMode('add-sub');
+    setEditingCategory(null);
+    setSelectedParent(parent);
+    setFormData({ name: '', type: parent.type, color: parent.color || '#3b82f6' });
+    setIsDialogOpen(true);
+  };
 
-  const handleOpenDialog = (category?: Category) => {
-    if (category) {
-      setEditingCategory(category);
-      setFormData({ name: category.name, type: category.type, color: category.color || '#3b82f6' });
-    } else {
-      setEditingCategory(null);
-      setFormData({ name: '', type: 'transaction', color: '#3b82f6' });
-    }
+  const openEdit = (category: Category) => {
+    setDialogMode('edit');
+    setEditingCategory(category);
+    setSelectedParent(null);
+    setFormData({ name: category.name, type: category.type, color: category.color || '#3b82f6' });
     setIsDialogOpen(true);
   };
 
@@ -45,12 +69,35 @@ export function Categories() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      if (editingCategory) {
-        const { success, error } = await updateCategory(editingCategory.id, formData);
+      if (dialogMode === 'edit' && editingCategory) {
+        const { success, error } = await updateCategory(editingCategory.id, {
+          name: formData.name,
+          color: formData.color,
+        });
         if (success) setIsDialogOpen(false);
         else alert(error || 'Failed to update category');
+      } else if (dialogMode === 'add-sub' && selectedParent) {
+        const { success, error } = await createCategory({
+          name: formData.name,
+          type: selectedParent.type,
+          color: formData.color,
+          parentId: selectedParent.id,
+          subtype: selectedParent.subtype,
+        });
+        if (success) {
+          setIsDialogOpen(false);
+          // Auto-expand parent after adding subcategory
+          setExpandedIds(prev => new Set([...prev, selectedParent.id]));
+        } else {
+          alert(error || 'Failed to create subcategory');
+        }
       } else {
-        const { success, error } = await createCategory(formData);
+        const { success, error } = await createCategory({
+          name: formData.name,
+          type: formData.type,
+          color: formData.color,
+          parentId: null,
+        });
         if (success) setIsDialogOpen(false);
         else alert(error || 'Failed to create category');
       }
@@ -59,62 +106,166 @@ export function Categories() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this category?')) return;
-    const { success, error } = await deleteCategory(id);
+  const handleDelete = async (category: Category) => {
+    const hasSubs = hasSubcategories(category.id);
+    const msg = hasSubs
+      ? `Delete "${category.name}" and all its subcategories?`
+      : `Delete "${category.name}"?`;
+    if (!confirm(msg)) return;
+    const { success, error } = await deleteCategory(category.id);
     if (!success) alert(error || 'Failed to delete category');
   };
 
-  const CategoryList = ({ items }: { items: Category[] }) => {
-    if (loading) {
-      return (
-        <div className="flex items-center justify-center py-10">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        </div>
-      );
-    }
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
 
-    if (items.length === 0) {
-      return (
-        <p className="text-center text-muted-foreground py-10 text-sm">
-          {searchQuery ? 'No categories found' : 'No categories yet'}
-        </p>
-      );
-    }
+  // ─── Filter ─────────────────────────────────────────────────
+
+  const matchesSearch = (cat: Category) =>
+    !searchQuery || cat.name.toLowerCase().includes(searchQuery.toLowerCase());
+
+  // ─── Category List UI ────────────────────────────────────────
+
+  const CategoryRow = ({ category, isSubcat = false }: { category: Category; isSubcat?: boolean }) => {
+    const subs = getSubcategories(category.id);
+    const isExpanded = expandedIds.has(category.id);
+    const visibleSubs = subs.filter(matchesSearch);
+
+    // If searching: hide parent rows that don't match AND have no matching children
+    if (searchQuery && !matchesSearch(category) && visibleSubs.length === 0) return null;
 
     return (
-      <div className="space-y-2">
-        {items.map((category) => (
-          <div
-            key={category.id}
-            className="flex items-center justify-between px-4 py-3 rounded-lg border border-border bg-muted/30 hover:bg-muted/50 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: category.color }} />
-              <span className="text-sm font-medium text-foreground">{category.name}</span>
-            </div>
-            <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                onClick={() => handleOpenDialog(category)}
+      <div>
+        <div className={`flex items-center justify-between px-4 py-3 rounded-lg border border-border transition-colors hover:bg-muted/50 ${isSubcat ? 'bg-muted/20 ml-6' : 'bg-muted/30'}`}>
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            {/* Expand toggle for parent with subcategories */}
+            {!isSubcat && subs.length > 0 ? (
+              <button
+                onClick={() => toggleExpand(category.id)}
+                className="text-muted-foreground hover:text-foreground flex-shrink-0"
               >
-                <Edit size={15} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                onClick={() => handleDelete(category.id)}
-              >
-                <Trash2 size={15} />
-              </Button>
+                <ChevronRight
+                  size={16}
+                  className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                />
+              </button>
+            ) : (
+              <div className="w-4 flex-shrink-0" />
+            )}
+
+            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: category.color }} />
+
+            <div className="flex items-center gap-2 min-w-0">
+              {isSubcat
+                ? <Tag size={13} className="text-muted-foreground flex-shrink-0" />
+                : subs.length > 0
+                  ? <FolderOpen size={13} className="text-muted-foreground flex-shrink-0" />
+                  : null
+              }
+              <span className="text-sm font-medium text-foreground truncate">{category.name}</span>
+              {subs.length > 0 && !isSubcat && (
+                <span className="text-xs text-muted-foreground flex-shrink-0">({subs.length})</span>
+              )}
             </div>
           </div>
-        ))}
+
+          <div className="flex items-center gap-0 flex-shrink-0">
+            {/* Add subcategory button — only on parent rows */}
+            {!isSubcat && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-primary"
+                title="Add subcategory"
+                onClick={() => openAddSub(category)}
+              >
+                <Plus size={14} />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={() => openEdit(category)}
+            >
+              <Edit size={15} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
+              onClick={() => handleDelete(category)}
+            >
+              <Trash2 size={15} />
+            </Button>
+          </div>
+        </div>
+
+        {/* Subcategories — shown when expanded or when searching */}
+        {(isExpanded || searchQuery) && visibleSubs.length > 0 && (
+          <div className="mt-1 space-y-1">
+            {visibleSubs.map(sub => (
+              <CategoryRow key={sub.id} category={sub} isSubcat />
+            ))}
+          </div>
+        )}
       </div>
     );
+  };
+
+  const CategoryList = ({ type }: { type: 'transaction' | 'task' | 'note' }) => {
+    const parents = getCategoriesByType(type);
+
+    if (loading) {
+      return <div className="flex items-center justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+    }
+
+    const visibleParents = parents.filter(p => {
+      if (!searchQuery) return true;
+      return matchesSearch(p) || getSubcategories(p.id).some(matchesSearch);
+    });
+
+    return (
+      <div
+        className="cat-list-scroll space-y-2 overflow-y-auto"
+        style={{
+          maxHeight: '420px',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        } as React.CSSProperties}
+      >
+        {visibleParents.length === 0 ? (
+          <p className="text-center text-muted-foreground py-10 text-sm">
+            {searchQuery ? 'No categories found' : 'No categories yet'}
+          </p>
+        ) : (
+          visibleParents.map(cat => <CategoryRow key={cat.id} category={cat} />)
+        )}
+      </div>
+    );
+  };
+
+  // ─── Dialog title & description ─────────────────────────────
+
+  const dialogTitle = dialogMode === 'edit'
+    ? 'Edit Category'
+    : dialogMode === 'add-sub'
+      ? `Add Subcategory to "${selectedParent?.name}"`
+      : 'Add New Category';
+
+  const transactionCategories = getCategoriesByType('transaction');
+  const taskCategories = getCategoriesByType('task');
+  const noteCategories = getCategoriesByType('note');
+
+  const countWithSubs = (type: 'transaction' | 'task' | 'note') => {
+    const parents = getCategoriesByType(type);
+    const total = parents.length + parents.reduce((sum, p) => sum + getSubcategories(p.id).length, 0);
+    return total;
   };
 
   if (error) {
@@ -127,85 +278,15 @@ export function Categories() {
 
   return (
     <div className="space-y-6 p-1">
+      {/* Hide scrollbar for Chrome/Safari */}
+      <style>{`.cat-list-scroll::-webkit-scrollbar { display: none; }`}</style>
+
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-semibold text-foreground">Categories</h1>
           <p className="text-muted-foreground mt-1">Manage categories for all your data</p>
         </div>
-
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2" onClick={() => handleOpenDialog()}>
-              <Plus size={18} />
-              Add Category
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="bg-card border border-border">
-            <DialogHeader>
-              <DialogTitle className="text-foreground text-lg font-semibold">
-                {editingCategory ? 'Edit Category' : 'Add New Category'}
-              </DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-5 mt-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="name">Category Name</Label>
-                <Input
-                  id="name"
-                  placeholder="e.g. Food, Transport"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Type</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['transaction', 'task', 'note'] as const).map((t) => (
-                    <Button
-                      key={t}
-                      type="button"
-                      variant={formData.type === t ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setFormData({ ...formData, type: t })}
-                      className="capitalize"
-                    >
-                      {t === 'transaction' ? 'Transaction' : t === 'task' ? 'Task' : 'Note'}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="color">Color</Label>
-                <div className="flex gap-3 items-center">
-                  <input
-                    id="color"
-                    type="color"
-                    value={formData.color}
-                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                    className="w-10 h-10 rounded-md border border-border cursor-pointer bg-transparent p-0.5"
-                  />
-                  <Input
-                    value={formData.color}
-                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                    placeholder="#3b82f6"
-                    className="flex-1 font-mono text-sm"
-                  />
-                  <div className="w-8 h-8 rounded-full border border-border flex-shrink-0" style={{ backgroundColor: formData.color }} />
-                </div>
-              </div>
-
-              <Button type="submit" className="w-full gap-2" disabled={submitting}>
-                {submitting
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
-                  : <><Save size={15} />{editingCategory ? 'Update Category' : 'Save Category'}</>
-                }
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
       </div>
 
       {/* Search */}
@@ -222,34 +303,125 @@ export function Categories() {
       {/* Category List */}
       <Card className="border border-border bg-card">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold text-foreground">Category List</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base font-semibold text-foreground">Category List</CardTitle>
+            <Button size="sm" className="gap-2" onClick={() => openAddParent(activeTab)}>
+              <Plus size={15} /> Add Category
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="transaction">
+          <Tabs defaultValue="transaction" onValueChange={(v) => setActiveTab(v as 'transaction' | 'task' | 'note')}>
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="transaction">
-                Transactions ({transactionCategories.length})
+                Transactions ({countWithSubs('transaction')})
               </TabsTrigger>
               <TabsTrigger value="task">
-                Tasks ({taskCategories.length})
+                Tasks ({countWithSubs('task')})
               </TabsTrigger>
               <TabsTrigger value="note">
-                Notes ({noteCategories.length})
+                Notes ({countWithSubs('note')})
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="transaction" className="mt-4">
-              <CategoryList items={transactionCategories} />
+              <CategoryList type="transaction" />
             </TabsContent>
             <TabsContent value="task" className="mt-4">
-              <CategoryList items={taskCategories} />
+              <CategoryList type="task" />
             </TabsContent>
             <TabsContent value="note" className="mt-4">
-              <CategoryList items={noteCategories} />
+              <CategoryList type="note" />
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Add / Edit Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="bg-card border border-border">
+          <DialogHeader>
+            <DialogTitle className="text-foreground text-lg font-semibold">
+              {dialogTitle}
+            </DialogTitle>
+            {dialogMode === 'add-sub' && selectedParent && (
+              <p className="text-sm text-muted-foreground mt-1">
+                This subcategory will appear under <span className="font-medium text-foreground">{selectedParent.name}</span>
+              </p>
+            )}
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-5 mt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="name">
+                {dialogMode === 'add-sub' ? 'Subcategory Name' : 'Category Name'}
+              </Label>
+              <Input
+                id="name"
+                placeholder={dialogMode === 'add-sub' ? 'e.g. Restaurant, Coffee' : 'e.g. Food, Transport'}
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+              />
+            </div>
+
+            {/* Type selector — only for new parent categories */}
+            {dialogMode === 'add-parent' && (
+              <div className="space-y-1.5">
+                <Label>Type</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['transaction', 'task', 'note'] as const).map((t) => (
+                    <Button
+                      key={t}
+                      type="button"
+                      variant={formData.type === t ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setFormData({ ...formData, type: t })}
+                    >
+                      {t === 'transaction' ? 'Transaction' : t === 'task' ? 'Task' : 'Note'}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Parent info badge — for add-sub mode */}
+            {dialogMode === 'add-sub' && selectedParent && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border">
+                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: selectedParent.color }} />
+                <span className="text-xs text-muted-foreground">Under:</span>
+                <span className="text-xs font-medium text-foreground">{selectedParent.name}</span>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="color">Color</Label>
+              <div className="flex gap-3 items-center">
+                <input
+                  id="color"
+                  type="color"
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  className="w-10 h-10 rounded-md border border-border cursor-pointer bg-transparent p-0.5"
+                />
+                <Input
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  placeholder="#3b82f6"
+                  className="flex-1 font-mono text-sm"
+                />
+                <div className="w-8 h-8 rounded-full border border-border flex-shrink-0" style={{ backgroundColor: formData.color }} />
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full gap-2" disabled={submitting}>
+              {submitting
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+                : <><Save size={15} />{dialogMode === 'edit' ? 'Update' : 'Save'}</>
+              }
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

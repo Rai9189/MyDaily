@@ -17,7 +17,6 @@ interface TransactionContextType {
 
 const TransactionContext = createContext<TransactionContextType | undefined>(undefined);
 
-// ✅ FIX: Map data Supabase (snake_case) ke Transaction type (camelCase)
 function mapToTransaction(row: any): Transaction {
   return {
     id: row.id,
@@ -56,7 +55,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
       if (fetchError) throw fetchError;
 
-      // ✅ FIX: Map semua row ke camelCase
       setTransactions((data || []).map(mapToTransaction));
     } catch (err) {
       setError(handleSupabaseError(err));
@@ -69,9 +67,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     fetchTransactions();
   }, [user]);
 
-  const getTransactionById = (id: string) => {
-    return transactions.find(t => t.id === id);
-  };
+  const getTransactionById = (id: string) => transactions.find(t => t.id === id);
 
   const createTransaction = async (transaction: Omit<Transaction, 'id'>) => {
     try {
@@ -94,7 +90,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
       if (insertError) throw insertError;
 
-      // ✅ FIX: Map hasil insert ke camelCase sebelum masuk state
       const mapped = mapToTransaction(data);
       setTransactions(prev => [mapped, ...prev]);
 
@@ -109,11 +104,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
   const updateTransaction = async (id: string, updates: Partial<Transaction>) => {
     try {
       setError(null);
-
-      // ✅ FIX: Pastikan id valid sebelum update
-      if (!id || id === 'new') {
-        throw new Error('Invalid transaction ID');
-      }
+      if (!id || id === 'new') throw new Error('Invalid transaction ID');
 
       const dbUpdates: any = {};
       if (updates.accountId !== undefined) dbUpdates.account_id = updates.accountId;
@@ -130,10 +121,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
       if (updateError) throw updateError;
 
-      // ✅ FIX: Update local state dengan camelCase
-      setTransactions(prev =>
-        prev.map(t => (t.id === id ? { ...t, ...updates } : t))
-      );
+      setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
 
       return { success: true, error: null };
     } catch (err) {
@@ -146,16 +134,9 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
   const deleteTransaction = async (id: string) => {
     try {
       setError(null);
-
-      const { error: deleteError } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('id', id);
-
+      const { error: deleteError } = await supabase.from('transactions').delete().eq('id', id);
       if (deleteError) throw deleteError;
-
       setTransactions(prev => prev.filter(t => t.id !== id));
-
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -164,28 +145,15 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refreshTransactions = async () => {
-    await fetchTransactions();
-  };
+  const refreshTransactions = async () => { await fetchTransactions(); };
 
-  const value = {
-    transactions,
-    loading,
-    error,
-    createTransaction,
-    updateTransaction,
-    deleteTransaction,
-    getTransactionById,
-    refreshTransactions,
-  };
+  const value = { transactions, loading, error, createTransaction, updateTransaction, deleteTransaction, getTransactionById, refreshTransactions };
 
   return <TransactionContext.Provider value={value}>{children}</TransactionContext.Provider>;
 }
 
 export function useTransactions() {
   const context = useContext(TransactionContext);
-  if (!context) {
-    throw new Error('useTransactions must be used within TransactionProvider');
-  }
+  if (!context) throw new Error('useTransactions must be used within TransactionProvider');
   return context;
 }
