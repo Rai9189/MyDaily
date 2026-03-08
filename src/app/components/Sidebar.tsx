@@ -1,12 +1,11 @@
 // src/app/components/Sidebar.tsx
 import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
 
 export function Sidebar() {
   const location = useLocation();
-  const navigate = useNavigate();
   const { signOut } = useAuth();
 
   const navItems = [
@@ -19,9 +18,9 @@ export function Sidebar() {
   ];
 
   const handleLogout = async () => {
-    sessionStorage.removeItem('pinUnlocked');
     await signOut();
-    navigate('/login');
+    // Tidak perlu navigate manual — ProtectedRoute otomatis redirect ke /login
+    // saat session menjadi null setelah signOut()
   };
 
   return (

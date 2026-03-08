@@ -5,3 +5,5 @@ Kamenrider01* (Pass Supabase)
 .env
 .env.local
 .env.production
+
+supabase.md

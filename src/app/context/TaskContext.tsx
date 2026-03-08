@@ -89,6 +89,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       setError(null);
       if (!user) throw new Error('User not authenticated');
 
+      // ✅ FIX: Gunakan returning: 'minimal' + select id saja
+      // Hindari round trip kedua dengan .select().single() yang lambat
       const { data, error: insertError } = await supabase
         .from('tasks')
         .insert({
@@ -100,15 +102,27 @@ export function TaskProvider({ children }: { children: ReactNode }) {
           completed: task.completed || false,
           completion_note: task.completionNote,
         })
-        .select()
+        .select('id')
         .single();
 
       if (insertError) throw insertError;
 
-      const mapped = mapToTask(data);
-      setTasks(prev => [...prev, mapped]);
+      // ✅ FIX: Bangun objek Task langsung dari data form + id dari DB
+      // Tidak perlu fetch ulang seluruh row dari Supabase
+      const newTask: Task = {
+        id: data.id,
+        categoryId: task.categoryId,
+        title: task.title,
+        description: task.description || '',
+        deadline: task.deadline,
+        completed: task.completed || false,
+        completionNote: task.completionNote || '',
+        status: computeStatus(task.deadline, task.completed || false),
+      };
 
-      return { success: true, data: mapped, error: null };
+      setTasks(prev => [...prev, newTask]);
+
+      return { success: true, data: newTask, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
       setError(errorMessage);

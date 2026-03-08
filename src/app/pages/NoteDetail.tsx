@@ -42,6 +42,7 @@ export function NoteDetail() {
   const [formData, setFormData] = useState({
     title: '',
     content: '',
+    // ✅ FIX: kosong — user harus pilih sendiri
     categoryId: '',
     pinned: false,
   });
@@ -53,15 +54,7 @@ export function NoteDetail() {
 
   const isBusy = submitting || isUploadingPending;
 
-  useEffect(() => {
-    if (isNew) {
-      setFormData(prev => ({
-        ...prev,
-        categoryId: prev.categoryId || noteCategories[0]?.id || '',
-      }));
-    }
-  }, [noteCategories.length, isNew]);
-
+  // ✅ FIX: Hapus auto-select category, biarkan kosong saat new
   useEffect(() => {
     if (!isNew && note) {
       setFormData({
@@ -105,14 +98,13 @@ export function NoteDetail() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim()) return alert('Please enter a note title');
-    if (!formData.content.trim()) return alert('Please enter note content');
-    if (!formData.categoryId) return alert('Please select a category');
+    if (!formData.title.trim()) return alert('Please enter a note title.');
+    if (!formData.content.trim()) return alert('Please enter note content.');
+    if (!formData.categoryId) return alert('Please select a category.');
 
     setSubmitting(true);
     try {
       if (isNew) {
-        // ✅ Create note dulu → dapat ID → upload pending files
         const { success, data, error } = await createNote(formData);
         if (!success || !data) { alert(error || 'Failed to create note'); return; }
         if (pendingFiles.length > 0) {
@@ -178,12 +170,20 @@ export function NoteDetail() {
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })} required />
             </div>
 
+            {/* ✅ FIX: Category — user wajib pilih, tidak ada default */}
             <div className="space-y-1.5">
-              <Label htmlFor="category">Category</Label>
-              <Select value={formData.categoryId} onValueChange={(v) => setFormData({ ...formData, categoryId: v })}>
-                <SelectTrigger id="category"><SelectValue placeholder="Select category" /></SelectTrigger>
+              <Label htmlFor="category">Category <span className="text-destructive">*</span></Label>
+              <Select
+                value={formData.categoryId}
+                onValueChange={(v) => setFormData({ ...formData, categoryId: v })}
+              >
+                <SelectTrigger id="category">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
                 <SelectContent>
-                  {noteCategories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
+                  {noteCategories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -203,7 +203,6 @@ export function NoteDetail() {
               </div>
             )}
 
-            {/* ✅ Attachment picker saat create baru */}
             {isNew && (
               <PendingAttachmentPicker
                 pendingFiles={pendingFiles}

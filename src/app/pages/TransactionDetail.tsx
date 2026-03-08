@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+// src/app/pages/TransactionDetail.tsx
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTransactions } from '../context/TransactionContext';
 import { useAccounts } from '../context/AccountContext';
@@ -13,7 +14,7 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
-import { ArrowLeft, X, Loader2, FileText, Image as ImageIcon, Save } from 'lucide-react';
+import { ArrowLeft, X, Loader2, FileText, Image as ImageIcon, Save, AlertCircle } from 'lucide-react';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 
 function formatAmountDisplay(value: number): string {
@@ -44,25 +45,24 @@ export function TransactionDetail() {
 
   const { getTransactionById, createTransaction, updateTransaction } = useTransactions();
   const { accounts } = useAccounts();
-  const { getCategoriesByType } = useCategories();
+  const { categories, getCategoriesBySubtype } = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
 
   const {
-    pendingFiles,
-    addFiles,
+    pendingFiles, addFiles,
     removeFile: removePendingFile,
     uploadAllPending,
     isUploading: isUploadingPending,
   } = usePendingAttachments();
 
   const transaction = isNew ? null : getTransactionById(id!);
-  const allTransactionCategories = getCategoriesByType('transaction');
 
   const [amountDisplay, setAmountDisplay] = useState<string>('');
   const [formData, setFormData] = useState({
     accountId: '',
     amount: 0,
-    type: 'expense' as 'income' | 'expense',
+    // ✅ FIX: type kosong — user harus pilih sendiri
+    type: '' as 'income' | 'expense' | '',
     date: new Date().toISOString().split('T')[0],
     categoryId: '',
     description: '',
@@ -72,16 +72,22 @@ export function TransactionDetail() {
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (isNew) {
-      setFormData(prev => ({
-        ...prev,
-        accountId: prev.accountId || accounts[0]?.id || '',
-        categoryId: prev.categoryId || allTransactionCategories[0]?.id || '',
-      }));
-    }
-  }, [accounts.length, allTransactionCategories.length, isNew]);
+  // Kategori hanya muncul jika type sudah dipilih
+  const displayCategories = useMemo(
+    () => formData.type ? getCategoriesBySubtype(formData.type as 'income' | 'expense') : [],
+    [formData.type, categories]
+  );
 
+  const selectedAccount = accounts.find(a => a.id === formData.accountId);
+
+  const isOverBalance =
+    formData.type === 'expense' &&
+    formData.accountId !== '' &&
+    formData.amount > 0 &&
+    selectedAccount !== undefined &&
+    formData.amount > selectedAccount.balance;
+
+  // Edit mode — isi form dari data transaksi yang ada
   useEffect(() => {
     if (!isNew && transaction) {
       setFormData({
@@ -99,13 +105,6 @@ export function TransactionDetail() {
   useEffect(() => {
     if (!isNew && id) loadAttachments();
   }, [id]);
-
-  // Filter categories by subtype matching transaction type
-  const filteredCategories = allTransactionCategories.filter(cat => {
-    if (!(cat as any).subtype) return true;
-    return (cat as any).subtype === formData.type;
-  });
-  const displayCategories = filteredCategories.length > 0 ? filteredCategories : allTransactionCategories;
 
   const loadAttachments = async () => {
     if (!id) return;
@@ -126,12 +125,8 @@ export function TransactionDetail() {
   };
 
   const handleTypeChange = (v: 'income' | 'expense') => {
-    const newFiltered = allTransactionCategories.filter(cat => {
-      if (!(cat as any).subtype) return true;
-      return (cat as any).subtype === v;
-    });
-    const newCategories = newFiltered.length > 0 ? newFiltered : allTransactionCategories;
-    setFormData(prev => ({ ...prev, type: v, categoryId: newCategories[0]?.id || prev.categoryId }));
+    // ✅ FIX: Reset categoryId saat type berubah karena kategori berbeda
+    setFormData(prev => ({ ...prev, type: v, categoryId: '' }));
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -156,14 +151,20 @@ export function TransactionDetail() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.accountId) return alert('Please select an account');
-    if (!formData.amount || formData.amount <= 0) return alert('Please enter a valid amount');
-    if (!formData.categoryId) return alert('Please select a category');
+    if (!formData.accountId) return alert('Please select an account.');
+    if (!formData.amount || formData.amount <= 0) return alert('Please enter a valid amount.');
+    if (!formData.type) return alert('Please select a transaction type.');
+    if (!formData.categoryId) return alert('Please select a category.');
+    if (formData.type === 'expense' && selectedAccount && formData.amount > selectedAccount.balance) {
+      return alert(
+        `Insufficient balance!\n\nAccount: ${selectedAccount.name}\nBalance: ${formatCurrency(selectedAccount.balance)}\nExpense: ${formatCurrency(formData.amount)}`
+      );
+    }
 
     setSubmitting(true);
     try {
       if (isNew) {
-        const { success, data, error } = await createTransaction(formData);
+        const { success, data, error } = await createTransaction(formData as any);
         if (!success || !data) { alert(error || 'Failed to create transaction'); return; }
         if (pendingFiles.length > 0) {
           const { error: uploadError } = await uploadAllPending('transaction', data.id);
@@ -172,7 +173,7 @@ export function TransactionDetail() {
         navigate('/transactions');
       } else {
         if (!id || id === 'new') { alert('Invalid transaction ID'); return; }
-        const { success, error } = await updateTransaction(id, formData);
+        const { success, error } = await updateTransaction(id, formData as any);
         if (success) navigate('/transactions');
         else alert(error || 'Failed to update transaction');
       }
@@ -182,6 +183,7 @@ export function TransactionDetail() {
   };
 
   const isBusy = submitting || isUploadingPending;
+  const typeSelected = formData.type !== '';
 
   return (
     <div className="space-y-6 p-1">
@@ -205,28 +207,58 @@ export function TransactionDetail() {
             <CardTitle className="text-base font-semibold text-foreground">Transaction Info</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5 pt-2">
+
+            {/* Account */}
             <div className="space-y-1.5">
-              <Label htmlFor="account">Account</Label>
+              <Label htmlFor="account">Account <span className="text-destructive">*</span></Label>
               <Select value={formData.accountId} onValueChange={(v) => setFormData({ ...formData, accountId: v })}>
-                <SelectTrigger id="account"><SelectValue placeholder="Select account" /></SelectTrigger>
+                <SelectTrigger id="account">
+                  <SelectValue placeholder="Select account" />
+                </SelectTrigger>
                 <SelectContent>
-                  {accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>)}
+                  {accounts.map(acc => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      <div className="flex items-center justify-between w-full gap-3">
+                        <span>{acc.name}</span>
+                        <span className="text-xs text-muted-foreground">{formatCurrency(acc.balance)}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
+            {/* Amount */}
             <div className="space-y-1.5">
-              <Label htmlFor="amount">Amount</Label>
+              <Label htmlFor="amount">Amount <span className="text-destructive">*</span></Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium pointer-events-none select-none">Rp</span>
-                <Input id="amount" type="text" inputMode="numeric" placeholder="0" value={amountDisplay} onChange={handleAmountChange} className="pl-9" required />
+                <Input
+                  id="amount" type="text" inputMode="numeric" placeholder="0"
+                  value={amountDisplay} onChange={handleAmountChange}
+                  className={`pl-9 ${isOverBalance ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                  required
+                />
               </div>
+              {isOverBalance && (
+                <div className="flex items-center gap-1.5 text-xs text-destructive">
+                  <AlertCircle size={13} />
+                  <span>
+                    Amount exceeds account balance ({formatCurrency(selectedAccount!.balance)}).
+                    Shortfall: {formatCurrency(formData.amount - selectedAccount!.balance)}
+                  </span>
+                </div>
+              )}
             </div>
 
+            {/* Transaction Type — user wajib pilih, tidak ada default */}
             <div className="space-y-1.5">
-              <Label htmlFor="type">Transaction Type</Label>
+              <Label htmlFor="type">Transaction Type <span className="text-destructive">*</span></Label>
               <Select value={formData.type} onValueChange={handleTypeChange}>
-                <SelectTrigger id="type"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="type">
+                  {/* ✅ FIX: placeholder muncul karena value awal '' */}
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="income">Income</SelectItem>
                   <SelectItem value="expense">Expense</SelectItem>
@@ -234,24 +266,42 @@ export function TransactionDetail() {
               </Select>
             </div>
 
+            {/* Date */}
             <div className="space-y-1.5">
               <Label htmlFor="date">Date</Label>
-              <Input id="date" type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required />
+              <Input id="date" type="date" value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })} required />
             </div>
 
+            {/* Category — disabled sampai type dipilih */}
             <div className="space-y-1.5">
-              <Label htmlFor="category">Category</Label>
-              <Select value={formData.categoryId} onValueChange={(v) => setFormData({ ...formData, categoryId: v })}>
-                <SelectTrigger id="category"><SelectValue placeholder="Select category" /></SelectTrigger>
+              <Label htmlFor="category">
+                Category <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                key={formData.type}
+                value={formData.categoryId}
+                onValueChange={(v) => setFormData({ ...formData, categoryId: v })}
+                disabled={!typeSelected}
+              >
+                <SelectTrigger id="category" className={!typeSelected ? 'opacity-50 cursor-not-allowed' : ''}>
+                  <SelectValue placeholder={typeSelected ? 'Select category' : 'Select transaction type first'} />
+                </SelectTrigger>
                 <SelectContent>
-                  {displayCategories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
+                  {displayCategories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
+            {/* Description */}
             <div className="space-y-1.5">
               <Label htmlFor="description">Description <span className="text-muted-foreground font-normal">(Optional)</span></Label>
-              <Textarea id="description" placeholder="Add a note about this transaction..." value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} />
+              <Textarea id="description" placeholder="Add a note about this transaction..."
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3} />
             </div>
 
             {isNew && (
@@ -291,7 +341,8 @@ export function TransactionDetail() {
                         </div>
                         <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex-shrink-0 mr-2">View</a>
                       </div>
-                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteAttachment(file.id, file.url)}>
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDeleteAttachment(file.id, file.url)}>
                         <X size={15} />
                       </Button>
                     </div>
@@ -335,7 +386,7 @@ export function TransactionDetail() {
         )}
 
         <div className="flex items-center gap-3 pt-2">
-          <Button type="submit" className="flex-1 gap-2" disabled={isBusy}>
+          <Button type="submit" className="flex-1 gap-2" disabled={isBusy || isOverBalance}>
             {isBusy
               ? <><Loader2 className="w-4 h-4 animate-spin" /> {isUploadingPending ? 'Uploading...' : 'Saving...'}</>
               : <><Save size={16} />{isNew ? 'Save Transaction' : 'Update Transaction'}</>

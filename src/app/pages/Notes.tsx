@@ -11,7 +11,7 @@ import { Plus, Search, Pin, Paperclip, List, LayoutGrid, ChevronLeft, ChevronRig
 export function Notes() {
   const navigate = useNavigate();
   const { notes, loading, error, deleteNote } = useNotes();
-  const { getCategoriesByType } = useCategories();
+  const { categories, getCategoriesByType } = useCategories();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -24,16 +24,24 @@ export function Notes() {
 
   const noteCategories = getCategoriesByType('note');
 
+  // ✅ FIX: Ganti mousedown → click, stopPropagation di panel
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setFilterOpen(false);
+      const target = e.target as Element;
+      if (filterRef.current && filterRef.current.contains(target)) return;
+      const isInsideRadixPortal =
+        target.closest?.('[data-radix-popper-content-wrapper]') ||
+        target.closest?.('[role="listbox"]') ||
+        target.closest?.('[data-radix-select-content]');
+      if (isInsideRadixPortal) return;
+      setFilterOpen(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const getCategoryName = (id: string) => noteCategories.find(c => c.id === id)?.name || 'Other';
-  const getCategoryColor = (id: string) => noteCategories.find(c => c.id === id)?.color || '#6b7280';
+  const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || 'Other';
+  const getCategoryColor = (id: string) => categories.find(c => c.id === id)?.color || '#6b7280';
 
   const filteredNotes = useMemo(() => {
     let result = [...notes];
@@ -74,7 +82,6 @@ export function Notes() {
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/notes/${note.id}`)}>
-            {/* 1. Category */}
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
                 style={{ borderColor: getCategoryColor(note.categoryId), color: getCategoryColor(note.categoryId) }}>
@@ -82,11 +89,8 @@ export function Notes() {
               </span>
               {isPinned && <Pin size={13} className="text-primary" />}
             </div>
-            {/* 2. Title */}
             <h3 className="text-sm font-semibold text-foreground line-clamp-1 mt-2">{note.title}</h3>
-            {/* 3. Description / Content */}
             <p className="text-sm text-muted-foreground line-clamp-3 mt-1">{note.content}</p>
-            {/* 4. Date + attachments */}
             <div className="flex items-center justify-between mt-3">
               <span className="text-xs text-muted-foreground/60">
                 {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -99,13 +103,10 @@ export function Notes() {
             </div>
           </div>
           <div className="flex items-center gap-0 flex-shrink-0">
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              onClick={(e) => handleEdit(e, note.id)} title="Edit note">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={(e) => handleEdit(e, note.id)}>
               <Edit size={15} />
             </Button>
-            <Button variant="ghost" size="icon"
-              className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
-              onClick={(e) => handleDelete(e, note.id)} disabled={deletingId === note.id} title="Delete note">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white" onClick={(e) => handleDelete(e, note.id)} disabled={deletingId === note.id}>
               {deletingId === note.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
             </Button>
           </div>
@@ -121,16 +122,12 @@ export function Notes() {
         <div className="flex items-start gap-3">
           {isPinned && <Pin size={14} className="text-primary flex-shrink-0 mt-1" />}
           <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/notes/${note.id}`)}>
-            {/* 1. Category */}
             <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
               style={{ borderColor: getCategoryColor(note.categoryId), color: getCategoryColor(note.categoryId) }}>
               {getCategoryName(note.categoryId)}
             </span>
-            {/* 2. Title */}
             <h3 className="text-sm font-semibold text-foreground mt-1.5">{note.title}</h3>
-            {/* 3. Content */}
             <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{note.content}</p>
-            {/* 4. Date + Attachments */}
             <div className="flex items-center gap-3 mt-1.5">
               <span className="text-xs text-muted-foreground/60">
                 {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -143,13 +140,10 @@ export function Notes() {
             </div>
           </div>
           <div className="flex items-center gap-0 flex-shrink-0">
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              onClick={(e) => handleEdit(e, note.id)} title="Edit note">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={(e) => handleEdit(e, note.id)}>
               <Edit size={15} />
             </Button>
-            <Button variant="ghost" size="icon"
-              className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
-              onClick={(e) => handleDelete(e, note.id)} disabled={deletingId === note.id} title="Delete note">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white" onClick={(e) => handleDelete(e, note.id)} disabled={deletingId === note.id}>
               {deletingId === note.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
             </Button>
           </div>
@@ -171,14 +165,31 @@ export function Notes() {
         <Button onClick={() => navigate('/notes/new')} className="gap-2"><Plus size={18} /> Add Note</Button>
       </div>
 
+      {/* Active filter badges */}
+      {activeFilterCount > 0 && (
+        <div className="flex flex-wrap gap-2 text-xs items-center">
+          {filterCategory !== 'all' && (
+            <span className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full">
+              Category: {categories.find(c => c.id === filterCategory)?.name}
+              <button onClick={() => { setFilterCategory('all'); setCurrentPage(1); }}><X size={11} /></button>
+            </span>
+          )}
+          <button onClick={() => { setFilterCategory('all'); setCurrentPage(1); }} className="text-muted-foreground hover:text-foreground underline text-xs">Clear all</button>
+        </div>
+      )}
+
       <div className="flex gap-2 items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
           <Input placeholder="Search by title or content..." value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 border border-border shadow-sm" />
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            className="pl-10 border border-border shadow-sm" />
         </div>
+
+        {/* ✅ FIX: ref di wrapper, stopPropagation di panel */}
         <div className="relative" ref={filterRef}>
-          <Button variant="outline" className="gap-2 relative" onClick={() => setFilterOpen(!filterOpen)}>
+          <Button variant="outline" className="gap-2 relative"
+            onClick={(e) => { e.stopPropagation(); setFilterOpen(prev => !prev); }}>
             <Filter size={18} /> Filter
             {activeFilterCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
@@ -186,8 +197,12 @@ export function Notes() {
               </span>
             )}
           </Button>
+
           {filterOpen && (
-            <div className="absolute right-0 top-full mt-2 w-72 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+            <div
+              className="absolute right-0 top-full mt-2 w-72 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <span className="font-semibold text-foreground">Filter & View</span>
                 <div className="flex items-center gap-2">
@@ -262,7 +277,9 @@ export function Notes() {
       {regularNotes.length > 0 && (
         <div>
           <h2 className="text-base font-semibold text-foreground mb-3">
-            All Notes <span className="text-muted-foreground font-normal">({regularNotes.length})</span>
+            All Notes <span className="text-muted-foreground font-normal">
+              ({regularNotes.length}{activeFilterCount > 0 ? ` of ${notes.filter(n => !n.pinned).length}` : ''})
+            </span>
           </h2>
           <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
             {paginatedNotes.map(note =>

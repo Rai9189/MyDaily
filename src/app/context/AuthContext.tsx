@@ -29,9 +29,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ Flag: apakah initAuth() sudah selesai
-  // Mencegah onAuthStateChange berjalan sebelum init selesai (race condition)
   const initialized = useRef(false);
+  const isSigningUp = useRef(false);
+  // ✅ FIX: Track userId terakhir yang sudah di-fetch profilenya
+  // Mencegah re-fetch & re-render cascade saat Supabase mengirim
+  // SIGNED_IN ulang karena token refresh atau tab refocus
+  const lastFetchedUserId = useRef<string | null>(null);
 
   const fetchUserProfile = async (userId: string, retries = 3): Promise<User | null> => {
     for (let attempt = 1; attempt <= retries; attempt++) {
@@ -82,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const profile = await fetchUserProfile(initialSession.user.id);
           if (!isMounted) return;
 
+          lastFetchedUserId.current = initialSession.user.id;
           setUser(profile);
           setProfileLoading(false);
         }
@@ -89,7 +93,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('initAuth error:', err);
         if (isMounted) setProfileLoading(false);
       } finally {
-        // ✅ Selalu set loading false & tandai initialized, apapun hasilnya
         if (isMounted) {
           initialized.current = true;
           setLoading(false);
@@ -103,34 +106,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (_event, session) => {
         console.log('onAuthStateChange event:', _event, 'session:', !!session);
         if (!isMounted) return;
-
-        // ✅ Tunggu initAuth selesai dulu — cegah race condition
         if (!initialized.current) return;
 
-        // Token refresh — update session saja
+        // ✅ FIX: TOKEN_REFRESHED — hanya update token, jangan ubah state user
+        // Sebelumnya ini menyebabkan semua context provider (Task, Note, Transaction, dll)
+        // re-fetch data mereka karena user state berubah → penyebab save task lambat
         if (_event === 'TOKEN_REFRESHED') {
-          setSession(session);
+          setSession(prev =>
+            prev?.access_token === session?.access_token ? prev : session
+          );
           return;
         }
 
-        // SIGNED_OUT
         if (_event === 'SIGNED_OUT' || !session) {
+          lastFetchedUserId.current = null;
           setUser(null);
           setSession(null);
           return;
         }
 
-        // Tab refocus / re-auth, user sama — skip re-fetch
         if (_event === 'SIGNED_IN') {
-          setSession(session);
-          // Hanya re-fetch jika user berbeda (ganti akun)
-          const currentUserId = user?.id;
-          if (currentUserId && currentUserId === session.user.id) return;
+          if (isSigningUp.current) {
+            console.log('onAuthStateChange: skipping, signUp in progress');
+            return;
+          }
 
-          // User baru login — fetch profile
+          // ✅ FIX: Skip re-fetch jika user SAMA — cegah re-render cascade
+          // Supabase kadang emit SIGNED_IN ulang saat tab refocus atau setelah operasi DB
+          if (lastFetchedUserId.current === session.user.id) {
+            setSession(prev =>
+              prev?.access_token === session?.access_token ? prev : session
+            );
+            return;
+          }
+
+          // User benar-benar baru (ganti akun) → fetch profile
+          setSession(session);
           setProfileLoading(true);
           const profile = await fetchUserProfile(session.user.id);
           if (!isMounted) return;
+
+          lastFetchedUserId.current = session.user.id;
           setUser(profile);
           setProfileLoading(false);
         }
@@ -146,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, name: string) => {
     try {
       setError(null);
+      isSigningUp.current = true;
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -167,11 +184,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (profileError) throw profileError;
 
+      const profile = await fetchUserProfile(authData.user.id);
+      lastFetchedUserId.current = authData.user.id;
+      setUser(profile);
+      setSession(authData.session);
+
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
       setError(errorMessage);
       return { success: false, error: errorMessage };
+    } finally {
+      isSigningUp.current = false;
     }
   };
 
@@ -207,6 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (key.startsWith('sb-')) localStorage.removeItem(key);
       });
 
+      lastFetchedUserId.current = null;
       setUser(null);
       setSession(null);
     } catch (err) {

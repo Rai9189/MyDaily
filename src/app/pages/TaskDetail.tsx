@@ -42,6 +42,7 @@ export function TaskDetail() {
   const [formData, setFormData] = useState({
     title: '',
     deadline: new Date().toISOString().split('T')[0],
+    // ✅ FIX: kosong — user harus pilih sendiri
     categoryId: '',
     description: '',
     completed: false,
@@ -54,15 +55,7 @@ export function TaskDetail() {
   const [completing, setCompleting] = useState(false);
   const isBusy = submitting || isUploadingPending;
 
-  useEffect(() => {
-    if (isNew) {
-      setFormData(prev => ({
-        ...prev,
-        categoryId: prev.categoryId || taskCategories[0]?.id || '',
-      }));
-    }
-  }, [taskCategories.length, isNew]);
-
+  // ✅ FIX: Hapus auto-select category saat new, biarkan kosong
   useEffect(() => {
     if (!isNew && task) {
       setFormData({
@@ -125,13 +118,12 @@ export function TaskDetail() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim()) return alert('Please enter a task title');
-    if (!formData.categoryId) return alert('Please select a category');
+    if (!formData.title.trim()) return alert('Please enter a task title.');
+    if (!formData.categoryId) return alert('Please select a category.');
 
     setSubmitting(true);
     try {
       if (isNew) {
-        // ✅ Create task dulu → dapat ID → upload pending files
         const { success, data, error } = await createTask(formData);
         if (!success || !data) { alert(error || 'Failed to create task'); return; }
         if (pendingFiles.length > 0) {
@@ -196,12 +188,21 @@ export function TaskDetail() {
                 disabled={task?.completed} required />
             </div>
 
+            {/* ✅ FIX: Category — user wajib pilih, tidak ada default */}
             <div className="space-y-1.5">
-              <Label htmlFor="category">Category</Label>
-              <Select value={formData.categoryId} onValueChange={(v) => setFormData({ ...formData, categoryId: v })} disabled={task?.completed}>
-                <SelectTrigger id="category"><SelectValue placeholder="Select category" /></SelectTrigger>
+              <Label htmlFor="category">Category <span className="text-destructive">*</span></Label>
+              <Select
+                value={formData.categoryId}
+                onValueChange={(v) => setFormData({ ...formData, categoryId: v })}
+                disabled={task?.completed}
+              >
+                <SelectTrigger id="category">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
                 <SelectContent>
-                  {taskCategories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
+                  {taskCategories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -227,7 +228,6 @@ export function TaskDetail() {
                 rows={3} disabled={task?.completed} />
             </div>
 
-            {/* ✅ Attachment picker saat create baru */}
             {isNew && (
               <PendingAttachmentPicker
                 pendingFiles={pendingFiles}

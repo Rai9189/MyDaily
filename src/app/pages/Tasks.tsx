@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTasks } from '../context/TaskContext';
 import { useCategories } from '../context/CategoryContext';
@@ -12,7 +12,7 @@ import { Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown, List, LayoutGrid, 
 export function Tasks() {
   const navigate = useNavigate();
   const { tasks, loading, error, deleteTask } = useTasks();
-  const { getCategoriesByType } = useCategories();
+  const { categories, getCategoriesByType } = useCategories();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -29,82 +29,89 @@ export function Tasks() {
 
   const taskCategories = getCategoriesByType('task');
 
+  // ✅ FIX: Ganti mousedown → click, stopPropagation di panel
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setFilterOpen(false);
+      const target = e.target as Element;
+      if (filterRef.current && filterRef.current.contains(target)) return;
+      const isInsideRadixPortal =
+        target.closest?.('[data-radix-popper-content-wrapper]') ||
+        target.closest?.('[role="listbox"]') ||
+        target.closest?.('[data-radix-select-content]');
+      if (isInsideRadixPortal) return;
+      setFilterOpen(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const getCategoryName = (id: string) => taskCategories.find(c => c.id === id)?.name || 'Other';
-  const getCategoryColor = (id: string) => taskCategories.find(c => c.id === id)?.color || '#6b7280';
+  const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || 'Other';
+  const getCategoryColor = (id: string) => categories.find(c => c.id === id)?.color || '#6b7280';
 
   const getStatusVariant = (status: string) => {
     switch (status) {
-      case 'overdue':   return 'destructive';
-      case 'urgent':    return 'destructive';
-      case 'upcoming':  return 'default';
-      default:          return 'secondary';
+      case 'overdue':  return 'destructive';
+      case 'urgent':   return 'destructive';
+      case 'upcoming': return 'default';
+      default:         return 'secondary';
     }
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'overdue':   return 'Overdue';
-      case 'urgent':    return 'Urgent';
-      case 'upcoming':  return 'Upcoming';
-      case 'on_track':  return 'On Track';
-      default:          return status;
+      case 'overdue':  return 'Overdue';
+      case 'urgent':   return 'Urgent';
+      case 'upcoming': return 'Upcoming';
+      case 'on_track': return 'On Track';
+      default:         return status;
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'overdue':   return <CalendarX size={13} />;
-      case 'urgent':    return <AlertCircle size={13} />;
-      case 'upcoming':  return <Clock size={13} />;
-      case 'on_track':  return <CheckCircle2 size={13} />;
-      default:          return null;
+      case 'overdue':  return <CalendarX size={13} />;
+      case 'urgent':   return <AlertCircle size={13} />;
+      case 'upcoming': return <Clock size={13} />;
+      case 'on_track': return <CheckCircle2 size={13} />;
+      default:         return null;
     }
   };
 
   const getDotColor = (task: any) => {
     if (task.completed) return 'bg-gray-400';
     switch (task.status) {
-      case 'overdue':   return 'bg-red-700';
-      case 'urgent':    return 'bg-red-500';
-      case 'upcoming':  return 'bg-amber-500';
-      default:          return 'bg-green-500';
+      case 'overdue':  return 'bg-red-700';
+      case 'urgent':   return 'bg-red-500';
+      case 'upcoming': return 'bg-amber-500';
+      default:         return 'bg-green-500';
     }
   };
 
-  const filteredTasks = useMemo(() => {
-    let result = [...tasks];
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(t =>
-        t.title.toLowerCase().includes(q) ||
-        t.description?.toLowerCase().includes(q) ||
-        getCategoryName(t.categoryId).toLowerCase().includes(q)
-      );
-    }
-    if (filterStatus !== 'all') result = result.filter(t => t.status === filterStatus);
-    if (filterCategory !== 'all') result = result.filter(t => t.categoryId === filterCategory);
-    if (filterCompleted === 'completed') result = result.filter(t => t.completed);
-    if (filterCompleted === 'active') result = result.filter(t => !t.completed);
+  // Filter & sort — kalkulasi langsung tanpa useMemo agar pasti reaktif
+  let filteredTasks = [...tasks];
 
-    result.sort((a, b) => {
-      if (sortBy === 'deadline') return sortOrder === 'asc'
-        ? new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
-        : new Date(b.deadline).getTime() - new Date(a.deadline).getTime();
-      const order = { overdue: 4, urgent: 3, upcoming: 2, on_track: 1 };
-      const va = order[a.status as keyof typeof order] ?? 0;
-      const vb = order[b.status as keyof typeof order] ?? 0;
-      return sortOrder === 'asc' ? vb - va : va - vb;
-    });
-    return result;
-  }, [tasks, searchQuery, filterStatus, filterCategory, filterCompleted, sortBy, sortOrder]);
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    filteredTasks = filteredTasks.filter(t =>
+      t.title.toLowerCase().includes(q) ||
+      t.description?.toLowerCase().includes(q) ||
+      getCategoryName(t.categoryId).toLowerCase().includes(q)
+    );
+  }
+  if (filterStatus !== 'all') filteredTasks = filteredTasks.filter(t => t.status === filterStatus);
+  if (filterCategory !== 'all') filteredTasks = filteredTasks.filter(t => t.categoryId === filterCategory);
+  if (filterCompleted === 'completed') filteredTasks = filteredTasks.filter(t => t.completed);
+  if (filterCompleted === 'active') filteredTasks = filteredTasks.filter(t => !t.completed);
+
+  filteredTasks.sort((a, b) => {
+    if (sortBy === 'deadline') return sortOrder === 'asc'
+      ? new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+      : new Date(b.deadline).getTime() - new Date(a.deadline).getTime();
+    const order = { overdue: 4, urgent: 3, upcoming: 2, on_track: 1 };
+    const va = order[a.status as keyof typeof order] ?? 0;
+    const vb = order[b.status as keyof typeof order] ?? 0;
+    return sortOrder === 'asc' ? vb - va : va - vb;
+  });
 
   const totalPages = Math.ceil(filteredTasks.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -113,7 +120,12 @@ export function Tasks() {
     : filteredTasks;
 
   const activeFilterCount = [filterStatus !== 'all', filterCategory !== 'all', filterCompleted !== 'all'].filter(Boolean).length;
-  const handleFilterChange = (setter: any, value: any) => { setter(value); setCurrentPage(1); };
+
+  const handleFilterChange = (setter: (v: any) => void, value: any) => {
+    setter(value);
+    setCurrentPage(1);
+  };
+
   const resetFilters = () => {
     setFilterStatus('all'); setFilterCategory('all'); setFilterCompleted('all');
     setSortBy('deadline'); setSortOrder('asc'); setCurrentPage(1);
@@ -146,14 +158,43 @@ export function Tasks() {
         <Button onClick={() => navigate('/tasks/new')} className="gap-2"><Plus size={18} /> Add Task</Button>
       </div>
 
+      {/* Active filter badges */}
+      {activeFilterCount > 0 && (
+        <div className="flex flex-wrap gap-2 text-xs items-center">
+          {filterStatus !== 'all' && (
+            <span className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full capitalize">
+              Status: {getStatusLabel(filterStatus)}
+              <button onClick={() => { setFilterStatus('all'); setCurrentPage(1); }}><X size={11} /></button>
+            </span>
+          )}
+          {filterCategory !== 'all' && (
+            <span className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full">
+              Category: {categories.find(c => c.id === filterCategory)?.name}
+              <button onClick={() => { setFilterCategory('all'); setCurrentPage(1); }}><X size={11} /></button>
+            </span>
+          )}
+          {filterCompleted !== 'all' && (
+            <span className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full capitalize">
+              {filterCompleted === 'completed' ? 'Completed' : 'In Progress'}
+              <button onClick={() => { setFilterCompleted('all'); setCurrentPage(1); }}><X size={11} /></button>
+            </span>
+          )}
+          <button onClick={resetFilters} className="text-muted-foreground hover:text-foreground underline text-xs">Clear all</button>
+        </div>
+      )}
+
       <div className="flex gap-2 items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
           <Input placeholder="Search by title, description, or category..." value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 border border-border shadow-sm" />
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            className="pl-10 border border-border shadow-sm" />
         </div>
+
+        {/* ✅ FIX: ref di wrapper, stopPropagation di panel, onClick dengan e.stopPropagation */}
         <div className="relative" ref={filterRef}>
-          <Button variant="outline" className="gap-2 relative" onClick={() => setFilterOpen(!filterOpen)}>
+          <Button variant="outline" className="gap-2 relative"
+            onClick={(e) => { e.stopPropagation(); setFilterOpen(prev => !prev); }}>
             <Filter size={18} /> Filter
             {activeFilterCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
@@ -161,8 +202,12 @@ export function Tasks() {
               </span>
             )}
           </Button>
+
           {filterOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+            <div
+              className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <span className="font-semibold text-foreground">Filter & Sort</span>
                 <div className="flex items-center gap-2">
@@ -244,11 +289,11 @@ export function Tasks() {
         </div>
       </div>
 
-      {filteredTasks.length > 0 && (
-        <h2 className="text-base font-semibold text-foreground">
-          All Tasks <span className="text-muted-foreground font-normal">({filteredTasks.length})</span>
-        </h2>
-      )}
+      <h2 className="text-base font-semibold text-foreground">
+        All Tasks <span className="text-muted-foreground font-normal">
+          ({filteredTasks.length}{activeFilterCount > 0 ? ` of ${tasks.length}` : ''})
+        </span>
+      </h2>
 
       {filteredTasks.length === 0 ? (
         <Card className="border border-border bg-card">

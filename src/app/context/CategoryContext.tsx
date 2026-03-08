@@ -8,11 +8,9 @@ interface CategoryContextType {
   categories: Category[];
   loading: boolean;
   error: string | null;
-  // Get only top-level (parent) categories by type
   getCategoriesByType: (type: 'transaction' | 'task' | 'note') => Category[];
-  // Get subcategories for a specific parent
+  getCategoriesBySubtype: (subtype: 'income' | 'expense') => Category[];
   getSubcategories: (parentId: string) => Category[];
-  // Check if a category has subcategories
   hasSubcategories: (parentId: string) => boolean;
   createCategory: (category: Omit<Category, 'id'>) => Promise<{ success: boolean; data?: Category; error: string | null }>;
   updateCategory: (id: string, updates: Partial<Category>) => Promise<{ success: boolean; error: string | null }>;
@@ -70,17 +68,24 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     fetchCategories();
   }, [user]);
 
-  // ✅ Only returns top-level (parent) categories - parentId is null
   const getCategoriesByType = (type: 'transaction' | 'task' | 'note') => {
     return categories.filter(cat => cat.type === type && !cat.parentId);
   };
 
-  // ✅ Returns subcategories for a given parent
+  // ✅ FIX: Hapus || !cat.subtype agar kategori task/note tidak bocor ke sini
+  // Hanya tampilkan kategori transaction yang subtype-nya benar-benar cocok
+  const getCategoriesBySubtype = (subtype: 'income' | 'expense') => {
+    return categories.filter(cat =>
+      cat.type === 'transaction' &&
+      !cat.parentId &&
+      cat.subtype === subtype
+    );
+  };
+
   const getSubcategories = (parentId: string) => {
     return categories.filter(cat => cat.parentId === parentId);
   };
 
-  // ✅ Check if a category has any subcategories
   const hasSubcategories = (parentId: string) => {
     return categories.some(cat => cat.parentId === parentId);
   };
@@ -156,7 +161,6 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
 
       if (deleteError) throw deleteError;
 
-      // ✅ Remove category AND all its subcategories from local state
       setCategories(prev => prev.filter(cat => cat.id !== id && cat.parentId !== id));
 
       return { success: true, error: null };
@@ -176,6 +180,7 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     loading,
     error,
     getCategoriesByType,
+    getCategoriesBySubtype,
     getSubcategories,
     hasSubcategories,
     createCategory,

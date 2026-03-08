@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTransactions } from '../context/TransactionContext';
 import { useAccounts } from '../context/AccountContext';
@@ -13,7 +13,7 @@ export function Transactions() {
   const navigate = useNavigate();
   const { transactions, loading, error, deleteTransaction } = useTransactions();
   const { accounts } = useAccounts();
-  const { categories, getCategoriesByType } = useCategories();
+  const { categories, getCategoriesByType, getCategoriesBySubtype } = useCategories();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterAccount, setFilterAccount] = useState('all');
@@ -28,14 +28,31 @@ export function Transactions() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
-  const transactionCategories = getCategoriesByType('transaction');
-
+  // ✅ FIX: Ganti mousedown → click, dan cek apakah target ada di dalam portal Radix
+  // Radix Select dropdown dirender di document.body (portal), bukan di dalam filterRef
+  // Sehingga mousedown outside akan menutup panel sebelum onValueChange sempat fired
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setFilterOpen(false);
+      const target = e.target as Node;
+
+      // Jangan tutup jika klik ada di dalam filter panel
+      if (filterRef.current && filterRef.current.contains(target)) return;
+
+      // Jangan tutup jika klik ada di dalam Radix portal (dropdown Select)
+      // Radix merender konten di [data-radix-popper-content-wrapper] atau [role="listbox"]
+      const isInsideRadixPortal =
+        (target as Element).closest?.('[data-radix-popper-content-wrapper]') ||
+        (target as Element).closest?.('[role="listbox"]') ||
+        (target as Element).closest?.('[data-radix-select-content]');
+
+      if (isInsideRadixPortal) return;
+
+      setFilterOpen(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+
+    // Gunakan 'click' bukan 'mousedown' agar Radix onValueChange sempat fired
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   const formatCurrency = (amount: number) =>
@@ -45,28 +62,34 @@ export function Transactions() {
   const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || 'Other';
   const getCategoryColor = (id: string) => categories.find(c => c.id === id)?.color || '#6b7280';
 
-  const filteredTransactions = useMemo(() => {
-    let result = [...transactions];
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(t =>
-        t.description?.toLowerCase().includes(q) ||
-        getAccountName(t.accountId).toLowerCase().includes(q) ||
-        getCategoryName(t.categoryId).toLowerCase().includes(q) ||
-        t.amount.toString().includes(q)
-      );
-    }
-    if (filterAccount !== 'all') result = result.filter(t => t.accountId === filterAccount);
-    if (filterType !== 'all') result = result.filter(t => t.type === filterType);
-    if (filterCategory !== 'all') result = result.filter(t => t.categoryId === filterCategory);
-    result.sort((a, b) => {
-      if (sortBy === 'date') return sortOrder === 'desc'
-        ? new Date(b.date).getTime() - new Date(a.date).getTime()
-        : new Date(a.date).getTime() - new Date(b.date).getTime();
-      return sortOrder === 'desc' ? b.amount - a.amount : a.amount - b.amount;
-    });
-    return result;
-  }, [transactions, searchQuery, filterAccount, filterType, filterCategory, sortBy, sortOrder]);
+  // Filter & sort — kalkulasi langsung tanpa useMemo
+  let filteredTransactions = [...transactions];
+
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    filteredTransactions = filteredTransactions.filter(t =>
+      t.description?.toLowerCase().includes(q) ||
+      getAccountName(t.accountId).toLowerCase().includes(q) ||
+      getCategoryName(t.categoryId).toLowerCase().includes(q) ||
+      t.amount.toString().includes(q)
+    );
+  }
+
+  if (filterAccount !== 'all') filteredTransactions = filteredTransactions.filter(t => t.accountId === filterAccount);
+  if (filterType !== 'all') filteredTransactions = filteredTransactions.filter(t => t.type === filterType);
+  if (filterCategory !== 'all') filteredTransactions = filteredTransactions.filter(t => t.categoryId === filterCategory);
+
+  filteredTransactions.sort((a, b) => {
+    if (sortBy === 'date') return sortOrder === 'desc'
+      ? new Date(b.date).getTime() - new Date(a.date).getTime()
+      : new Date(a.date).getTime() - new Date(b.date).getTime();
+    return sortOrder === 'desc' ? b.amount - a.amount : a.amount - b.amount;
+  });
+
+  // Kategori dropdown di filter panel mengikuti filterType
+  let filteredCategoryOptions = getCategoriesByType('transaction');
+  if (filterType === 'income') filteredCategoryOptions = getCategoriesBySubtype('income');
+  if (filterType === 'expense') filteredCategoryOptions = getCategoriesBySubtype('expense');
 
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -75,10 +98,25 @@ export function Transactions() {
     : filteredTransactions;
 
   const activeFilterCount = [filterAccount !== 'all', filterType !== 'all', filterCategory !== 'all'].filter(Boolean).length;
-  const handleFilterChange = (setter: any, value: any) => { setter(value); setCurrentPage(1); };
+
+  const handleTypeFilterChange = (value: string) => {
+    setFilterType(value);
+    setFilterCategory('all');
+    setCurrentPage(1);
+  };
+
+  const handleFilterChange = (setter: (v: any) => void, value: any) => {
+    setter(value);
+    setCurrentPage(1);
+  };
+
   const resetFilters = () => {
-    setFilterAccount('all'); setFilterType('all'); setFilterCategory('all');
-    setSortBy('date'); setSortOrder('desc'); setCurrentPage(1);
+    setFilterAccount('all');
+    setFilterType('all');
+    setFilterCategory('all');
+    setSortBy('date');
+    setSortOrder('desc');
+    setCurrentPage(1);
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
@@ -95,8 +133,17 @@ export function Transactions() {
     navigate(`/transactions/${id}`);
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
-  if (error) return <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-lg"><p className="text-red-600 dark:text-red-400">Error: {error}</p></div>;
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    </div>
+  );
+
+  if (error) return (
+    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-lg">
+      <p className="text-red-600 dark:text-red-400">Error: {error}</p>
+    </div>
+  );
 
   if (accounts.length === 0) {
     return (
@@ -137,15 +184,52 @@ export function Transactions() {
         </Button>
       </div>
 
+      {/* Active filter badges */}
+      {activeFilterCount > 0 && (
+        <div className="flex flex-wrap gap-2 text-xs items-center">
+          {filterAccount !== 'all' && (
+            <span className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full">
+              Account: {accounts.find(a => a.id === filterAccount)?.name}
+              <button onClick={() => { setFilterAccount('all'); setCurrentPage(1); }}><X size={11} /></button>
+            </span>
+          )}
+          {filterType !== 'all' && (
+            <span className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full capitalize">
+              Type: {filterType}
+              <button onClick={() => { setFilterType('all'); setFilterCategory('all'); setCurrentPage(1); }}><X size={11} /></button>
+            </span>
+          )}
+          {filterCategory !== 'all' && (
+            <span className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full">
+              Category: {categories.find(c => c.id === filterCategory)?.name}
+              <button onClick={() => { setFilterCategory('all'); setCurrentPage(1); }}><X size={11} /></button>
+            </span>
+          )}
+          <button onClick={resetFilters} className="text-muted-foreground hover:text-foreground underline text-xs">
+            Clear all
+          </button>
+        </div>
+      )}
+
+      {/* Search & Filter */}
       <div className="flex gap-2 items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-          <Input placeholder="Search by description, account, category, or amount..."
-            value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 border border-border shadow-sm" />
+          <Input
+            placeholder="Search by description, account, category, or amount..."
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            className="pl-10 border border-border shadow-sm"
+          />
         </div>
+
+        {/* ✅ FIX: ref dipasang di wrapper div, bukan di dropdown */}
         <div className="relative" ref={filterRef}>
-          <Button variant="outline" className="gap-2 relative" onClick={() => setFilterOpen(!filterOpen)}>
+          <Button
+            variant="outline"
+            className="gap-2 relative"
+            onClick={(e) => { e.stopPropagation(); setFilterOpen(prev => !prev); }}
+          >
             <Filter size={18} /> Filter
             {activeFilterCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
@@ -153,16 +237,27 @@ export function Transactions() {
               </span>
             )}
           </Button>
+
           {filterOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+            <div
+              className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden"
+              // ✅ FIX: stopPropagation di panel agar click di dalam tidak bubble ke document
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <span className="font-semibold text-foreground">Filter & Sort</span>
                 <div className="flex items-center gap-2">
-                  {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-primary hover:underline">Reset all</button>}
-                  <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
+                  {activeFilterCount > 0 && (
+                    <button onClick={resetFilters} className="text-xs text-primary hover:underline">Reset all</button>
+                  )}
+                  <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground">
+                    <X size={18} />
+                  </button>
                 </div>
               </div>
+
               <div className="p-4 space-y-4">
+                {/* Filter: Account */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Account</label>
                   <Select value={filterAccount} onValueChange={(v) => handleFilterChange(setFilterAccount, v)}>
@@ -173,9 +268,11 @@ export function Transactions() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Filter: Type */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</label>
-                  <Select value={filterType} onValueChange={(v) => handleFilterChange(setFilterType, v)}>
+                  <Select value={filterType} onValueChange={handleTypeFilterChange}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Types</SelectItem>
@@ -184,16 +281,28 @@ export function Transactions() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Filter: Category */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</label>
-                  <Select value={filterCategory} onValueChange={(v) => handleFilterChange(setFilterCategory, v)}>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Category {filterType !== 'all' && <span className="text-primary normal-case">({filterType})</span>}
+                  </label>
+                  <Select
+                    key={filterType}
+                    value={filterCategory}
+                    onValueChange={(v) => handleFilterChange(setFilterCategory, v)}
+                  >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Categories</SelectItem>
-                      {transactionCategories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
+                      {filteredCategoryOptions.map(cat => (
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Sort */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sort by</label>
                   <div className="flex gap-2">
@@ -204,16 +313,25 @@ export function Transactions() {
                         <SelectItem value="amount">Amount</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}><ArrowUpDown size={16} /></Button>
+                    <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
+                      <ArrowUpDown size={16} />
+                    </Button>
                   </div>
                 </div>
+
+                {/* View Mode */}
                 <div className="border-t border-border pt-3 space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">View</label>
                   <div className="flex gap-2">
-                    <Button variant={viewMode === 'list' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('list')} className="gap-2 flex-1"><List size={15} /> List</Button>
-                    <Button variant={viewMode === 'card' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('card')} className="gap-2 flex-1"><LayoutGrid size={15} /> Card</Button>
+                    <Button variant={viewMode === 'list' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('list')} className="gap-2 flex-1">
+                      <List size={15} /> List
+                    </Button>
+                    <Button variant={viewMode === 'card' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('card')} className="gap-2 flex-1">
+                      <LayoutGrid size={15} /> Card
+                    </Button>
                   </div>
                 </div>
+
                 {viewMode === 'card' && (
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Per page</label>
@@ -233,12 +351,14 @@ export function Transactions() {
         </div>
       </div>
 
-      {filteredTransactions.length > 0 && (
-        <h2 className="text-base font-semibold text-foreground">
-          All Transactions <span className="text-muted-foreground font-normal">({filteredTransactions.length})</span>
-        </h2>
-      )}
+      <h2 className="text-base font-semibold text-foreground">
+        All Transactions{' '}
+        <span className="text-muted-foreground font-normal">
+          ({filteredTransactions.length}{activeFilterCount > 0 ? ` of ${transactions.length}` : ''})
+        </span>
+      </h2>
 
+      {/* Transaction List */}
       {filteredTransactions.length === 0 ? (
         <Card className="border border-border bg-card">
           <CardContent className="py-16 text-center">
@@ -262,8 +382,10 @@ export function Transactions() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                          style={{ borderColor: getCategoryColor(transaction.categoryId), color: getCategoryColor(transaction.categoryId) }}>
+                        <span
+                          className="text-xs font-medium px-2 py-0.5 rounded-full border"
+                          style={{ borderColor: getCategoryColor(transaction.categoryId), color: getCategoryColor(transaction.categoryId) }}
+                        >
                           {getCategoryName(transaction.categoryId)}
                         </span>
                         {transaction.attachments && transaction.attachments.length > 0 && (
@@ -286,7 +408,9 @@ export function Transactions() {
                       {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                     </p>
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={(e) => handleEdit(e, transaction.id)}><Edit size={15} /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={(e) => handleEdit(e, transaction.id)}>
+                        <Edit size={15} />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white" onClick={(e) => handleDelete(e, transaction.id)} disabled={deletingId === transaction.id}>
                         {deletingId === transaction.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                       </Button>
@@ -299,13 +423,20 @@ export function Transactions() {
         </div>
       )}
 
+      {/* Pagination (card mode only) */}
       {viewMode === 'card' && totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredTransactions.length)} of {filteredTransactions.length}</p>
+          <p className="text-sm text-muted-foreground">
+            Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredTransactions.length)} of {filteredTransactions.length}
+          </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft size={16} /></Button>
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+              <ChevronLeft size={16} />
+            </Button>
             <span className="text-sm text-foreground">Page {currentPage} of {totalPages}</span>
-            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}><ChevronRight size={16} /></Button>
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+              <ChevronRight size={16} />
+            </Button>
           </div>
         </div>
       )}
