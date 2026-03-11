@@ -19,8 +19,6 @@ export function Sidebar() {
 
   const handleLogout = async () => {
     await signOut();
-    // Tidak perlu navigate manual — ProtectedRoute otomatis redirect ke /login
-    // saat session menjadi null setelah signOut()
   };
 
   return (
@@ -29,16 +27,13 @@ export function Sidebar() {
       style={{ background: 'linear-gradient(to bottom, var(--primary), color-mix(in srgb, var(--primary) 80%, black))' }}
     >
       <div className="p-5 border-b border-white/20">
-        <img
-          src="/logo.png"
-          alt="MyDaily"
-          className="w-full h-auto object-contain dark:invert"
-        />
+        <img src="/logo.png" alt="MyDaily" className="w-full h-auto object-contain dark:invert" />
       </div>
 
       <nav className="flex-1 p-4">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive = location.pathname === item.path ||
+            (item.path === '/profile' && ['/profile', '/categories', '/trash'].includes(location.pathname));
           const Icon = item.icon;
           return (
             <Link
@@ -57,7 +52,6 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Sign Out — hanya muncul di desktop (sidebar) */}
       <div className="p-4 border-t border-white/20">
         <Button
           variant="outline"

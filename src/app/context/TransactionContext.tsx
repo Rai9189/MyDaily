@@ -4,6 +4,7 @@ import { supabase, handleSupabaseError } from '../../lib/supabase';
 import { Transaction } from '../types';
 import { useAuth } from './AuthContext';
 import { useAccounts } from './AccountContext';
+import { trashEvents } from '../../lib/trashEvents';
 
 interface TransactionContextType {
   transactions: Transaction[];
@@ -33,7 +34,6 @@ function mapToTransaction(row: any): Transaction {
 
 export function TransactionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  // ✅ FIX: Ambil updateBalanceLocally dari AccountContext
   const { updateBalanceLocally } = useAccounts();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +48,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
+        .is('deleted_at', null)
         .order('date', { ascending: false });
       if (fetchError) throw fetchError;
       setTransactions((data || []).map(mapToTransaction));
@@ -58,7 +59,14 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  useEffect(() => { fetchTransactions(); }, [user]);
+  useEffect(() => {
+    fetchTransactions();
+    // Re-fetch saat ada restore dari Trash
+    const unsub = trashEvents.subscribeRestore((table) => {
+      if (table === 'transactions') fetchTransactions();
+    });
+    return unsub;
+  }, [user]);
 
   const getTransactionById = (id: string) => transactions.find(t => t.id === id);
 
@@ -66,7 +74,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       if (!user) throw new Error('User not authenticated');
-
       const { data, error: insertError } = await supabase
         .from('transactions')
         .insert({
@@ -80,17 +87,11 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         })
         .select()
         .single();
-
       if (insertError) throw insertError;
-
       const mapped = mapToTransaction(data);
       setTransactions(prev => [mapped, ...prev]);
-
-      // ✅ FIX: Update balance account secara lokal (tanpa refresh)
-      // income → tambah saldo, expense → kurangi saldo
       const delta = transaction.type === 'income' ? transaction.amount : -transaction.amount;
       updateBalanceLocally(transaction.accountId, delta);
-
       return { success: true, data: mapped, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -103,10 +104,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       if (!id || id === 'new') throw new Error('Invalid transaction ID');
-
-      // Ambil transaksi lama untuk rollback balance
       const oldTransaction = transactions.find(t => t.id === id);
-
       const dbUpdates: any = {};
       if (updates.accountId !== undefined) dbUpdates.account_id = updates.accountId;
       if (updates.categoryId !== undefined) dbUpdates.category_id = updates.categoryId;
@@ -114,26 +112,18 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       if (updates.type !== undefined) dbUpdates.type = updates.type;
       if (updates.date !== undefined) dbUpdates.date = updates.date;
       if (updates.description !== undefined) dbUpdates.description = updates.description;
-
       const { error: updateError } = await supabase.from('transactions').update(dbUpdates).eq('id', id);
       if (updateError) throw updateError;
-
       setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
-
-      // ✅ FIX: Rollback balance lama lalu apply balance baru
       if (oldTransaction) {
-        // Rollback transaksi lama
         const oldDelta = oldTransaction.type === 'income' ? -oldTransaction.amount : oldTransaction.amount;
         updateBalanceLocally(oldTransaction.accountId, oldDelta);
-
-        // Apply transaksi baru
         const newAccountId = updates.accountId ?? oldTransaction.accountId;
         const newAmount = updates.amount ?? oldTransaction.amount;
         const newType = updates.type ?? oldTransaction.type;
         const newDelta = newType === 'income' ? newAmount : -newAmount;
         updateBalanceLocally(newAccountId, newDelta);
       }
-
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -145,21 +135,18 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
   const deleteTransaction = async (id: string) => {
     try {
       setError(null);
-
-      // Ambil transaksi yang akan dihapus untuk rollback balance
       const transaction = transactions.find(t => t.id === id);
-
-      const { error: deleteError } = await supabase.from('transactions').delete().eq('id', id);
+      const { error: deleteError } = await supabase
+        .from('transactions')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
       if (deleteError) throw deleteError;
-
       setTransactions(prev => prev.filter(t => t.id !== id));
-
-      // ✅ FIX: Rollback balance saat transaksi dihapus
       if (transaction) {
         const delta = transaction.type === 'income' ? -transaction.amount : transaction.amount;
         updateBalanceLocally(transaction.accountId, delta);
       }
-
+      trashEvents.emit();
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -171,7 +158,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
   const refreshTransactions = async () => { await fetchTransactions(); };
 
   const value = { transactions, loading, error, createTransaction, updateTransaction, deleteTransaction, getTransactionById, refreshTransactions };
-
   return <TransactionContext.Provider value={value}>{children}</TransactionContext.Provider>;
 }
 

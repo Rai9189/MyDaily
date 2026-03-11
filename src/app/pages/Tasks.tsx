@@ -7,7 +7,11 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
-import { Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2, X, Edit, Trash2, CalendarX } from 'lucide-react';
+import {
+  Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown,
+  List, LayoutGrid, ChevronLeft, ChevronRight, Filter,
+  Search, Loader2, X, Edit, Trash2, CalendarX
+} from 'lucide-react';
 
 export function Tasks() {
   const navigate = useNavigate();
@@ -29,20 +33,25 @@ export function Tasks() {
 
   const taskCategories = getCategoriesByType('task');
 
-  // ✅ FIX: Ganti mousedown → click, stopPropagation di panel
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Element;
+
       if (filterRef.current && filterRef.current.contains(target)) return;
-      const isInsideRadixPortal =
-        target.closest?.('[data-radix-popper-content-wrapper]') ||
-        target.closest?.('[role="listbox"]') ||
-        target.closest?.('[data-radix-select-content]');
-      if (isInsideRadixPortal) return;
+
+      if (
+        target.closest('[data-radix-popper-content-wrapper]') ||
+        target.closest('[data-radix-select-viewport]') ||
+        target.closest('[data-radix-select-content]') ||
+        target.closest('[role="option"]') ||
+        target.closest('[role="listbox"]')
+      ) return;
+
       setFilterOpen(false);
     };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || 'Other';
@@ -87,7 +96,7 @@ export function Tasks() {
     }
   };
 
-  // Filter & sort — kalkulasi langsung tanpa useMemo agar pasti reaktif
+  // Filter & sort
   let filteredTasks = [...tasks];
 
   if (searchQuery) {
@@ -127,8 +136,12 @@ export function Tasks() {
   };
 
   const resetFilters = () => {
-    setFilterStatus('all'); setFilterCategory('all'); setFilterCompleted('all');
-    setSortBy('deadline'); setSortOrder('asc'); setCurrentPage(1);
+    setFilterStatus('all');
+    setFilterCategory('all');
+    setFilterCompleted('all');
+    setSortBy('deadline');
+    setSortOrder('asc');
+    setCurrentPage(1);
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
@@ -145,17 +158,29 @@ export function Tasks() {
     navigate(`/tasks/${id}`);
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
-  if (error) return <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-lg"><p className="text-red-600 dark:text-red-400">Error: {error}</p></div>;
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    </div>
+  );
+
+  if (error) return (
+    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-lg">
+      <p className="text-red-600 dark:text-red-400">Error: {error}</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6 p-1">
+      {/* Header */}
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-semibold text-foreground">Tasks</h1>
           <p className="text-muted-foreground mt-1">Manage all your tasks</p>
         </div>
-        <Button onClick={() => navigate('/tasks/new')} className="gap-2"><Plus size={18} /> Add Task</Button>
+        <Button onClick={() => navigate('/tasks/new')} className="gap-2">
+          <Plus size={18} /> Add Task
+        </Button>
       </div>
 
       {/* Active filter badges */}
@@ -179,22 +204,30 @@ export function Tasks() {
               <button onClick={() => { setFilterCompleted('all'); setCurrentPage(1); }}><X size={11} /></button>
             </span>
           )}
-          <button onClick={resetFilters} className="text-muted-foreground hover:text-foreground underline text-xs">Clear all</button>
+          <button onClick={resetFilters} className="text-muted-foreground hover:text-foreground underline text-xs">
+            Clear all
+          </button>
         </div>
       )}
 
+      {/* Search & Filter */}
       <div className="flex gap-2 items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-          <Input placeholder="Search by title, description, or category..." value={searchQuery}
+          <Input
+            placeholder="Search by title, description, or category..."
+            value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-            className="pl-10 border border-border shadow-sm" />
+            className="pl-10 border border-border shadow-sm"
+          />
         </div>
 
-        {/* ✅ FIX: ref di wrapper, stopPropagation di panel, onClick dengan e.stopPropagation */}
         <div className="relative" ref={filterRef}>
-          <Button variant="outline" className="gap-2 relative"
-            onClick={(e) => { e.stopPropagation(); setFilterOpen(prev => !prev); }}>
+          <Button
+            variant="outline"
+            className="gap-2 relative"
+            onClick={() => setFilterOpen(prev => !prev)}
+          >
             <Filter size={18} /> Filter
             {activeFilterCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
@@ -204,18 +237,22 @@ export function Tasks() {
           </Button>
 
           {filterOpen && (
-            <div
-              className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+              {/* Filter Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <span className="font-semibold text-foreground">Filter & Sort</span>
                 <div className="flex items-center gap-2">
-                  {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-primary hover:underline">Reset all</button>}
-                  <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
+                  {activeFilterCount > 0 && (
+                    <button onClick={resetFilters} className="text-xs text-primary hover:underline">Reset all</button>
+                  )}
+                  <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground">
+                    <X size={18} />
+                  </button>
                 </div>
               </div>
+
               <div className="p-4 space-y-4">
+                {/* Filter: Status */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</label>
                   <Select value={filterStatus} onValueChange={(v) => handleFilterChange(setFilterStatus, v)}>
@@ -229,16 +266,22 @@ export function Tasks() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Filter: Category */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</label>
                   <Select value={filterCategory} onValueChange={(v) => handleFilterChange(setFilterCategory, v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Categories</SelectItem>
-                      {taskCategories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
+                      {taskCategories.map(cat => (
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Filter: Completion */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Completion</label>
                   <Select value={filterCompleted} onValueChange={(v) => handleFilterChange(setFilterCompleted, v)}>
@@ -250,6 +293,8 @@ export function Tasks() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Sort */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sort by</label>
                   <div className="flex gap-2">
@@ -260,20 +305,47 @@ export function Tasks() {
                         <SelectItem value="status">Status</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}><ArrowUpDown size={16} /></Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                    >
+                      <ArrowUpDown size={16} />
+                    </Button>
                   </div>
                 </div>
+
+                {/* View Mode */}
                 <div className="border-t border-border pt-3 space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">View</label>
                   <div className="flex gap-2">
-                    <Button variant={viewMode === 'list' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('list')} className="gap-2 flex-1"><List size={15} /> List</Button>
-                    <Button variant={viewMode === 'card' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('card')} className="gap-2 flex-1"><LayoutGrid size={15} /> Card</Button>
+                    <Button
+                      variant={viewMode === 'list' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setViewMode('list')}
+                      className="gap-2 flex-1"
+                    >
+                      <List size={15} /> List
+                    </Button>
+                    <Button
+                      variant={viewMode === 'card' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setViewMode('card')}
+                      className="gap-2 flex-1"
+                    >
+                      <LayoutGrid size={15} /> Card
+                    </Button>
                   </div>
                 </div>
+
+                {/* Per page (card mode only) */}
                 {viewMode === 'card' && (
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Per page</label>
-                    <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}>
+                    <Select
+                      value={itemsPerPage.toString()}
+                      onValueChange={(v) => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}
+                    >
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="5">5</SelectItem>
@@ -289,12 +361,15 @@ export function Tasks() {
         </div>
       </div>
 
+      {/* Task count */}
       <h2 className="text-base font-semibold text-foreground">
-        All Tasks <span className="text-muted-foreground font-normal">
+        All Tasks{' '}
+        <span className="text-muted-foreground font-normal">
           ({filteredTasks.length}{activeFilterCount > 0 ? ` of ${tasks.length}` : ''})
         </span>
       </h2>
 
+      {/* Task List */}
       {filteredTasks.length === 0 ? (
         <Card className="border border-border bg-card">
           <CardContent className="py-16 text-center">
@@ -305,15 +380,20 @@ export function Tasks() {
       ) : (
         <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
           {paginatedTasks.map((task) => (
-            <Card key={task.id} className={`hover:shadow-md transition-shadow border border-border bg-card ${task.completed ? 'opacity-60' : ''} ${!task.completed && task.status === 'overdue' ? 'border-red-300 dark:border-red-800' : ''}`}>
+            <Card
+              key={task.id}
+              className={`hover:shadow-md transition-shadow border border-border bg-card ${task.completed ? 'opacity-60' : ''} ${!task.completed && task.status === 'overdue' ? 'border-red-300 dark:border-red-800' : ''}`}
+            >
               <CardContent className="p-4">
                 {viewMode === 'list' ? (
                   <div className="flex items-start gap-3">
                     <div className={`mt-1 flex-shrink-0 w-2 h-2 rounded-full ${getDotColor(task)}`} />
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/tasks/${task.id}`)}>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                          style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}>
+                        <span
+                          className="text-xs font-medium px-2 py-0.5 rounded-full border"
+                          style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}
+                        >
                           {getCategoryName(task.categoryId)}
                         </span>
                         {!task.completed ? (
@@ -321,13 +401,17 @@ export function Tasks() {
                             {getStatusIcon(task.status)}{getStatusLabel(task.status)}
                           </Badge>
                         ) : (
-                          <Badge variant="secondary" className="gap-1 text-xs"><CheckCircle2 size={11} /> Completed</Badge>
+                          <Badge variant="secondary" className="gap-1 text-xs">
+                            <CheckCircle2 size={11} /> Completed
+                          </Badge>
                         )}
                       </div>
                       <p className={`text-sm font-semibold text-foreground mt-1.5 ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
                         {task.title}
                       </p>
-                      {task.description && <p className="text-xs text-muted-foreground mt-1 truncate">{task.description}</p>}
+                      {task.description && (
+                        <p className="text-xs text-muted-foreground mt-1 truncate">{task.description}</p>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
                       <p className={`text-base font-bold flex items-center gap-1 ${!task.completed && task.status === 'overdue' ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
@@ -335,8 +419,21 @@ export function Tasks() {
                         {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </p>
                       <div className="flex items-center gap-0">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={(e) => handleEdit(e, task.id)}><Edit size={15} /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white" onClick={(e) => handleDelete(e, task.id)} disabled={deletingId === task.id}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          onClick={(e) => handleEdit(e, task.id)}
+                        >
+                          <Edit size={15} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
+                          onClick={(e) => handleDelete(e, task.id)}
+                          disabled={deletingId === task.id}
+                        >
                           {deletingId === task.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                         </Button>
                       </div>
@@ -346,8 +443,10 @@ export function Tasks() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/tasks/${task.id}`)}>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                          style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}>
+                        <span
+                          className="text-xs font-medium px-2 py-0.5 rounded-full border"
+                          style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}
+                        >
                           {getCategoryName(task.categoryId)}
                         </span>
                         {!task.completed ? (
@@ -355,13 +454,17 @@ export function Tasks() {
                             {getStatusIcon(task.status)}{getStatusLabel(task.status)}
                           </Badge>
                         ) : (
-                          <Badge variant="secondary" className="gap-1 text-xs"><CheckCircle2 size={11} /> Completed</Badge>
+                          <Badge variant="secondary" className="gap-1 text-xs">
+                            <CheckCircle2 size={11} /> Completed
+                          </Badge>
                         )}
                       </div>
                       <p className={`text-sm font-semibold text-foreground mt-2 ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
                         {task.title}
                       </p>
-                      {task.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.description}</p>}
+                      {task.description && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.description}</p>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
                       <p className={`text-base font-bold flex items-center gap-1 ${!task.completed && task.status === 'overdue' ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
@@ -369,8 +472,21 @@ export function Tasks() {
                         {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </p>
                       <div className="flex items-center gap-0">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={(e) => handleEdit(e, task.id)}><Edit size={15} /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white" onClick={(e) => handleDelete(e, task.id)} disabled={deletingId === task.id}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          onClick={(e) => handleEdit(e, task.id)}
+                        >
+                          <Edit size={15} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
+                          onClick={(e) => handleDelete(e, task.id)}
+                          disabled={deletingId === task.id}
+                        >
                           {deletingId === task.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                         </Button>
                       </div>
@@ -383,13 +499,30 @@ export function Tasks() {
         </div>
       )}
 
+      {/* Pagination (card mode only) */}
       {viewMode === 'card' && totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredTasks.length)} of {filteredTasks.length}</p>
+          <p className="text-sm text-muted-foreground">
+            Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredTasks.length)} of {filteredTasks.length}
+          </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft size={16} /></Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft size={16} />
+            </Button>
             <span className="text-sm text-foreground">Page {currentPage} of {totalPages}</span>
-            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}><ChevronRight size={16} /></Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight size={16} />
+            </Button>
           </div>
         </div>
       )}

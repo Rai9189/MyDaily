@@ -7,7 +7,11 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, TrendingUp, TrendingDown, Paperclip, ArrowUpDown, List, LayoutGrid, ChevronLeft, ChevronRight, Filter, Search, Loader2, X, Edit, Trash2, Wallet } from 'lucide-react';
+import {
+  Plus, TrendingUp, TrendingDown, Paperclip, ArrowUpDown,
+  List, LayoutGrid, ChevronLeft, ChevronRight, Filter,
+  Search, Loader2, X, Edit, Trash2, Wallet
+} from 'lucide-react';
 
 export function Transactions() {
   const navigate = useNavigate();
@@ -28,41 +32,37 @@ export function Transactions() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
-  // ✅ FIX: Ganti mousedown → click, dan cek apakah target ada di dalam portal Radix
-  // Radix Select dropdown dirender di document.body (portal), bukan di dalam filterRef
-  // Sehingga mousedown outside akan menutup panel sebelum onValueChange sempat fired
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-
-      // Jangan tutup jika klik ada di dalam filter panel
+      const target = e.target as Element;
       if (filterRef.current && filterRef.current.contains(target)) return;
-
-      // Jangan tutup jika klik ada di dalam Radix portal (dropdown Select)
-      // Radix merender konten di [data-radix-popper-content-wrapper] atau [role="listbox"]
-      const isInsideRadixPortal =
-        (target as Element).closest?.('[data-radix-popper-content-wrapper]') ||
-        (target as Element).closest?.('[role="listbox"]') ||
-        (target as Element).closest?.('[data-radix-select-content]');
-
-      if (isInsideRadixPortal) return;
-
+      if (
+        target.closest('[data-radix-popper-content-wrapper]') ||
+        target.closest('[data-radix-select-viewport]') ||
+        target.closest('[data-radix-select-content]') ||
+        target.closest('[role="option"]') ||
+        target.closest('[role="listbox"]')
+      ) return;
       setFilterOpen(false);
     };
-
-    // Gunakan 'click' bukan 'mousedown' agar Radix onValueChange sempat fired
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 
-  const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || 'Unknown';
+  // ✅ Handle account_id null (akun sudah dihapus)
+  const getAccountName = (id: string | null) => {
+    if (!id) return 'Deleted Account';
+    return accounts.find(a => a.id === id)?.name ?? 'Deleted Account';
+  };
+  const isDeletedAccount = (id: string | null) =>
+    !id || !accounts.find(a => a.id === id);
+
   const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || 'Other';
   const getCategoryColor = (id: string) => categories.find(c => c.id === id)?.color || '#6b7280';
 
-  // Filter & sort — kalkulasi langsung tanpa useMemo
   let filteredTransactions = [...transactions];
 
   if (searchQuery) {
@@ -86,7 +86,6 @@ export function Transactions() {
     return sortOrder === 'desc' ? b.amount - a.amount : a.amount - b.amount;
   });
 
-  // Kategori dropdown di filter panel mengikuti filterType
   let filteredCategoryOptions = getCategoriesByType('transaction');
   if (filterType === 'income') filteredCategoryOptions = getCategoriesBySubtype('income');
   if (filterType === 'expense') filteredCategoryOptions = getCategoriesBySubtype('expense');
@@ -145,7 +144,8 @@ export function Transactions() {
     </div>
   );
 
-  if (accounts.length === 0) {
+  // ✅ Hanya tampilkan empty state jika benar-benar belum ada akun DAN transaksi
+  if (accounts.length === 0 && transactions.length === 0) {
     return (
       <div className="space-y-6 p-1">
         <div>
@@ -179,7 +179,7 @@ export function Transactions() {
           <h1 className="text-3xl font-semibold text-foreground">Transactions</h1>
           <p className="text-muted-foreground mt-1">All your transaction history</p>
         </div>
-        <Button onClick={() => navigate('/transactions/new')} className="gap-2">
+        <Button onClick={() => navigate('/transactions/new')} className="gap-2" disabled={accounts.length === 0}>
           <Plus size={18} /> Add Transaction
         </Button>
       </div>
@@ -205,9 +205,7 @@ export function Transactions() {
               <button onClick={() => { setFilterCategory('all'); setCurrentPage(1); }}><X size={11} /></button>
             </span>
           )}
-          <button onClick={resetFilters} className="text-muted-foreground hover:text-foreground underline text-xs">
-            Clear all
-          </button>
+          <button onClick={resetFilters} className="text-muted-foreground hover:text-foreground underline text-xs">Clear all</button>
         </div>
       )}
 
@@ -223,13 +221,8 @@ export function Transactions() {
           />
         </div>
 
-        {/* ✅ FIX: ref dipasang di wrapper div, bukan di dropdown */}
         <div className="relative" ref={filterRef}>
-          <Button
-            variant="outline"
-            className="gap-2 relative"
-            onClick={(e) => { e.stopPropagation(); setFilterOpen(prev => !prev); }}
-          >
+          <Button variant="outline" className="gap-2 relative" onClick={() => setFilterOpen(prev => !prev)}>
             <Filter size={18} /> Filter
             {activeFilterCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
@@ -239,25 +232,15 @@ export function Transactions() {
           </Button>
 
           {filterOpen && (
-            <div
-              className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden"
-              // ✅ FIX: stopPropagation di panel agar click di dalam tidak bubble ke document
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <span className="font-semibold text-foreground">Filter & Sort</span>
                 <div className="flex items-center gap-2">
-                  {activeFilterCount > 0 && (
-                    <button onClick={resetFilters} className="text-xs text-primary hover:underline">Reset all</button>
-                  )}
-                  <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground">
-                    <X size={18} />
-                  </button>
+                  {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-primary hover:underline">Reset all</button>}
+                  <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
                 </div>
               </div>
-
               <div className="p-4 space-y-4">
-                {/* Filter: Account */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Account</label>
                   <Select value={filterAccount} onValueChange={(v) => handleFilterChange(setFilterAccount, v)}>
@@ -268,8 +251,6 @@ export function Transactions() {
                     </SelectContent>
                   </Select>
                 </div>
-
-                {/* Filter: Type */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</label>
                   <Select value={filterType} onValueChange={handleTypeFilterChange}>
@@ -281,28 +262,18 @@ export function Transactions() {
                     </SelectContent>
                   </Select>
                 </div>
-
-                {/* Filter: Category */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     Category {filterType !== 'all' && <span className="text-primary normal-case">({filterType})</span>}
                   </label>
-                  <Select
-                    key={filterType}
-                    value={filterCategory}
-                    onValueChange={(v) => handleFilterChange(setFilterCategory, v)}
-                  >
+                  <Select key={filterType} value={filterCategory} onValueChange={(v) => handleFilterChange(setFilterCategory, v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Categories</SelectItem>
-                      {filteredCategoryOptions.map(cat => (
-                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                      ))}
+                      {filteredCategoryOptions.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-
-                {/* Sort */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sort by</label>
                   <div className="flex gap-2">
@@ -318,8 +289,6 @@ export function Transactions() {
                     </Button>
                   </div>
                 </div>
-
-                {/* View Mode */}
                 <div className="border-t border-border pt-3 space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">View</label>
                   <div className="flex gap-2">
@@ -331,7 +300,6 @@ export function Transactions() {
                     </Button>
                   </div>
                 </div>
-
                 {viewMode === 'card' && (
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Per page</label>
@@ -358,7 +326,6 @@ export function Transactions() {
         </span>
       </h2>
 
-      {/* Transaction List */}
       {filteredTransactions.length === 0 ? (
         <Card className="border border-border bg-card">
           <CardContent className="py-16 text-center">
@@ -372,7 +339,10 @@ export function Transactions() {
             <Card key={transaction.id} className="hover:shadow-md transition-shadow border border-border bg-card">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3 min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/transactions/${transaction.id}`)}>
+                  <div
+                    className="flex items-start gap-3 min-w-0 flex-1 cursor-pointer"
+                    onClick={() => navigate(`/transactions/${transaction.id}`)}
+                  >
                     <div className={`mt-0.5 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
                       transaction.type === 'income' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'
                     }`}>
@@ -394,7 +364,14 @@ export function Transactions() {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm font-semibold text-foreground mt-1.5">{getAccountName(transaction.accountId)}</p>
+                      {/* ✅ Nama akun — italic + muted jika akun sudah dihapus */}
+                      <p className={`text-sm font-semibold mt-1.5 ${
+                        isDeletedAccount(transaction.accountId)
+                          ? 'text-muted-foreground italic'
+                          : 'text-foreground'
+                      }`}>
+                        {getAccountName(transaction.accountId)}
+                      </p>
                       {transaction.description && (
                         <p className="text-xs text-muted-foreground truncate mt-0.5">{transaction.description}</p>
                       )}
@@ -404,14 +381,18 @@ export function Transactions() {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <p className={`text-base font-semibold ${transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    <p className={`text-base font-semibold ${
+                      transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                    }`}>
                       {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                     </p>
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={(e) => handleEdit(e, transaction.id)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={(e) => handleEdit(e, transaction.id)}>
                         <Edit size={15} />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white" onClick={(e) => handleDelete(e, transaction.id)} disabled={deletingId === transaction.id}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
+                        onClick={(e) => handleDelete(e, transaction.id)} disabled={deletingId === transaction.id}>
                         {deletingId === transaction.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                       </Button>
                     </div>
@@ -423,7 +404,6 @@ export function Transactions() {
         </div>
       )}
 
-      {/* Pagination (card mode only) */}
       {viewMode === 'card' && totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">

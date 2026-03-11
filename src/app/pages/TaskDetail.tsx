@@ -11,8 +11,12 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { ArrowLeft, X, Loader2, FileText, Image as ImageIcon, Save, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, X, Loader2, FileText, Image as ImageIcon, Save, CheckCircle2, CalendarX, AlertCircle, Clock } from 'lucide-react';
+import { Badge } from '../components/ui/badge';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
+
+const MAX_TITLE = 100;
+const MAX_DESC = 10_000;
 
 export function TaskDetail() {
   const navigate = useNavigate();
@@ -42,7 +46,6 @@ export function TaskDetail() {
   const [formData, setFormData] = useState({
     title: '',
     deadline: new Date().toISOString().split('T')[0],
-    // ✅ FIX: kosong — user harus pilih sendiri
     categoryId: '',
     description: '',
     completed: false,
@@ -55,7 +58,6 @@ export function TaskDetail() {
   const [completing, setCompleting] = useState(false);
   const isBusy = submitting || isUploadingPending;
 
-  // ✅ FIX: Hapus auto-select category saat new, biarkan kosong
   useEffect(() => {
     if (!isNew && task) {
       setFormData({
@@ -84,6 +86,25 @@ export function TaskDetail() {
       case 'Mendekati': return 'Upcoming';
       case 'Masih Lama': return 'On Track';
       default: return status;
+    }
+  };
+
+  const getStatusVariant = (status: string) => {
+    switch (status) {
+      case 'overdue':  return 'destructive';
+      case 'urgent':   return 'destructive';
+      case 'upcoming': return 'default';
+      default:         return 'secondary';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'overdue':  return <CalendarX size={13} />;
+      case 'urgent':   return <AlertCircle size={13} />;
+      case 'upcoming': return <Clock size={13} />;
+      case 'on_track': return <CheckCircle2 size={13} />;
+      default:         return null;
     }
   };
 
@@ -171,14 +192,41 @@ export function TaskDetail() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-semibold text-foreground">Task Info</CardTitle>
+              {!isNew && task && (
+                task.completed ? (
+                  <Badge variant="secondary" className="gap-1 text-xs">
+                    <CheckCircle2 size={11} /> Completed
+                  </Badge>
+                ) : (
+                  <Badge variant={getStatusVariant(task.status) as any} className="gap-1 text-xs">
+                    {getStatusIcon(task.status)}{getStatusLabel(task.status)}
+                  </Badge>
+                )
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-5 pt-2">
+
+            {/* Title — max 100 char */}
             <div className="space-y-1.5">
-              <Label htmlFor="title">Task Title</Label>
-              <Input id="title" placeholder="e.g. Pay electricity bill" value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                disabled={task?.completed} required />
+              <div className="flex justify-between items-center">
+                <Label htmlFor="title">Task Title</Label>
+                <span className={`text-xs ${formData.title.length >= MAX_TITLE ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                  {formData.title.length}/{MAX_TITLE}
+                </span>
+              </div>
+              <Input
+                id="title"
+                placeholder="e.g. Pay electricity bill"
+                value={formData.title}
+                onChange={(e) => {
+                  if (e.target.value.length <= MAX_TITLE)
+                    setFormData({ ...formData, title: e.target.value });
+                }}
+                maxLength={MAX_TITLE}
+                disabled={task?.completed}
+                required
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -188,7 +236,6 @@ export function TaskDetail() {
                 disabled={task?.completed} required />
             </div>
 
-            {/* ✅ FIX: Category — user wajib pilih, tidak ada default */}
             <div className="space-y-1.5">
               <Label htmlFor="category">Category <span className="text-destructive">*</span></Label>
               <Select
@@ -207,25 +254,28 @@ export function TaskDetail() {
               </Select>
             </div>
 
-            {!isNew && task && (
-              <div className="space-y-1.5">
-                <Label>Status</Label>
-                <div className="flex items-center gap-2">
-                  <span className={`text-sm font-medium px-3 py-1.5 rounded-lg ${getStatusClass(task.status)}`}>
-                    {getStatusLabel(task.status)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">Auto-calculated from deadline</span>
-                </div>
-              </div>
-            )}
-
+            {/* Description — max 10.000 char */}
             <div className="space-y-1.5">
-              <Label htmlFor="description">
-                Description <span className="text-muted-foreground font-normal">(Optional)</span>
-              </Label>
-              <Textarea id="description" placeholder="Add details about this task..." value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={3} disabled={task?.completed} />
+              <div className="flex justify-between items-center">
+                <Label htmlFor="description">
+                  Description <span className="text-muted-foreground font-normal">(Optional)</span>
+                </Label>
+                <span className={`text-xs ${formData.description.length >= MAX_DESC ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                  {formData.description.length.toLocaleString('id-ID')}/{MAX_DESC.toLocaleString('id-ID')}
+                </span>
+              </div>
+              <Textarea
+                id="description"
+                placeholder="Add details about this task..."
+                value={formData.description}
+                onChange={(e) => {
+                  if (e.target.value.length <= MAX_DESC)
+                    setFormData({ ...formData, description: e.target.value });
+                }}
+                maxLength={MAX_DESC}
+                rows={3}
+                disabled={task?.completed}
+              />
             </div>
 
             {isNew && (

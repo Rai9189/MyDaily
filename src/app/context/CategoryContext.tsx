@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { supabase, handleSupabaseError } from '../../lib/supabase';
 import { Category } from '../types';
 import { useAuth } from './AuthContext';
+import { trashEvents } from '../../lib/trashEvents';
 
 interface CategoryContextType {
   categories: Category[];
@@ -38,24 +39,17 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const fetchCategories = async () => {
-    if (!user) {
-      setCategories([]);
-      setLoading(false);
-      return;
-    }
-
+    if (!user) { setCategories([]); setLoading(false); return; }
     try {
       setLoading(true);
       setError(null);
-
       const { data, error: fetchError } = await supabase
         .from('categories')
         .select('*')
         .eq('user_id', user.id)
+        .is('deleted_at', null)
         .order('created_at', { ascending: true });
-
       if (fetchError) throw fetchError;
-
       setCategories((data || []).map(mapToCategory));
     } catch (err) {
       setError(handleSupabaseError(err));
@@ -66,35 +60,30 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchCategories();
+    const unsub = trashEvents.subscribeRestore((table) => {
+      if (table === 'categories') fetchCategories();
+    });
+    return unsub;
   }, [user]);
 
-  const getCategoriesByType = (type: 'transaction' | 'task' | 'note') => {
-    return categories.filter(cat => cat.type === type && !cat.parentId);
-  };
+  const getCategoriesByType = (type: 'transaction' | 'task' | 'note') =>
+    categories.filter(cat => cat.type === type && !cat.parentId);
 
-  // ✅ FIX: Hapus || !cat.subtype agar kategori task/note tidak bocor ke sini
-  // Hanya tampilkan kategori transaction yang subtype-nya benar-benar cocok
-  const getCategoriesBySubtype = (subtype: 'income' | 'expense') => {
-    return categories.filter(cat =>
-      cat.type === 'transaction' &&
-      !cat.parentId &&
-      cat.subtype === subtype
+  const getCategoriesBySubtype = (subtype: 'income' | 'expense') =>
+    categories.filter(cat =>
+      cat.type === 'transaction' && !cat.parentId && cat.subtype === subtype
     );
-  };
 
-  const getSubcategories = (parentId: string) => {
-    return categories.filter(cat => cat.parentId === parentId);
-  };
+  const getSubcategories = (parentId: string) =>
+    categories.filter(cat => cat.parentId === parentId);
 
-  const hasSubcategories = (parentId: string) => {
-    return categories.some(cat => cat.parentId === parentId);
-  };
+  const hasSubcategories = (parentId: string) =>
+    categories.some(cat => cat.parentId === parentId);
 
   const createCategory = async (category: Omit<Category, 'id'>) => {
     try {
       setError(null);
       if (!user) throw new Error('User not authenticated');
-
       const { data, error: insertError } = await supabase
         .from('categories')
         .insert({
@@ -107,12 +96,9 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
         })
         .select()
         .single();
-
       if (insertError) throw insertError;
-
       const mapped = mapToCategory(data);
       setCategories(prev => [...prev, mapped]);
-
       return { success: true, data: mapped, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -124,24 +110,14 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
   const updateCategory = async (id: string, updates: Partial<Category>) => {
     try {
       setError(null);
-
       const dbUpdates: any = {};
       if (updates.name !== undefined) dbUpdates.name = updates.name;
       if (updates.color !== undefined) dbUpdates.color = updates.color;
       if (updates.subtype !== undefined) dbUpdates.subtype = updates.subtype;
       if (updates.parentId !== undefined) dbUpdates.parent_id = updates.parentId;
-
-      const { error: updateError } = await supabase
-        .from('categories')
-        .update(dbUpdates)
-        .eq('id', id);
-
+      const { error: updateError } = await supabase.from('categories').update(dbUpdates).eq('id', id);
       if (updateError) throw updateError;
-
-      setCategories(prev =>
-        prev.map(cat => (cat.id === id ? { ...cat, ...updates } : cat))
-      );
-
+      setCategories(prev => prev.map(cat => (cat.id === id ? { ...cat, ...updates } : cat)));
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -153,16 +129,15 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
   const deleteCategory = async (id: string) => {
     try {
       setError(null);
-
+      const now = new Date().toISOString();
       const { error: deleteError } = await supabase
         .from('categories')
-        .delete()
+        .update({ deleted_at: now })
         .eq('id', id);
-
       if (deleteError) throw deleteError;
-
+      await supabase.from('categories').update({ deleted_at: now }).eq('parent_id', id);
       setCategories(prev => prev.filter(cat => cat.id !== id && cat.parentId !== id));
-
+      trashEvents.emit();
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -171,31 +146,19 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refreshCategories = async () => {
-    await fetchCategories();
-  };
+  const refreshCategories = async () => { await fetchCategories(); };
 
   const value = {
-    categories,
-    loading,
-    error,
-    getCategoriesByType,
-    getCategoriesBySubtype,
-    getSubcategories,
-    hasSubcategories,
-    createCategory,
-    updateCategory,
-    deleteCategory,
-    refreshCategories,
+    categories, loading, error,
+    getCategoriesByType, getCategoriesBySubtype,
+    getSubcategories, hasSubcategories,
+    createCategory, updateCategory, deleteCategory, refreshCategories,
   };
-
   return <CategoryContext.Provider value={value}>{children}</CategoryContext.Provider>;
 }
 
 export function useCategories() {
   const context = useContext(CategoryContext);
-  if (!context) {
-    throw new Error('useCategories must be used within CategoryProvider');
-  }
+  if (!context) throw new Error('useCategories must be used within CategoryProvider');
   return context;
 }

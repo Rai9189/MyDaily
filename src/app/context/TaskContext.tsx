@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { supabase, handleSupabaseError } from '../../lib/supabase';
 import { Task, TaskStatus } from '../types';
 import { useAuth } from './AuthContext';
+import { trashEvents } from '../../lib/trashEvents';
 
 interface TaskContextType {
   tasks: Task[];
@@ -25,7 +26,6 @@ function computeStatus(deadline: string, completed: boolean): TaskStatus {
   const deadlineDate = new Date(deadline);
   deadlineDate.setHours(0, 0, 0, 0);
   const daysLeft = Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
   if (daysLeft < 0) return 'overdue';
   if (daysLeft <= 3) return 'urgent';
   if (daysLeft <= 7) return 'upcoming';
@@ -52,24 +52,17 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const fetchTasks = async () => {
-    if (!user) {
-      setTasks([]);
-      setLoading(false);
-      return;
-    }
-
+    if (!user) { setTasks([]); setLoading(false); return; }
     try {
       setLoading(true);
       setError(null);
-
       const { data, error: fetchError } = await supabase
         .from('tasks')
         .select('*')
         .eq('user_id', user.id)
+        .is('deleted_at', null)
         .order('deadline', { ascending: true });
-
       if (fetchError) throw fetchError;
-
       setTasks((data || []).map(mapToTask));
     } catch (err) {
       setError(handleSupabaseError(err));
@@ -80,6 +73,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchTasks();
+    const unsub = trashEvents.subscribeRestore((table) => {
+      if (table === 'tasks') fetchTasks();
+    });
+    return unsub;
   }, [user]);
 
   const getTaskById = (id: string) => tasks.find(t => t.id === id);
@@ -88,9 +85,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       if (!user) throw new Error('User not authenticated');
-
-      // ✅ FIX: Gunakan returning: 'minimal' + select id saja
-      // Hindari round trip kedua dengan .select().single() yang lambat
       const { data, error: insertError } = await supabase
         .from('tasks')
         .insert({
@@ -104,11 +98,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         })
         .select('id')
         .single();
-
       if (insertError) throw insertError;
-
-      // ✅ FIX: Bangun objek Task langsung dari data form + id dari DB
-      // Tidak perlu fetch ulang seluruh row dari Supabase
       const newTask: Task = {
         id: data.id,
         categoryId: task.categoryId,
@@ -119,9 +109,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         completionNote: task.completionNote || '',
         status: computeStatus(task.deadline, task.completed || false),
       };
-
       setTasks(prev => [...prev, newTask]);
-
       return { success: true, data: newTask, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -134,7 +122,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       if (!id || id === 'new') throw new Error('Invalid task ID');
-
       const dbUpdates: any = {};
       if (updates.categoryId !== undefined) dbUpdates.category_id = updates.categoryId;
       if (updates.title !== undefined) dbUpdates.title = updates.title;
@@ -142,14 +129,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       if (updates.deadline !== undefined) dbUpdates.deadline = updates.deadline;
       if (updates.completed !== undefined) dbUpdates.completed = updates.completed;
       if (updates.completionNote !== undefined) dbUpdates.completion_note = updates.completionNote;
-
-      const { error: updateError } = await supabase
-        .from('tasks')
-        .update(dbUpdates)
-        .eq('id', id);
-
+      const { error: updateError } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
       if (updateError) throw updateError;
-
       setTasks(prev =>
         prev.map(t => {
           if (t.id !== id) return t;
@@ -157,7 +138,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
           return { ...merged, status: computeStatus(merged.deadline, merged.completed) };
         })
       );
-
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -169,9 +149,13 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const deleteTask = async (id: string) => {
     try {
       setError(null);
-      const { error: deleteError } = await supabase.from('tasks').delete().eq('id', id);
+      const { error: deleteError } = await supabase
+        .from('tasks')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
       if (deleteError) throw deleteError;
       setTasks(prev => prev.filter(t => t.id !== id));
+      trashEvents.emit();
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -206,7 +190,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const refreshTasks = async () => { await fetchTasks(); };
 
   const value = { tasks, loading, error, createTask, updateTask, deleteTask, completeTask, getTaskById, refreshTasks };
-
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;
 }
 

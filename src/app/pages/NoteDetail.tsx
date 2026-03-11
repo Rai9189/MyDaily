@@ -14,6 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ArrowLeft, Pin, X, Loader2, FileText, Image as ImageIcon, Save } from 'lucide-react';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 
+const MAX_TITLE = 100;
+const MAX_CONTENT = 10_000;
+
 export function NoteDetail() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -42,7 +45,6 @@ export function NoteDetail() {
   const [formData, setFormData] = useState({
     title: '',
     content: '',
-    // ✅ FIX: kosong — user harus pilih sendiri
     categoryId: '',
     pinned: false,
   });
@@ -54,7 +56,6 @@ export function NoteDetail() {
 
   const isBusy = submitting || isUploadingPending;
 
-  // ✅ FIX: Hapus auto-select category, biarkan kosong saat new
   useEffect(() => {
     if (!isNew && note) {
       setFormData({
@@ -134,26 +135,18 @@ export function NoteDetail() {
 
   return (
     <div className="space-y-6 p-1">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/notes')}>
-            <ArrowLeft size={20} />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-semibold text-foreground">
-              {isNew ? 'New Note' : 'Note Detail'}
-            </h1>
-            <p className="text-muted-foreground mt-0.5">
-              {isNew ? 'Create a new note' : 'View and edit this note'}
-            </p>
-          </div>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/notes')}>
+          <ArrowLeft size={20} />
+        </Button>
+        <div>
+          <h1 className="text-3xl font-semibold text-foreground">
+            {isNew ? 'New Note' : 'Note Detail'}
+          </h1>
+          <p className="text-muted-foreground mt-0.5">
+            {isNew ? 'Create a new note' : 'View and edit this note'}
+          </p>
         </div>
-        {!isNew && (
-          <Button variant={formData.pinned ? 'default' : 'outline'} onClick={handleTogglePin} disabled={pinning} className="gap-2">
-            {pinning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pin size={15} />}
-            {formData.pinned ? 'Unpin' : 'Pin'}
-          </Button>
-        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -161,16 +154,44 @@ export function NoteDetail() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-semibold text-foreground">Note Info</CardTitle>
+              {!isNew && (
+                <Button
+                  type="button"
+                  variant={formData.pinned ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={handleTogglePin}
+                  disabled={pinning}
+                  className="gap-1.5 h-7 text-xs px-2.5"
+                >
+                  {pinning ? <Loader2 size={12} className="animate-spin" /> : <Pin size={12} />}
+                  {formData.pinned ? 'Unpin' : 'Pin'}
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-5 pt-2">
+
+            {/* Title — max 100 char */}
             <div className="space-y-1.5">
-              <Label htmlFor="title">Title</Label>
-              <Input id="title" placeholder="Note title..." value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })} required />
+              <div className="flex justify-between items-center">
+                <Label htmlFor="title">Title</Label>
+                <span className={`text-xs ${formData.title.length >= MAX_TITLE ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                  {formData.title.length}/{MAX_TITLE}
+                </span>
+              </div>
+              <Input
+                id="title"
+                placeholder="Note title..."
+                value={formData.title}
+                onChange={(e) => {
+                  if (e.target.value.length <= MAX_TITLE)
+                    setFormData({ ...formData, title: e.target.value });
+                }}
+                maxLength={MAX_TITLE}
+                required
+              />
             </div>
 
-            {/* ✅ FIX: Category — user wajib pilih, tidak ada default */}
             <div className="space-y-1.5">
               <Label htmlFor="category">Category <span className="text-destructive">*</span></Label>
               <Select
@@ -188,10 +209,26 @@ export function NoteDetail() {
               </Select>
             </div>
 
+            {/* Content — max 10.000 char */}
             <div className="space-y-1.5">
-              <Label htmlFor="content">Content</Label>
-              <Textarea id="content" placeholder="Write your note here..." value={formData.content}
-                onChange={(e) => setFormData({ ...formData, content: e.target.value })} rows={10} required />
+              <div className="flex justify-between items-center">
+                <Label htmlFor="content">Content</Label>
+                <span className={`text-xs ${formData.content.length >= MAX_CONTENT ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                  {formData.content.length.toLocaleString('id-ID')}/{MAX_CONTENT.toLocaleString('id-ID')}
+                </span>
+              </div>
+              <Textarea
+                id="content"
+                placeholder="Write your note here..."
+                value={formData.content}
+                onChange={(e) => {
+                  if (e.target.value.length <= MAX_CONTENT)
+                    setFormData({ ...formData, content: e.target.value });
+                }}
+                maxLength={MAX_CONTENT}
+                rows={10}
+                required
+              />
             </div>
 
             {!isNew && note && (

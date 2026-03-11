@@ -14,8 +14,11 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
-import { ArrowLeft, X, Loader2, FileText, Image as ImageIcon, Save, AlertCircle } from 'lucide-react';
+import { ArrowLeft, X, Loader2, FileText, Image as ImageIcon, Save, AlertCircle, AlertTriangle } from 'lucide-react';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
+
+const MAX_AMOUNT = 1_000_000_000;
+const MAX_DESC = 10_000;
 
 function formatAmountDisplay(value: number): string {
   if (!value || value === 0) return '';
@@ -57,11 +60,16 @@ export function TransactionDetail() {
 
   const transaction = isNew ? null : getTransactionById(id!);
 
+  // ✅ Deteksi apakah akun transaksi ini sudah dihapus
+  const originalAccountDeleted =
+    !isNew &&
+    transaction &&
+    transaction.accountId === null;
+
   const [amountDisplay, setAmountDisplay] = useState<string>('');
   const [formData, setFormData] = useState({
     accountId: '',
     amount: 0,
-    // ✅ FIX: type kosong — user harus pilih sendiri
     type: '' as 'income' | 'expense' | '',
     date: new Date().toISOString().split('T')[0],
     categoryId: '',
@@ -71,8 +79,8 @@ export function TransactionDetail() {
   const [attachments, setAttachments] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [amountError, setAmountError] = useState('');
 
-  // Kategori hanya muncul jika type sudah dipilih
   const displayCategories = useMemo(
     () => formData.type ? getCategoriesBySubtype(formData.type as 'income' | 'expense') : [],
     [formData.type, categories]
@@ -87,11 +95,10 @@ export function TransactionDetail() {
     selectedAccount !== undefined &&
     formData.amount > selectedAccount.balance;
 
-  // Edit mode — isi form dari data transaksi yang ada
   useEffect(() => {
     if (!isNew && transaction) {
       setFormData({
-        accountId: transaction.accountId,
+        accountId: transaction.accountId || '', // ✅ null → '' agar Select tidak error
         amount: transaction.amount,
         type: transaction.type,
         date: transaction.date,
@@ -115,17 +122,26 @@ export function TransactionDetail() {
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 
-  const getAccountName = (accountId: string) =>
-    accounts.find(a => a.id === accountId)?.name || 'Unknown';
+  const getAccountName = (accountId: string | null) => {
+    if (!accountId) return 'Deleted Account';
+    return accounts.find(a => a.id === accountId)?.name ?? 'Deleted Account';
+  };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = handleAmountKeyInput(e.target.value);
+    const numeric = parseAmountInput(formatted);
+    if (numeric > MAX_AMOUNT) {
+      setAmountError('Maximum amount is Rp 1,000,000,000');
+      setAmountDisplay(MAX_AMOUNT.toLocaleString('id-ID'));
+      setFormData(prev => ({ ...prev, amount: MAX_AMOUNT }));
+      return;
+    }
+    setAmountError('');
     setAmountDisplay(formatted);
-    setFormData(prev => ({ ...prev, amount: parseAmountInput(formatted) }));
+    setFormData(prev => ({ ...prev, amount: numeric }));
   };
 
   const handleTypeChange = (v: 'income' | 'expense') => {
-    // ✅ FIX: Reset categoryId saat type berubah karena kategori berbeda
     setFormData(prev => ({ ...prev, type: v, categoryId: '' }));
   };
 
@@ -201,6 +217,17 @@ export function TransactionDetail() {
         </div>
       </div>
 
+      {/* ✅ Warning banner — muncul jika akun asal sudah dihapus */}
+      {originalAccountDeleted && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+          <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-700 dark:text-amber-300">
+            The account linked to this transaction has been <strong>deleted</strong>. The transaction history is still saved.
+            To edit this transaction, please select a new account below.
+          </p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-5">
         <Card className="border border-border bg-card">
           <CardHeader className="pb-2">
@@ -211,6 +238,15 @@ export function TransactionDetail() {
             {/* Account */}
             <div className="space-y-1.5">
               <Label htmlFor="account">Account <span className="text-destructive">*</span></Label>
+
+              {/* ✅ Tampilkan info "Deleted Account" sebagai hint sebelum dropdown */}
+              {originalAccountDeleted && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 border border-border text-sm text-muted-foreground italic mb-1">
+                  <AlertTriangle size={13} className="text-amber-500 flex-shrink-0" />
+                  Previously linked to a deleted account — please select a new one
+                </div>
+              )}
+
               <Select value={formData.accountId} onValueChange={(v) => setFormData({ ...formData, accountId: v })}>
                 <SelectTrigger id="account">
                   <SelectValue placeholder="Select account" />
@@ -240,6 +276,10 @@ export function TransactionDetail() {
                   required
                 />
               </div>
+              {amountError && (
+                <p className="text-xs text-destructive">{amountError}</p>
+              )}
+              <p className="text-xs text-muted-foreground">Maximum: Rp 1,000,000,000</p>
               {isOverBalance && (
                 <div className="flex items-center gap-1.5 text-xs text-destructive">
                   <AlertCircle size={13} />
@@ -251,12 +291,11 @@ export function TransactionDetail() {
               )}
             </div>
 
-            {/* Transaction Type — user wajib pilih, tidak ada default */}
+            {/* Transaction Type */}
             <div className="space-y-1.5">
               <Label htmlFor="type">Transaction Type <span className="text-destructive">*</span></Label>
               <Select value={formData.type} onValueChange={handleTypeChange}>
                 <SelectTrigger id="type">
-                  {/* ✅ FIX: placeholder muncul karena value awal '' */}
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -273,11 +312,9 @@ export function TransactionDetail() {
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })} required />
             </div>
 
-            {/* Category — disabled sampai type dipilih */}
+            {/* Category */}
             <div className="space-y-1.5">
-              <Label htmlFor="category">
-                Category <span className="text-destructive">*</span>
-              </Label>
+              <Label htmlFor="category">Category <span className="text-destructive">*</span></Label>
               <Select
                 key={formData.type}
                 value={formData.categoryId}
@@ -297,10 +334,19 @@ export function TransactionDetail() {
 
             {/* Description */}
             <div className="space-y-1.5">
-              <Label htmlFor="description">Description <span className="text-muted-foreground font-normal">(Optional)</span></Label>
+              <div className="flex justify-between items-center">
+                <Label htmlFor="description">Description <span className="text-muted-foreground font-normal">(Optional)</span></Label>
+                <span className={`text-xs ${formData.description.length >= MAX_DESC ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                  {formData.description.length.toLocaleString('id-ID')}/{MAX_DESC.toLocaleString('id-ID')}
+                </span>
+              </div>
               <Textarea id="description" placeholder="Add a note about this transaction..."
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) => {
+                  if (e.target.value.length <= MAX_DESC)
+                    setFormData({ ...formData, description: e.target.value });
+                }}
+                maxLength={MAX_DESC}
                 rows={3} />
             </div>
 
@@ -334,14 +380,18 @@ export function TransactionDetail() {
                   {attachments.map((file) => (
                     <div key={file.id} className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        {isImageFile(file.name) ? <ImageIcon size={18} className="text-primary flex-shrink-0" /> : <FileText size={18} className="text-red-500 flex-shrink-0" />}
+                        {isImageFile(file.name)
+                          ? <ImageIcon size={18} className="text-primary flex-shrink-0" />
+                          : <FileText size={18} className="text-red-500 flex-shrink-0" />}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
                           <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
                         </div>
-                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex-shrink-0 mr-2">View</a>
+                        <a href={file.url} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline flex-shrink-0 mr-2">View</a>
                       </div>
-                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive"
+                      <Button type="button" variant="ghost" size="icon"
+                        className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive"
                         onClick={() => handleDeleteAttachment(file.id, file.url)}>
                         <X size={15} />
                       </Button>
@@ -360,15 +410,18 @@ export function TransactionDetail() {
               <CardTitle className="text-base font-semibold text-foreground">Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2.5 pt-2">
-              {[
-                { label: 'Account', value: getAccountName(transaction.accountId) },
-                { label: 'Date', value: new Date(transaction.date).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) },
-              ].map(({ label, value }) => (
-                <div key={label} className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">{label}</span>
-                  <span className="text-foreground font-medium">{value}</span>
-                </div>
-              ))}
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Account</span>
+                <span className={`font-medium ${!transaction.accountId ? 'text-muted-foreground italic' : 'text-foreground'}`}>
+                  {getAccountName(transaction.accountId)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Date</span>
+                <span className="text-foreground font-medium">
+                  {new Date(transaction.date).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </span>
+              </div>
               <div className="flex justify-between text-sm items-center">
                 <span className="text-muted-foreground">Type</span>
                 <Badge variant={transaction.type === 'income' ? 'default' : 'destructive'}>
@@ -377,7 +430,9 @@ export function TransactionDetail() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Amount</span>
-                <span className={`font-semibold ${transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                <span className={`font-semibold ${
+                  transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                }`}>
                   {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                 </span>
               </div>

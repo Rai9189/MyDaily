@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { supabase, handleSupabaseError } from '../../lib/supabase';
 import { Account } from '../types';
 import { useAuth } from './AuthContext';
+import { trashEvents } from '../../lib/trashEvents';
 
 interface AccountContextType {
   accounts: Account[];
@@ -12,8 +13,6 @@ interface AccountContextType {
   updateAccount: (id: string, updates: Partial<Account>) => Promise<{ success: boolean; error: string | null }>;
   deleteAccount: (id: string) => Promise<{ success: boolean; error: string | null }>;
   refreshAccounts: () => Promise<void>;
-  // ✅ FIX: Fungsi untuk update balance secara lokal tanpa re-fetch ke Supabase
-  // Dipanggil dari TransactionContext setiap kali transaksi dibuat/diupdate/dihapus
   updateBalanceLocally: (accountId: string, delta: number) => void;
 }
 
@@ -26,11 +25,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const fetchAccounts = async () => {
-    if (!user) {
-      setAccounts([]);
-      setLoading(false);
-      return;
-    }
+    if (!user) { setAccounts([]); setLoading(false); return; }
     try {
       setLoading(true);
       setError(null);
@@ -38,6 +33,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         .from('accounts')
         .select('*')
         .eq('user_id', user.id)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
       if (fetchError) throw fetchError;
       setAccounts(data || []);
@@ -50,6 +46,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchAccounts();
+    const unsub = trashEvents.subscribeRestore((table) => {
+      if (table === 'accounts') fetchAccounts();
+    });
+    return unsub;
   }, [user]);
 
   const createAccount = async (account: Omit<Account, 'id'>) => {
@@ -88,9 +88,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const deleteAccount = async (id: string) => {
     try {
       setError(null);
-      const { error: deleteError } = await supabase.from('accounts').delete().eq('id', id);
+      const { error: deleteError } = await supabase
+        .from('accounts')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
       if (deleteError) throw deleteError;
       setAccounts(prev => prev.filter(acc => acc.id !== id));
+      trashEvents.emit();
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -101,29 +105,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const refreshAccounts = async () => { await fetchAccounts(); };
 
-  // ✅ FIX: Update balance lokal secara langsung
-  // delta positif = tambah saldo (income), delta negatif = kurangi saldo (expense)
   const updateBalanceLocally = (accountId: string, delta: number) => {
     setAccounts(prev =>
-      prev.map(acc =>
-        acc.id === accountId
-          ? { ...acc, balance: acc.balance + delta }
-          : acc
-      )
+      prev.map(acc => acc.id === accountId ? { ...acc, balance: acc.balance + delta } : acc)
     );
   };
 
-  const value = {
-    accounts,
-    loading,
-    error,
-    createAccount,
-    updateAccount,
-    deleteAccount,
-    refreshAccounts,
-    updateBalanceLocally,
-  };
-
+  const value = { accounts, loading, error, createAccount, updateAccount, deleteAccount, refreshAccounts, updateBalanceLocally };
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }
 

@@ -6,7 +6,6 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Plus, Edit, Trash2, Search, Loader2, Save, ChevronRight, FolderOpen, Tag } from 'lucide-react';
 import { Category } from '../types';
 
@@ -35,9 +34,11 @@ export function Categories() {
   const [formData, setFormData] = useState({
     name: '',
     type: 'transaction' as 'transaction' | 'task' | 'note',
+    subtype: '' as 'income' | 'expense' | '',
     color: '#3b82f6',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [subtypeFilter, setSubtypeFilter] = useState<'all' | 'income' | 'expense'>('all');
 
   // ─── Dialog Handlers ───────────────────────────────────────
 
@@ -45,7 +46,7 @@ export function Categories() {
     setDialogMode('add-parent');
     setEditingCategory(null);
     setSelectedParent(null);
-    setFormData({ name: '', type, color: '#3b82f6' });
+    setFormData({ name: '', type, subtype: '', color: '#3b82f6' });
     setIsDialogOpen(true);
   };
 
@@ -53,7 +54,7 @@ export function Categories() {
     setDialogMode('add-sub');
     setEditingCategory(null);
     setSelectedParent(parent);
-    setFormData({ name: '', type: parent.type, color: parent.color || '#3b82f6' });
+    setFormData({ name: '', type: parent.type, subtype: parent.subtype ?? '', color: parent.color || '#3b82f6' });
     setIsDialogOpen(true);
   };
 
@@ -61,7 +62,12 @@ export function Categories() {
     setDialogMode('edit');
     setEditingCategory(category);
     setSelectedParent(null);
-    setFormData({ name: category.name, type: category.type, color: category.color || '#3b82f6' });
+    setFormData({
+      name: category.name,
+      type: category.type,
+      subtype: category.subtype ?? '',
+      color: category.color || '#3b82f6',
+    });
     setIsDialogOpen(true);
   };
 
@@ -70,12 +76,18 @@ export function Categories() {
     setSubmitting(true);
     try {
       if (dialogMode === 'edit' && editingCategory) {
-        const { success, error } = await updateCategory(editingCategory.id, {
+        const updates: Partial<Category> = {
           name: formData.name,
           color: formData.color,
-        });
+        };
+        // Only update subtype for transaction parent categories
+        if (editingCategory.type === 'transaction' && !editingCategory.parentId) {
+          updates.subtype = formData.subtype || undefined;
+        }
+        const { success, error } = await updateCategory(editingCategory.id, updates);
         if (success) setIsDialogOpen(false);
         else alert(error || 'Failed to update category');
+
       } else if (dialogMode === 'add-sub' && selectedParent) {
         const { success, error } = await createCategory({
           name: formData.name,
@@ -86,17 +98,20 @@ export function Categories() {
         });
         if (success) {
           setIsDialogOpen(false);
-          // Auto-expand parent after adding subcategory
           setExpandedIds(prev => new Set([...prev, selectedParent.id]));
         } else {
           alert(error || 'Failed to create subcategory');
         }
+
       } else {
         const { success, error } = await createCategory({
           name: formData.name,
           type: formData.type,
           color: formData.color,
           parentId: null,
+          subtype: formData.type === 'transaction' && formData.subtype
+            ? formData.subtype
+            : undefined,
         });
         if (success) setIsDialogOpen(false);
         else alert(error || 'Failed to create category');
@@ -136,14 +151,12 @@ export function Categories() {
     const isExpanded = expandedIds.has(category.id);
     const visibleSubs = subs.filter(matchesSearch);
 
-    // If searching: hide parent rows that don't match AND have no matching children
     if (searchQuery && !matchesSearch(category) && visibleSubs.length === 0) return null;
 
     return (
       <div>
         <div className={`flex items-center justify-between px-4 py-3 rounded-lg border border-border transition-colors hover:bg-muted/50 ${isSubcat ? 'bg-muted/20 ml-6' : 'bg-muted/30'}`}>
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            {/* Expand toggle for parent with subcategories */}
             {!isSubcat && subs.length > 0 ? (
               <button
                 onClick={() => toggleExpand(category.id)}
@@ -171,11 +184,20 @@ export function Categories() {
               {subs.length > 0 && !isSubcat && (
                 <span className="text-xs text-muted-foreground flex-shrink-0">({subs.length})</span>
               )}
+              {/* Subtype badge for transaction parent categories */}
+              {!isSubcat && category.type === 'transaction' && category.subtype && (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                  category.subtype === 'income'
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                }`}>
+                  {category.subtype === 'income' ? 'Income' : 'Expense'}
+                </span>
+              )}
             </div>
           </div>
 
           <div className="flex items-center gap-0 flex-shrink-0">
-            {/* Add subcategory button — only on parent rows */}
             {!isSubcat && (
               <Button
                 variant="ghost"
@@ -206,7 +228,6 @@ export function Categories() {
           </div>
         </div>
 
-        {/* Subcategories — shown when expanded or when searching */}
         {(isExpanded || searchQuery) && visibleSubs.length > 0 && (
           <div className="mt-1 space-y-1">
             {visibleSubs.map(sub => (
@@ -226,6 +247,9 @@ export function Categories() {
     }
 
     const visibleParents = parents.filter(p => {
+      if (type === 'transaction' && subtypeFilter !== 'all') {
+        if (p.subtype !== subtypeFilter) return false;
+      }
       if (!searchQuery) return true;
       return matchesSearch(p) || getSubcategories(p.id).some(matchesSearch);
     });
@@ -233,11 +257,7 @@ export function Categories() {
     return (
       <div
         className="cat-list-scroll space-y-2 overflow-y-auto"
-        style={{
-          maxHeight: '420px',
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-        } as React.CSSProperties}
+        style={{ maxHeight: '420px', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}
       >
         {visibleParents.length === 0 ? (
           <p className="text-center text-muted-foreground py-10 text-sm">
@@ -250,7 +270,7 @@ export function Categories() {
     );
   };
 
-  // ─── Dialog title & description ─────────────────────────────
+  // ─── Dialog title ────────────────────────────────────────────
 
   const dialogTitle = dialogMode === 'edit'
     ? 'Edit Category'
@@ -258,15 +278,15 @@ export function Categories() {
       ? `Add Subcategory to "${selectedParent?.name}"`
       : 'Add New Category';
 
-  const transactionCategories = getCategoriesByType('transaction');
-  const taskCategories = getCategoriesByType('task');
-  const noteCategories = getCategoriesByType('note');
-
   const countWithSubs = (type: 'transaction' | 'task' | 'note') => {
     const parents = getCategoriesByType(type);
-    const total = parents.length + parents.reduce((sum, p) => sum + getSubcategories(p.id).length, 0);
-    return total;
+    return parents.length + parents.reduce((sum, p) => sum + getSubcategories(p.id).length, 0);
   };
+
+  // Whether to show subtype selector
+  const showSubtypeSelector =
+    (dialogMode === 'add-parent' && formData.type === 'transaction') ||
+    (dialogMode === 'edit' && editingCategory?.type === 'transaction' && !editingCategory?.parentId);
 
   if (error) {
     return (
@@ -278,7 +298,6 @@ export function Categories() {
 
   return (
     <div className="space-y-6 p-1">
-      {/* Hide scrollbar for Chrome/Safari */}
       <style>{`.cat-list-scroll::-webkit-scrollbar { display: none; }`}</style>
 
       {/* Header */}
@@ -313,18 +332,35 @@ export function Categories() {
         <CardContent>
           <Tabs defaultValue="transaction" onValueChange={(v) => setActiveTab(v as 'transaction' | 'task' | 'note')}>
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="transaction">
-                Transactions ({countWithSubs('transaction')})
-              </TabsTrigger>
-              <TabsTrigger value="task">
-                Tasks ({countWithSubs('task')})
-              </TabsTrigger>
-              <TabsTrigger value="note">
-                Notes ({countWithSubs('note')})
-              </TabsTrigger>
+              <TabsTrigger value="transaction">Transactions ({countWithSubs('transaction')})</TabsTrigger>
+              <TabsTrigger value="task">Tasks ({countWithSubs('task')})</TabsTrigger>
+              <TabsTrigger value="note">Notes ({countWithSubs('note')})</TabsTrigger>
             </TabsList>
-
             <TabsContent value="transaction" className="mt-4">
+              {/* Subtype filter pills */}
+              <div className="flex gap-2 mb-4">
+                {([
+                  { value: 'all', label: 'All' },
+                  { value: 'income', label: 'Income' },
+                  { value: 'expense', label: 'Expense' },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setSubtypeFilter(opt.value)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      subtypeFilter === opt.value
+                        ? opt.value === 'income'
+                          ? 'bg-green-600 text-white border-green-600'
+                          : opt.value === 'expense'
+                            ? 'bg-red-600 text-white border-red-600'
+                            : 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-foreground'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
               <CategoryList type="transaction" />
             </TabsContent>
             <TabsContent value="task" className="mt-4">
@@ -350,7 +386,9 @@ export function Categories() {
               </p>
             )}
           </DialogHeader>
+
           <form onSubmit={handleSubmit} className="space-y-5 mt-2">
+            {/* Name */}
             <div className="space-y-1.5">
               <Label htmlFor="name">
                 {dialogMode === 'add-sub' ? 'Subcategory Name' : 'Category Name'}
@@ -375,12 +413,49 @@ export function Categories() {
                       type="button"
                       variant={formData.type === t ? 'default' : 'outline'}
                       size="sm"
-                      onClick={() => setFormData({ ...formData, type: t })}
+                      onClick={() => setFormData({ ...formData, type: t, subtype: '' })}
                     >
                       {t === 'transaction' ? 'Transaction' : t === 'task' ? 'Task' : 'Note'}
                     </Button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Subtype selector — only for transaction parent categories */}
+            {showSubtypeSelector && (
+              <div className="space-y-1.5">
+                <Label>Subtype</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { value: 'income', label: 'Income' },
+                    { value: 'expense', label: 'Expense' },
+                  ] as const).map((opt) => (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      variant={formData.subtype === opt.value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setFormData({ ...formData, subtype: opt.value })}
+                      className={
+                        formData.subtype === opt.value && opt.value === 'income'
+                          ? 'bg-green-600 hover:bg-green-700 border-green-600'
+                          : formData.subtype === opt.value && opt.value === 'expense'
+                            ? 'bg-red-600 hover:bg-red-700 border-red-600'
+                            : ''
+                      }
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {formData.subtype === 'income'
+                    ? 'This category will only appear when adding income transactions.'
+                    : formData.subtype === 'expense'
+                      ? 'This category will only appear when adding expense transactions.'
+                      : 'Please select income or expense.'}
+                </p>
               </div>
             )}
 
@@ -390,9 +465,19 @@ export function Categories() {
                 <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: selectedParent.color }} />
                 <span className="text-xs text-muted-foreground">Under:</span>
                 <span className="text-xs font-medium text-foreground">{selectedParent.name}</span>
+                {selectedParent.subtype && (
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                    selectedParent.subtype === 'income'
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                  }`}>
+                    {selectedParent.subtype === 'income' ? 'Income' : 'Expense'}
+                  </span>
+                )}
               </div>
             )}
 
+            {/* Color */}
             <div className="space-y-1.5">
               <Label htmlFor="color">Color</Label>
               <div className="flex gap-3 items-center">

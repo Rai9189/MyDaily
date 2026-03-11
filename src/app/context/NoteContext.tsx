@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { supabase, handleSupabaseError } from '../../lib/supabase';
 import { Note } from '../types';
 import { useAuth } from './AuthContext';
+import { trashEvents } from '../../lib/trashEvents';
 
 interface NoteContextType {
   notes: Note[];
@@ -18,7 +19,6 @@ interface NoteContextType {
 
 const NoteContext = createContext<NoteContextType | undefined>(undefined);
 
-// ✅ FIX: Map data Supabase (snake_case) ke Note type (camelCase)
 function mapToNote(row: any): Note {
   return {
     id: row.id,
@@ -37,26 +37,18 @@ export function NoteProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const fetchNotes = async () => {
-    if (!user) {
-      setNotes([]);
-      setLoading(false);
-      return;
-    }
-
+    if (!user) { setNotes([]); setLoading(false); return; }
     try {
       setLoading(true);
       setError(null);
-
       const { data, error: fetchError } = await supabase
         .from('notes')
         .select('*')
         .eq('user_id', user.id)
+        .is('deleted_at', null)
         .order('pinned', { ascending: false })
         .order('created_at', { ascending: false });
-
       if (fetchError) throw fetchError;
-
-      // ✅ FIX: Map semua row ke camelCase
       setNotes((data || []).map(mapToNote));
     } catch (err) {
       setError(handleSupabaseError(err));
@@ -67,17 +59,18 @@ export function NoteProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchNotes();
+    const unsub = trashEvents.subscribeRestore((table) => {
+      if (table === 'notes') fetchNotes();
+    });
+    return unsub;
   }, [user]);
 
-  const getNoteById = (id: string) => {
-    return notes.find(n => n.id === id);
-  };
+  const getNoteById = (id: string) => notes.find(n => n.id === id);
 
   const createNote = async (note: Omit<Note, 'id' | 'timestamp'>) => {
     try {
       setError(null);
       if (!user) throw new Error('User not authenticated');
-
       const { data, error: insertError } = await supabase
         .from('notes')
         .insert({
@@ -89,13 +82,9 @@ export function NoteProvider({ children }: { children: ReactNode }) {
         })
         .select()
         .single();
-
       if (insertError) throw insertError;
-
-      // ✅ FIX: Map hasil insert ke camelCase sebelum masuk state
       const mapped = mapToNote(data);
       setNotes(prev => [mapped, ...prev]);
-
       return { success: true, data: mapped, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -107,27 +96,15 @@ export function NoteProvider({ children }: { children: ReactNode }) {
   const updateNote = async (id: string, updates: Partial<Note>) => {
     try {
       setError(null);
-
-      // ✅ FIX: Guard id valid
       if (!id || id === 'new') throw new Error('Invalid note ID');
-
       const dbUpdates: any = {};
       if (updates.categoryId !== undefined) dbUpdates.category_id = updates.categoryId;
       if (updates.title !== undefined) dbUpdates.title = updates.title;
       if (updates.content !== undefined) dbUpdates.content = updates.content;
       if (updates.pinned !== undefined) dbUpdates.pinned = updates.pinned;
-
-      const { error: updateError } = await supabase
-        .from('notes')
-        .update(dbUpdates)
-        .eq('id', id);
-
+      const { error: updateError } = await supabase.from('notes').update(dbUpdates).eq('id', id);
       if (updateError) throw updateError;
-
-      setNotes(prev =>
-        prev.map(n => (n.id === id ? { ...n, ...updates } : n))
-      );
-
+      setNotes(prev => prev.map(n => (n.id === id ? { ...n, ...updates } : n)));
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -139,16 +116,13 @@ export function NoteProvider({ children }: { children: ReactNode }) {
   const deleteNote = async (id: string) => {
     try {
       setError(null);
-
       const { error: deleteError } = await supabase
         .from('notes')
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq('id', id);
-
       if (deleteError) throw deleteError;
-
       setNotes(prev => prev.filter(n => n.id !== id));
-
+      trashEvents.emit();
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -163,29 +137,14 @@ export function NoteProvider({ children }: { children: ReactNode }) {
     return updateNote(id, { pinned: !note.pinned });
   };
 
-  const refreshNotes = async () => {
-    await fetchNotes();
-  };
+  const refreshNotes = async () => { await fetchNotes(); };
 
-  const value = {
-    notes,
-    loading,
-    error,
-    createNote,
-    updateNote,
-    deleteNote,
-    togglePin,
-    getNoteById,
-    refreshNotes,
-  };
-
+  const value = { notes, loading, error, createNote, updateNote, deleteNote, togglePin, getNoteById, refreshNotes };
   return <NoteContext.Provider value={value}>{children}</NoteContext.Provider>;
 }
 
 export function useNotes() {
   const context = useContext(NoteContext);
-  if (!context) {
-    throw new Error('useNotes must be used within NoteProvider');
-  }
+  if (!context) throw new Error('useNotes must be used within NoteProvider');
   return context;
 }

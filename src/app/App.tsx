@@ -1,3 +1,4 @@
+// src/app/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -7,6 +8,7 @@ import { TransactionProvider } from './context/TransactionContext';
 import { TaskProvider } from './context/TaskContext';
 import { NoteProvider } from './context/NoteContext';
 import { AttachmentProvider } from './context/AttachmentContext';
+import { TrashProvider } from './context/TrashContext';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
@@ -23,6 +25,7 @@ import { Notes } from './pages/Notes';
 import { NoteDetail } from './pages/NoteDetail';
 import { Profile } from './pages/Profile';
 import { Categories } from './pages/Categories';
+import { Trash } from './pages/Trash';
 import { Loader2 } from 'lucide-react';
 
 function DataProviders({ children }: { children: React.ReactNode }) {
@@ -33,7 +36,9 @@ function DataProviders({ children }: { children: React.ReactNode }) {
           <TaskProvider>
             <NoteProvider>
               <AttachmentProvider>
-                {children}
+                <TrashProvider>
+                  {children}
+                </TrashProvider>
               </AttachmentProvider>
             </NoteProvider>
           </TaskProvider>
@@ -51,27 +56,20 @@ function LoadingScreen() {
   );
 }
 
-// Protected Route - user harus login, punya PIN, dan sudah unlock
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, session, loading, profileLoading, hasPin } = useAuth();
-
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
   if (profileLoading && !user) return <LoadingScreen />;
-
   if (!hasPin()) return <Navigate to="/pin-setup" replace />;
   const pinUnlocked = sessionStorage.getItem('pinUnlocked');
   if (!pinUnlocked) return <Navigate to="/pin-lock" replace />;
-
   return <>{children}</>;
 }
 
-// Public Route - redirect ke dalam app jika sudah login & unlock
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, session, loading, profileLoading, hasPin } = useAuth();
-
   if (loading) return <LoadingScreen />;
-
   if (session) {
     if (profileLoading && !user) return <LoadingScreen />;
     if (!hasPin()) return <Navigate to="/pin-setup" replace />;
@@ -79,25 +77,14 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
     if (!pinUnlocked) return <Navigate to="/pin-lock" replace />;
     return <Navigate to="/" replace />;
   }
-
   return <>{children}</>;
 }
 
-// ✅ FIX: PIN Route - harus login, tapi belum tentu punya PIN atau sudah unlock
-// Sebelumnya /pin-setup dan /pin-lock tidak diproteksi sama sekali,
-// sehingga saat user=null sementara (profile belum load), router bisa
-// masuk ke /pin-setup tanpa cek apapun.
 function PINRoute({ children }: { children: React.ReactNode }) {
   const { session, loading, profileLoading, user } = useAuth();
-
   if (loading) return <LoadingScreen />;
-
-  // Belum login sama sekali → ke login
   if (!session) return <Navigate to="/login" replace />;
-
-  // Session ada tapi profile masih loading → tunggu
   if (profileLoading && !user) return <LoadingScreen />;
-
   return <>{children}</>;
 }
 
@@ -108,8 +95,6 @@ function AppRoutes() {
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
         <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
-
-        {/* ✅ FIX: Gunakan PINRoute agar /pin-setup & /pin-lock hanya bisa diakses saat sudah login */}
         <Route path="/pin-setup" element={<PINRoute><PINSetup /></PINRoute>} />
         <Route path="/pin-lock" element={<PINRoute><PINLock /></PINRoute>} />
 
@@ -126,6 +111,7 @@ function AppRoutes() {
         <Route path="/notes/:id" element={<ProtectedRoute><Layout><NoteDetail /></Layout></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
         <Route path="/categories" element={<ProtectedRoute><Layout><Categories /></Layout></ProtectedRoute>} />
+        <Route path="/trash" element={<ProtectedRoute><Layout><Trash /></Layout></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </DataProviders>
