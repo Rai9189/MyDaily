@@ -108,15 +108,6 @@ export function TaskDetail() {
     }
   };
 
-  const getStatusClass = (status: string) => {
-    switch (status) {
-      case 'Mendesak': return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
-      case 'Mendekati': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
-      case 'Masih Lama': return 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300';
-      default: return 'bg-muted text-muted-foreground';
-    }
-  };
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !id) return;
@@ -178,7 +169,7 @@ export function TaskDetail() {
           <ArrowLeft size={20} />
         </Button>
         <div>
-          <h1 className="text-3xl font-semibold text-foreground">
+          <h1 className="text-2xl md:text-3xl font-semibold text-foreground">
             {isNew ? 'New Task' : task?.completed ? 'Completed Task' : 'Task Detail'}
           </h1>
           <p className="text-muted-foreground mt-0.5">
@@ -206,8 +197,6 @@ export function TaskDetail() {
             </div>
           </CardHeader>
           <CardContent className="space-y-5 pt-2">
-
-            {/* Title — max 100 char */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
                 <Label htmlFor="title">Task Title</Label>
@@ -254,7 +243,6 @@ export function TaskDetail() {
               </Select>
             </div>
 
-            {/* Description — max 10.000 char */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
                 <Label htmlFor="description">
@@ -290,7 +278,6 @@ export function TaskDetail() {
           </CardContent>
         </Card>
 
-        {/* Attachments (edit mode) */}
         {!isNew && (
           <Card className="border border-border bg-card">
             <CardHeader className="pb-2">
@@ -328,7 +315,6 @@ export function TaskDetail() {
           </Card>
         )}
 
-        {/* Mark as Complete */}
         {!isNew && task && !task.completed && (
           <Card className="border border-border bg-card">
             <CardHeader className="pb-2">

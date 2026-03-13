@@ -96,7 +96,7 @@ export function Settings() {
   return (
     <div className="space-y-5 p-1">
       <div>
-        <h1 className="text-3xl font-semibold text-foreground">Settings</h1>
+        <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Settings</h1>
         <p className="text-muted-foreground mt-1">Security, preferences & data</p>
       </div>
 
@@ -113,7 +113,7 @@ export function Settings() {
 
           {/* Change Password */}
           <div>
-            <Button variant="outline" className="w-full justify-start gap-2" type="button" onClick={handleChangePassword} disabled={sendingReset || resetSent}>
+            <Button variant="outline" className="w-full justify-start gap-2 dark:hover:bg-[#1e3f5c] dark:hover:border-[#2a5278]" type="button" onClick={handleChangePassword} disabled={sendingReset || resetSent}>
               {sendingReset ? <><Loader2 size={15} className="animate-spin" /> Sending...</>
                 : resetSent ? <><Mail size={15} /> Reset Link Sent — Check Your Email</>
                 : <><Mail size={15} /> Change Password</>}
@@ -130,7 +130,7 @@ export function Settings() {
 
           {/* Change PIN */}
           <div>
-            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => { setShowPinVerify(!showPinVerify); setOldPin(''); setPinVerifyError(null); setPinVerifyAttempts(0); }} type="button" disabled={pinVerifyAttempts >= PIN_VERIFY_MAX}>
+            <Button variant="outline" className="w-full justify-start gap-2 dark:hover:bg-[#1e3f5c] dark:hover:border-[#2a5278]" onClick={() => { setShowPinVerify(!showPinVerify); setOldPin(''); setPinVerifyError(null); setPinVerifyAttempts(0); }} type="button" disabled={pinVerifyAttempts >= PIN_VERIFY_MAX}>
               <ShieldCheck size={15} />
               {pinVerifyAttempts >= PIN_VERIFY_MAX ? 'PIN Change Locked' : 'Change Security PIN'}
             </Button>
@@ -167,14 +167,14 @@ export function Settings() {
         </div>
         <CardContent className="space-y-4 pt-0 pb-3">
           <div>
-            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate('/categories')} type="button">
+            <Button variant="outline" className="w-full justify-start gap-2 dark:hover:bg-[#1e3f5c] dark:hover:border-[#2a5278]" onClick={() => navigate('/categories')} type="button">
               <Tag size={15} /> Manage Categories
             </Button>
             <p className="text-xs text-muted-foreground mt-1.5 px-1">Customize categories for transactions, tasks, and notes</p>
           </div>
 
           <div>
-            <Button variant="outline" className="w-full justify-start gap-2 relative" onClick={() => navigate('/trash')} type="button">
+            <Button variant="outline" className="w-full justify-start gap-2 relative dark:hover:bg-[#1e3f5c] dark:hover:border-[#2a5278]" onClick={() => navigate('/trash')} type="button">
               <Trash2 size={15} /> View Trash
               {trashItems.length > 0 && (
                 <span className="ml-auto text-xs font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full">{trashItems.length}</span>

@@ -60,7 +60,6 @@ export function TransactionDetail() {
 
   const transaction = isNew ? null : getTransactionById(id!);
 
-  // ✅ Deteksi apakah akun transaksi ini sudah dihapus
   const originalAccountDeleted =
     !isNew &&
     transaction &&
@@ -98,7 +97,7 @@ export function TransactionDetail() {
   useEffect(() => {
     if (!isNew && transaction) {
       setFormData({
-        accountId: transaction.accountId || '', // ✅ null → '' agar Select tidak error
+        accountId: transaction.accountId || '',
         amount: transaction.amount,
         type: transaction.type,
         date: transaction.date,
@@ -208,7 +207,7 @@ export function TransactionDetail() {
           <ArrowLeft size={20} />
         </Button>
         <div>
-          <h1 className="text-3xl font-semibold text-foreground">
+          <h1 className="text-2xl md:text-3xl font-semibold text-foreground">
             {isNew ? 'New Transaction' : 'Transaction Detail'}
           </h1>
           <p className="text-muted-foreground mt-0.5">
@@ -217,7 +216,6 @@ export function TransactionDetail() {
         </div>
       </div>
 
-      {/* ✅ Warning banner — muncul jika akun asal sudah dihapus */}
       {originalAccountDeleted && (
         <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
           <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
@@ -234,19 +232,14 @@ export function TransactionDetail() {
             <CardTitle className="text-base font-semibold text-foreground">Transaction Info</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5 pt-2">
-
-            {/* Account */}
             <div className="space-y-1.5">
               <Label htmlFor="account">Account <span className="text-destructive">*</span></Label>
-
-              {/* ✅ Tampilkan info "Deleted Account" sebagai hint sebelum dropdown */}
               {originalAccountDeleted && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 border border-border text-sm text-muted-foreground italic mb-1">
                   <AlertTriangle size={13} className="text-amber-500 flex-shrink-0" />
                   Previously linked to a deleted account — please select a new one
                 </div>
               )}
-
               <Select value={formData.accountId} onValueChange={(v) => setFormData({ ...formData, accountId: v })}>
                 <SelectTrigger id="account">
                   <SelectValue placeholder="Select account" />
@@ -264,7 +257,6 @@ export function TransactionDetail() {
               </Select>
             </div>
 
-            {/* Amount */}
             <div className="space-y-1.5">
               <Label htmlFor="amount">Amount <span className="text-destructive">*</span></Label>
               <div className="relative">
@@ -276,9 +268,7 @@ export function TransactionDetail() {
                   required
                 />
               </div>
-              {amountError && (
-                <p className="text-xs text-destructive">{amountError}</p>
-              )}
+              {amountError && <p className="text-xs text-destructive">{amountError}</p>}
               <p className="text-xs text-muted-foreground">Maximum: Rp 1,000,000,000</p>
               {isOverBalance && (
                 <div className="flex items-center gap-1.5 text-xs text-destructive">
@@ -291,13 +281,10 @@ export function TransactionDetail() {
               )}
             </div>
 
-            {/* Transaction Type */}
             <div className="space-y-1.5">
               <Label htmlFor="type">Transaction Type <span className="text-destructive">*</span></Label>
               <Select value={formData.type} onValueChange={handleTypeChange}>
-                <SelectTrigger id="type">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
+                <SelectTrigger id="type"><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="income">Income</SelectItem>
                   <SelectItem value="expense">Expense</SelectItem>
@@ -305,14 +292,12 @@ export function TransactionDetail() {
               </Select>
             </div>
 
-            {/* Date */}
             <div className="space-y-1.5">
               <Label htmlFor="date">Date</Label>
               <Input id="date" type="date" value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })} required />
             </div>
 
-            {/* Category */}
             <div className="space-y-1.5">
               <Label htmlFor="category">Category <span className="text-destructive">*</span></Label>
               <Select
@@ -332,7 +317,6 @@ export function TransactionDetail() {
               </Select>
             </div>
 
-            {/* Description */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
                 <Label htmlFor="description">Description <span className="text-muted-foreground font-normal">(Optional)</span></Label>
@@ -346,8 +330,7 @@ export function TransactionDetail() {
                   if (e.target.value.length <= MAX_DESC)
                     setFormData({ ...formData, description: e.target.value });
                 }}
-                maxLength={MAX_DESC}
-                rows={3} />
+                maxLength={MAX_DESC} rows={3} />
             </div>
 
             {isNew && (
@@ -362,7 +345,6 @@ export function TransactionDetail() {
           </CardContent>
         </Card>
 
-        {/* Attachments (edit mode) */}
         {!isNew && (
           <Card className="border border-border bg-card">
             <CardHeader className="pb-2">
@@ -403,7 +385,6 @@ export function TransactionDetail() {
           </Card>
         )}
 
-        {/* Summary (edit mode) */}
         {!isNew && transaction && (
           <Card className="border border-border bg-muted/30">
             <CardHeader className="pb-2">

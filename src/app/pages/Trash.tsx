@@ -46,7 +46,6 @@ function formatCurrency(amount: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 }
 
-// ── Detail Modal ──────────────────────────────────────────────
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
@@ -66,7 +65,6 @@ function TrashItemDetail({ item }: { item: TrashItem }) {
 
   return (
     <div className="space-y-4 mt-2">
-      {/* Type badge */}
       <div className="flex items-center gap-2">
         <span className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${TABLE_COLORS[item.table]}`}>
           {TABLE_ICONS[item.table]}
@@ -75,7 +73,6 @@ function TrashItemDetail({ item }: { item: TrashItem }) {
       </div>
 
       <div className="space-y-3 divide-y divide-border">
-        {/* ── Transaction detail ── */}
         {item.table === 'transactions' && (
           <div className="space-y-3">
             <DetailRow label="Amount" value={
@@ -83,43 +80,29 @@ function TrashItemDetail({ item }: { item: TrashItem }) {
                 {item.meta?.type === 'income' ? '+' : '-'}{formatCurrency(item.meta?.amount ?? 0)}
               </span>
             } />
-            <DetailRow label="Type" value={
-              <span className="capitalize">{item.meta?.type}</span>
-            } />
+            <DetailRow label="Type" value={<span className="capitalize">{item.meta?.type}</span>} />
             <DetailRow label="Date" value={
               new Date(item.meta?.date).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
             } />
             {item.description && <DetailRow label="Description" value={item.description} />}
           </div>
         )}
-
-        {/* ── Task detail ── */}
         {item.table === 'tasks' && (
           <div className="space-y-3">
             <DetailRow label="Title" value={item.name} />
-            {item.description && (
-              <DetailRow label="Deadline" value={item.description.replace('Deadline: ', '')} />
-            )}
+            {item.description && <DetailRow label="Deadline" value={item.description.replace('Deadline: ', '')} />}
           </div>
         )}
-
-        {/* ── Note detail ── */}
         {item.table === 'notes' && (
           <div className="space-y-3">
             <DetailRow label="Title" value={item.name} />
-            {item.description && (
-              <DetailRow label="Content preview" value={item.description} />
-            )}
+            {item.description && <DetailRow label="Content preview" value={item.description} />}
           </div>
         )}
-
-        {/* ── Category detail ── */}
         {item.table === 'categories' && (
           <div className="space-y-3">
             <DetailRow label="Name" value={item.name} />
-            <DetailRow label="Type" value={
-              <span className="capitalize">{item.meta?.type}</span>
-            } />
+            <DetailRow label="Type" value={<span className="capitalize">{item.meta?.type}</span>} />
             {item.meta?.color && (
               <DetailRow label="Color" value={
                 <div className="flex items-center gap-2">
@@ -130,19 +113,13 @@ function TrashItemDetail({ item }: { item: TrashItem }) {
             )}
           </div>
         )}
-
-        {/* ── Account detail ── */}
         {item.table === 'accounts' && (
           <div className="space-y-3">
             <DetailRow label="Name" value={item.name} />
             <DetailRow label="Type" value={item.meta?.type} />
-            <DetailRow label="Balance" value={
-              <span className="font-semibold">{formatCurrency(item.meta?.balance ?? 0)}</span>
-            } />
+            <DetailRow label="Balance" value={<span className="font-semibold">{formatCurrency(item.meta?.balance ?? 0)}</span>} />
           </div>
         )}
-
-        {/* ── Common: deletion info ── */}
         <div className="space-y-3 pt-3">
           <DetailRow label="Deleted on" value={deletedDate} />
           <DetailRow label="Auto-delete on" value={expiryDate} />
@@ -162,7 +139,6 @@ function TrashItemDetail({ item }: { item: TrashItem }) {
   );
 }
 
-// ── Main Page ────────────────────────────────────────────────
 export function Trash() {
   const { trashItems, loading, error, restoreItem, hardDeleteItem, hardDeleteAll } = useTrash();
   const [activeTab, setActiveTab] = useState<TableFilter>('all');
@@ -218,7 +194,7 @@ export function Trash() {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-semibold text-foreground">Trash</h1>
+          <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Trash</h1>
           <p className="text-muted-foreground mt-1">Items are permanently deleted after 30 days</p>
         </div>
         {trashItems.length > 0 && (
@@ -243,13 +219,27 @@ export function Trash() {
       <Card className="border border-border bg-card">
         <CardContent className="pt-4">
           <Tabs defaultValue="all" onValueChange={(v) => setActiveTab(v as TableFilter)}>
-            <TabsList className="grid w-full grid-cols-6">
-              {(['all', 'transactions', 'tasks', 'notes', 'categories', 'accounts'] as TableFilter[]).map(t => (
-                <TabsTrigger key={t} value={t} className="capitalize text-xs">
-                  {t === 'all' ? `All (${countOf('all')})` : `${TABLE_LABELS[t]}s (${countOf(t)})`}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+
+            {/* TabsList — scroll horizontal di mobile */}
+            <div className="overflow-x-auto no-scrollbar">
+              <TabsList className="flex w-max min-w-full md:grid md:grid-cols-6 gap-1">
+                {(['all', 'transactions', 'tasks', 'notes', 'categories', 'accounts'] as TableFilter[]).map(t => (
+                  <TabsTrigger
+                    key={t}
+                    value={t}
+                    className="whitespace-nowrap text-xs px-3"
+                  >
+                    <span className="flex items-center gap-1">
+                      {t !== 'all' && TABLE_ICONS[t]}
+                      {t === 'all'
+                        ? `All (${countOf('all')})`
+                        : `${TABLE_LABELS[t]}s (${countOf(t)})`
+                      }
+                    </span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
 
             {(['all', 'transactions', 'tasks', 'notes', 'categories', 'accounts'] as TableFilter[]).map(t => (
               <TabsContent key={t} value={t} className="mt-4">
@@ -272,14 +262,13 @@ export function Trash() {
                           key={item.id}
                           className="flex items-start justify-between gap-4 px-4 py-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/40 transition-colors"
                         >
-                          {/* Left: clickable area for detail */}
                           <div
                             className="flex items-start gap-3 min-w-0 flex-1 cursor-pointer"
                             onClick={() => setDetailItem(item)}
                           >
                             <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${TABLE_COLORS[item.table]}`}>
                               {TABLE_ICONS[item.table]}
-                              {TABLE_LABELS[item.table]}
+                              <span className="hidden sm:inline">{TABLE_LABELS[item.table]}</span>
                             </span>
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-semibold text-foreground truncate">{item.name}</p>
@@ -296,17 +285,15 @@ export function Trash() {
                                   'text-muted-foreground'
                                 }`}>
                                   {days <= 3 && <AlertTriangle size={11} />}
-                                  {days === 0 ? 'Expires today' : `${days} day${days !== 1 ? 's' : ''} left`}
+                                  {days === 0 ? 'Expires today' : `${days}d left`}
                                 </span>
                               </div>
                             </div>
                           </div>
 
-                          {/* Actions */}
                           <div className="flex items-center gap-1 flex-shrink-0">
                             <Button
-                              variant="ghost"
-                              size="icon"
+                              variant="ghost" size="icon"
                               className="h-8 w-8 text-muted-foreground hover:text-foreground"
                               title="View detail"
                               onClick={() => setDetailItem(item)}
@@ -314,30 +301,22 @@ export function Trash() {
                               <Eye size={15} />
                             </Button>
                             <Button
-                              variant="outline"
-                              size="icon"
+                              variant="outline" size="icon"
                               className="h-8 w-8"
                               title="Restore"
                               onClick={() => handleRestore(item)}
                               disabled={isProcessing}
                             >
-                              {isRestoring
-                                ? <Loader2 size={14} className="animate-spin" />
-                                : <RotateCcw size={14} />
-                              }
+                              {isRestoring ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
                             </Button>
                             <Button
-                              variant="ghost"
-                              size="icon"
+                              variant="ghost" size="icon"
                               className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
                               title="Delete permanently"
                               onClick={() => handleHardDelete(item)}
                               disabled={isProcessing}
                             >
-                              {isDeleting
-                                ? <Loader2 size={14} className="animate-spin" />
-                                : <Trash2 size={14} />
-                              }
+                              {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                             </Button>
                           </div>
                         </div>
@@ -355,35 +334,22 @@ export function Trash() {
       <Dialog open={!!detailItem} onOpenChange={(open) => { if (!open) setDetailItem(null); }}>
         <DialogContent className="bg-card border border-border max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-foreground text-lg font-semibold">
-              Item Detail
-            </DialogTitle>
+            <DialogTitle className="text-foreground text-lg font-semibold">Item Detail</DialogTitle>
           </DialogHeader>
-
           {detailItem && (
             <>
               <TrashItemDetail item={detailItem} />
-
-              {/* Modal actions */}
               <div className="flex gap-2 pt-2 border-t border-border mt-2">
                 <Button
-                  variant="outline"
-                  className="flex-1 gap-2"
-                  onClick={() => {
-                    setDetailItem(null);
-                    handleRestore(detailItem);
-                  }}
+                  variant="outline" className="flex-1 gap-2"
+                  onClick={() => { setDetailItem(null); handleRestore(detailItem); }}
                   disabled={!!processingId}
                 >
                   <RotateCcw size={15} /> Restore
                 </Button>
                 <Button
-                  variant="destructive"
-                  className="flex-1 gap-2"
-                  onClick={() => {
-                    setDetailItem(null);
-                    handleHardDelete(detailItem);
-                  }}
+                  variant="destructive" className="flex-1 gap-2"
+                  onClick={() => { setDetailItem(null); handleHardDelete(detailItem); }}
                   disabled={!!processingId}
                 >
                   <Trash2 size={15} /> Delete Permanently
@@ -395,4 +361,4 @@ export function Trash() {
       </Dialog>
     </div>
   );
-} 
+}

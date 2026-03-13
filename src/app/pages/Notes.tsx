@@ -7,7 +7,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import {
-  Plus, Search, Pin, Paperclip, List, LayoutGrid,
+  Plus, Search, Pin, Paperclip,
   ChevronLeft, ChevronRight, Filter, Loader2, X, Edit, Trash2
 } from 'lucide-react';
 
@@ -18,7 +18,6 @@ export function Notes() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
-  const [viewMode, setViewMode] = useState<'list' | 'card'>('card');
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -31,9 +30,7 @@ export function Notes() {
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Element;
-
       if (filterRef.current && filterRef.current.contains(target)) return;
-
       if (
         target.closest('[data-radix-popper-content-wrapper]') ||
         target.closest('[data-radix-select-viewport]') ||
@@ -41,10 +38,8 @@ export function Notes() {
         target.closest('[role="option"]') ||
         target.closest('[role="listbox"]')
       ) return;
-
       setFilterOpen(false);
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
@@ -70,9 +65,7 @@ export function Notes() {
 
   const totalPages = Math.ceil(regularNotes.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedNotes = viewMode === 'list'
-    ? regularNotes
-    : regularNotes.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedNotes = regularNotes.slice(startIndex, startIndex + itemsPerPage);
 
   const activeFilterCount = [filterCategory !== 'all'].filter(Boolean).length;
 
@@ -97,7 +90,6 @@ export function Notes() {
     setPinningId(null);
   };
 
-  // ─── CARD MODE ───
   const NoteCard = ({ note, isPinned }: { note: any; isPinned?: boolean }) => (
     <Card className={`hover:shadow-md transition-shadow bg-card ${isPinned ? 'border-2 border-primary/40' : 'border border-border'}`}>
       <CardContent className="p-4">
@@ -127,8 +119,7 @@ export function Notes() {
           </div>
           <div className="flex items-center gap-0 flex-shrink-0">
             <Button
-              variant="ghost"
-              size="icon"
+              variant="ghost" size="icon"
               className={`h-8 w-8 ${note.pinned ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
               onClick={(e) => handlePin(e, note)}
               disabled={pinningId === note.id}
@@ -137,76 +128,14 @@ export function Notes() {
               {pinningId === note.id ? <Loader2 size={15} className="animate-spin" /> : <Pin size={15} />}
             </Button>
             <Button
-              variant="ghost"
-              size="icon"
+              variant="ghost" size="icon"
               className="h-8 w-8 text-muted-foreground hover:text-foreground"
               onClick={(e) => handleEdit(e, note.id)}
             >
               <Edit size={15} />
             </Button>
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
-              onClick={(e) => handleDelete(e, note.id)}
-              disabled={deletingId === note.id}
-            >
-              {deletingId === note.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-
-  // ─── LIST MODE ───
-  const NoteListItem = ({ note, isPinned }: { note: any; isPinned?: boolean }) => (
-    <Card className={`hover:shadow-md transition-shadow bg-card ${isPinned ? 'border-2 border-primary/40' : 'border border-border'}`}>
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          {isPinned && <Pin size={14} className="text-primary flex-shrink-0 mt-1" />}
-          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/notes/${note.id}`)}>
-            <span
-              className="text-xs font-medium px-2 py-0.5 rounded-full border"
-              style={{ borderColor: getCategoryColor(note.categoryId), color: getCategoryColor(note.categoryId) }}
-            >
-              {getCategoryName(note.categoryId)}
-            </span>
-            <h3 className="text-sm font-semibold text-foreground mt-1.5">{note.title}</h3>
-            <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{note.content}</p>
-            <div className="flex items-center gap-3 mt-1.5">
-              <span className="text-xs text-muted-foreground/60">
-                {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-              </span>
-              {note.attachments && note.attachments.length > 0 && (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Paperclip size={11} /> {note.attachments.length} attachment{note.attachments.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-0 flex-shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              className={`h-8 w-8 ${note.pinned ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={(e) => handlePin(e, note)}
-              disabled={pinningId === note.id}
-              title={note.pinned ? 'Unpin' : 'Pin'}
-            >
-              {pinningId === note.id ? <Loader2 size={15} className="animate-spin" /> : <Pin size={15} />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              onClick={(e) => handleEdit(e, note.id)}
-            >
-              <Edit size={15} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
+              variant="ghost" size="icon"
               className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
               onClick={(e) => handleDelete(e, note.id)}
               disabled={deletingId === note.id}
@@ -232,11 +161,10 @@ export function Notes() {
   );
 
   return (
-    <div className="space-y-6 p-1">
-      {/* Header */}
+    <div className="space-y-6 p-1 pb-20">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-semibold text-foreground">Notes</h1>
+          <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Notes</h1>
           <p className="text-muted-foreground mt-1">Your personal notes</p>
         </div>
         <Button onClick={() => navigate('/notes/new')} className="gap-2">
@@ -244,7 +172,6 @@ export function Notes() {
         </Button>
       </div>
 
-      {/* Active filter badges */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap gap-2 text-xs items-center">
           {filterCategory !== 'all' && (
@@ -253,16 +180,12 @@ export function Notes() {
               <button onClick={() => { setFilterCategory('all'); setCurrentPage(1); }}><X size={11} /></button>
             </span>
           )}
-          <button
-            onClick={() => { setFilterCategory('all'); setCurrentPage(1); }}
-            className="text-muted-foreground hover:text-foreground underline text-xs"
-          >
+          <button onClick={() => { setFilterCategory('all'); setCurrentPage(1); }} className="text-muted-foreground hover:text-foreground underline text-xs">
             Clear all
           </button>
         </div>
       )}
 
-      {/* Search & Filter */}
       <div className="flex gap-2 items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
@@ -275,11 +198,7 @@ export function Notes() {
         </div>
 
         <div className="relative" ref={filterRef}>
-          <Button
-            variant="outline"
-            className="gap-2 relative"
-            onClick={() => setFilterOpen(prev => !prev)}
-          >
+          <Button variant="outline" className="gap-2 relative" onClick={() => setFilterOpen(prev => !prev)}>
             <Filter size={18} /> Filter
             {activeFilterCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
@@ -290,26 +209,16 @@ export function Notes() {
 
           {filterOpen && (
             <div className="absolute right-0 top-full mt-2 w-72 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
-              {/* Filter Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                <span className="font-semibold text-foreground">Filter & View</span>
+                <span className="font-semibold text-foreground">Filter</span>
                 <div className="flex items-center gap-2">
                   {activeFilterCount > 0 && (
-                    <button
-                      onClick={() => { setFilterCategory('all'); setCurrentPage(1); }}
-                      className="text-xs text-primary hover:underline"
-                    >
-                      Reset all
-                    </button>
+                    <button onClick={() => { setFilterCategory('all'); setCurrentPage(1); }} className="text-xs text-primary hover:underline">Reset all</button>
                   )}
-                  <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground">
-                    <X size={18} />
-                  </button>
+                  <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
                 </div>
               </div>
-
               <div className="p-4 space-y-4">
-                {/* Filter: Category */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</label>
                   <Select value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setCurrentPage(1); }}>
@@ -322,54 +231,24 @@ export function Notes() {
                     </SelectContent>
                   </Select>
                 </div>
-
-                {/* View Mode */}
+                {/* Per page — selalu tampil */}
                 <div className="border-t border-border pt-3 space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">View</label>
-                  <div className="flex gap-2">
-                    <Button
-                      variant={viewMode === 'list' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setViewMode('list')}
-                      className="gap-2 flex-1"
-                    >
-                      <List size={15} /> List
-                    </Button>
-                    <Button
-                      variant={viewMode === 'card' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setViewMode('card')}
-                      className="gap-2 flex-1"
-                    >
-                      <LayoutGrid size={15} /> Card
-                    </Button>
-                  </div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Per page</label>
+                  <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-
-                {/* Per page (card mode only) */}
-                {viewMode === 'card' && (
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Per page</label>
-                    <Select
-                      value={itemsPerPage.toString()}
-                      onValueChange={(v) => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="3">3</SelectItem>
-                        <SelectItem value="6">6</SelectItem>
-                        <SelectItem value="12">12</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Empty state */}
       {filteredNotes.length === 0 && (
         <Card className="border border-border bg-card">
           <CardContent className="py-16 text-center">
@@ -381,24 +260,18 @@ export function Notes() {
         </Card>
       )}
 
-      {/* Pinned notes */}
       {pinnedNotes.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Pin size={16} className="text-primary" />
             <h2 className="text-base font-semibold text-foreground">Pinned ({pinnedNotes.length})</h2>
           </div>
-          <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
-            {pinnedNotes.map(note =>
-              viewMode === 'card'
-                ? <NoteCard key={note.id} note={note} isPinned />
-                : <NoteListItem key={note.id} note={note} isPinned />
-            )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pinnedNotes.map(note => <NoteCard key={note.id} note={note} isPinned />)}
           </div>
         </div>
       )}
 
-      {/* Regular notes */}
       {regularNotes.length > 0 && (
         <div>
           <h2 className="text-base font-semibold text-foreground mb-3">
@@ -407,38 +280,24 @@ export function Notes() {
               ({regularNotes.length}{activeFilterCount > 0 ? ` of ${notes.filter(n => !n.pinned).length}` : ''})
             </span>
           </h2>
-          <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
-            {paginatedNotes.map(note =>
-              viewMode === 'card'
-                ? <NoteCard key={note.id} note={note} />
-                : <NoteListItem key={note.id} note={note} />
-            )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {paginatedNotes.map(note => <NoteCard key={note.id} note={note} />)}
           </div>
         </div>
       )}
 
-      {/* Pagination (card mode only) */}
-      {viewMode === 'card' && totalPages > 1 && (
-        <div className="flex items-center justify-between">
+      {/* Sticky Pagination */}
+      {totalPages > 1 && (
+        <div className="sticky bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border px-4 py-3 flex items-center justify-between z-10 -mx-1">
           <p className="text-sm text-muted-foreground">
             Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, regularNotes.length)} of {regularNotes.length}
           </p>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
               <ChevronLeft size={16} />
             </Button>
             <span className="text-sm text-foreground">Page {currentPage} of {totalPages}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
               <ChevronRight size={16} />
             </Button>
           </div>

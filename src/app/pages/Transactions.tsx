@@ -9,7 +9,7 @@ import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import {
   Plus, TrendingUp, TrendingDown, Paperclip, ArrowUpDown,
-  List, LayoutGrid, ChevronLeft, ChevronRight, Filter,
+  ChevronLeft, ChevronRight, Filter,
   Search, Loader2, X, Edit, Trash2, Wallet
 } from 'lucide-react';
 
@@ -25,7 +25,6 @@ export function Transactions() {
   const [filterCategory, setFilterCategory] = useState('all');
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -52,7 +51,6 @@ export function Transactions() {
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 
-  // ✅ Handle account_id null (akun sudah dihapus)
   const getAccountName = (id: string | null) => {
     if (!id) return 'Deleted Account';
     return accounts.find(a => a.id === id)?.name ?? 'Deleted Account';
@@ -92,9 +90,7 @@ export function Transactions() {
 
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedTransactions = viewMode === 'card'
-    ? filteredTransactions.slice(startIndex, startIndex + itemsPerPage)
-    : filteredTransactions;
+  const paginatedTransactions = filteredTransactions.slice(startIndex, startIndex + itemsPerPage);
 
   const activeFilterCount = [filterAccount !== 'all', filterType !== 'all', filterCategory !== 'all'].filter(Boolean).length;
 
@@ -144,12 +140,11 @@ export function Transactions() {
     </div>
   );
 
-  // ✅ Hanya tampilkan empty state jika benar-benar belum ada akun DAN transaksi
   if (accounts.length === 0 && transactions.length === 0) {
     return (
       <div className="space-y-6 p-1">
         <div>
-          <h1 className="text-3xl font-semibold text-foreground">Transactions</h1>
+          <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Transactions</h1>
           <p className="text-muted-foreground mt-1">All your transaction history</p>
         </div>
         <Card className="border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
@@ -173,10 +168,10 @@ export function Transactions() {
   }
 
   return (
-    <div className="space-y-6 p-1">
+    <div className="space-y-6 p-1 pb-20">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-semibold text-foreground">Transactions</h1>
+          <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Transactions</h1>
           <p className="text-muted-foreground mt-1">All your transaction history</p>
         </div>
         <Button onClick={() => navigate('/transactions/new')} className="gap-2" disabled={accounts.length === 0}>
@@ -184,7 +179,6 @@ export function Transactions() {
         </Button>
       </div>
 
-      {/* Active filter badges */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap gap-2 text-xs items-center">
           {filterAccount !== 'all' && (
@@ -209,7 +203,6 @@ export function Transactions() {
         </div>
       )}
 
-      {/* Search & Filter */}
       <div className="flex gap-2 items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
@@ -290,29 +283,16 @@ export function Transactions() {
                   </div>
                 </div>
                 <div className="border-t border-border pt-3 space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">View</label>
-                  <div className="flex gap-2">
-                    <Button variant={viewMode === 'list' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('list')} className="gap-2 flex-1">
-                      <List size={15} /> List
-                    </Button>
-                    <Button variant={viewMode === 'card' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('card')} className="gap-2 flex-1">
-                      <LayoutGrid size={15} /> Card
-                    </Button>
-                  </div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Per page</label>
+                  <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                {viewMode === 'card' && (
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Per page</label>
-                    <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="20">20</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -334,7 +314,7 @@ export function Transactions() {
           </CardContent>
         </Card>
       ) : (
-        <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
+        <div className="space-y-2">
           {paginatedTransactions.map((transaction) => (
             <Card key={transaction.id} className="hover:shadow-md transition-shadow border border-border bg-card">
               <CardContent className="p-4">
@@ -364,7 +344,6 @@ export function Transactions() {
                           </span>
                         )}
                       </div>
-                      {/* ✅ Nama akun — italic + muted jika akun sudah dihapus */}
                       <p className={`text-sm font-semibold mt-1.5 ${
                         isDeletedAccount(transaction.accountId)
                           ? 'text-muted-foreground italic'
@@ -404,8 +383,9 @@ export function Transactions() {
         </div>
       )}
 
-      {viewMode === 'card' && totalPages > 1 && (
-        <div className="flex items-center justify-between">
+      {/* Sticky Pagination */}
+      {totalPages > 1 && (
+        <div className="sticky bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border px-4 py-3 flex items-center justify-between z-10 -mx-1">
           <p className="text-sm text-muted-foreground">
             Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredTransactions.length)} of {filteredTransactions.length}
           </p>

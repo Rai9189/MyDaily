@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Input } from '../components/ui/input';
 import {
   Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown,
-  List, LayoutGrid, ChevronLeft, ChevronRight, Filter,
+  ChevronLeft, ChevronRight, Filter,
   Search, Loader2, X, Edit, Trash2, CalendarX
 } from 'lucide-react';
 
@@ -24,7 +24,6 @@ export function Tasks() {
   const [filterCompleted, setFilterCompleted] = useState('all');
   const [sortBy, setSortBy] = useState<'deadline' | 'status'>('deadline');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -36,9 +35,7 @@ export function Tasks() {
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Element;
-
       if (filterRef.current && filterRef.current.contains(target)) return;
-
       if (
         target.closest('[data-radix-popper-content-wrapper]') ||
         target.closest('[data-radix-select-viewport]') ||
@@ -46,10 +43,8 @@ export function Tasks() {
         target.closest('[role="option"]') ||
         target.closest('[role="listbox"]')
       ) return;
-
       setFilterOpen(false);
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
@@ -96,7 +91,6 @@ export function Tasks() {
     }
   };
 
-  // Filter & sort
   let filteredTasks = [...tasks];
 
   if (searchQuery) {
@@ -124,9 +118,7 @@ export function Tasks() {
 
   const totalPages = Math.ceil(filteredTasks.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedTasks = viewMode === 'card'
-    ? filteredTasks.slice(startIndex, startIndex + itemsPerPage)
-    : filteredTasks;
+  const paginatedTasks = filteredTasks.slice(startIndex, startIndex + itemsPerPage);
 
   const activeFilterCount = [filterStatus !== 'all', filterCategory !== 'all', filterCompleted !== 'all'].filter(Boolean).length;
 
@@ -171,11 +163,11 @@ export function Tasks() {
   );
 
   return (
-    <div className="space-y-6 p-1">
+    <div className="space-y-6 p-1 pb-20">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-semibold text-foreground">Tasks</h1>
+          <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Tasks</h1>
           <p className="text-muted-foreground mt-1">Manage all your tasks</p>
         </div>
         <Button onClick={() => navigate('/tasks/new')} className="gap-2">
@@ -238,7 +230,6 @@ export function Tasks() {
 
           {filterOpen && (
             <div className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
-              {/* Filter Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <span className="font-semibold text-foreground">Filter & Sort</span>
                 <div className="flex items-center gap-2">
@@ -252,7 +243,6 @@ export function Tasks() {
               </div>
 
               <div className="p-4 space-y-4">
-                {/* Filter: Status */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</label>
                   <Select value={filterStatus} onValueChange={(v) => handleFilterChange(setFilterStatus, v)}>
@@ -267,7 +257,6 @@ export function Tasks() {
                   </Select>
                 </div>
 
-                {/* Filter: Category */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</label>
                   <Select value={filterCategory} onValueChange={(v) => handleFilterChange(setFilterCategory, v)}>
@@ -281,7 +270,6 @@ export function Tasks() {
                   </Select>
                 </div>
 
-                {/* Filter: Completion */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Completion</label>
                   <Select value={filterCompleted} onValueChange={(v) => handleFilterChange(setFilterCompleted, v)}>
@@ -294,7 +282,6 @@ export function Tasks() {
                   </Select>
                 </div>
 
-                {/* Sort */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sort by</label>
                   <div className="flex gap-2">
@@ -306,8 +293,7 @@ export function Tasks() {
                       </SelectContent>
                     </Select>
                     <Button
-                      variant="outline"
-                      size="icon"
+                      variant="outline" size="icon"
                       onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
                     >
                       <ArrowUpDown size={16} />
@@ -315,46 +301,21 @@ export function Tasks() {
                   </div>
                 </div>
 
-                {/* View Mode */}
+                {/* Per page — selalu tampil */}
                 <div className="border-t border-border pt-3 space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">View</label>
-                  <div className="flex gap-2">
-                    <Button
-                      variant={viewMode === 'list' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setViewMode('list')}
-                      className="gap-2 flex-1"
-                    >
-                      <List size={15} /> List
-                    </Button>
-                    <Button
-                      variant={viewMode === 'card' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setViewMode('card')}
-                      className="gap-2 flex-1"
-                    >
-                      <LayoutGrid size={15} /> Card
-                    </Button>
-                  </div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Per page</label>
+                  <Select
+                    value={itemsPerPage.toString()}
+                    onValueChange={(v) => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-
-                {/* Per page (card mode only) */}
-                {viewMode === 'card' && (
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Per page</label>
-                    <Select
-                      value={itemsPerPage.toString()}
-                      onValueChange={(v) => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="20">20</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -378,149 +339,83 @@ export function Tasks() {
           </CardContent>
         </Card>
       ) : (
-        <div className={viewMode === 'card' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
+        <div className="space-y-2">
           {paginatedTasks.map((task) => (
             <Card
               key={task.id}
               className={`hover:shadow-md transition-shadow border border-border bg-card ${task.completed ? 'opacity-60' : ''} ${!task.completed && task.status === 'overdue' ? 'border-red-300 dark:border-red-800' : ''}`}
             >
               <CardContent className="p-4">
-                {viewMode === 'list' ? (
-                  <div className="flex items-start gap-3">
-                    <div className={`mt-1 flex-shrink-0 w-2 h-2 rounded-full ${getDotColor(task)}`} />
-                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/tasks/${task.id}`)}>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span
-                          className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                          style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}
-                        >
-                          {getCategoryName(task.categoryId)}
-                        </span>
-                        {!task.completed ? (
-                          <Badge variant={getStatusVariant(task.status) as any} className="gap-1 text-xs">
-                            {getStatusIcon(task.status)}{getStatusLabel(task.status)}
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="gap-1 text-xs">
-                            <CheckCircle2 size={11} /> Completed
-                          </Badge>
-                        )}
-                      </div>
-                      <p className={`text-sm font-semibold text-foreground mt-1.5 ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
-                        {task.title}
-                      </p>
-                      {task.description && (
-                        <p className="text-xs text-muted-foreground mt-1 truncate">{task.description}</p>
+                <div className="flex items-start gap-3">
+                  <div className={`mt-1 flex-shrink-0 w-2 h-2 rounded-full ${getDotColor(task)}`} />
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/tasks/${task.id}`)}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className="text-xs font-medium px-2 py-0.5 rounded-full border"
+                        style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}
+                      >
+                        {getCategoryName(task.categoryId)}
+                      </span>
+                      {!task.completed ? (
+                        <Badge variant={getStatusVariant(task.status) as any} className="gap-1 text-xs">
+                          {getStatusIcon(task.status)}{getStatusLabel(task.status)}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="gap-1 text-xs">
+                          <CheckCircle2 size={11} /> Completed
+                        </Badge>
                       )}
                     </div>
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      <p className={`text-base font-bold flex items-center gap-1 ${!task.completed && task.status === 'overdue' ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
-                        <Clock size={13} className="text-muted-foreground" />
-                        {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                      <div className="flex items-center gap-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          onClick={(e) => handleEdit(e, task.id)}
-                        >
-                          <Edit size={15} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
-                          onClick={(e) => handleDelete(e, task.id)}
-                          disabled={deletingId === task.id}
-                        >
-                          {deletingId === task.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                        </Button>
-                      </div>
+                    <p className={`text-sm font-semibold text-foreground mt-1.5 ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
+                      {task.title}
+                    </p>
+                    {task.description && (
+                      <p className="text-xs text-muted-foreground mt-1 truncate">{task.description}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <p className={`text-base font-bold flex items-center gap-1 ${!task.completed && task.status === 'overdue' ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
+                      <Clock size={13} className="text-muted-foreground" />
+                      {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                    <div className="flex items-center gap-0">
+                      <Button
+                        variant="ghost" size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={(e) => handleEdit(e, task.id)}
+                      >
+                        <Edit size={15} />
+                      </Button>
+                      <Button
+                        variant="ghost" size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
+                        onClick={(e) => handleDelete(e, task.id)}
+                        disabled={deletingId === task.id}
+                      >
+                        {deletingId === task.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                      </Button>
                     </div>
                   </div>
-                ) : (
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/tasks/${task.id}`)}>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span
-                          className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                          style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}
-                        >
-                          {getCategoryName(task.categoryId)}
-                        </span>
-                        {!task.completed ? (
-                          <Badge variant={getStatusVariant(task.status) as any} className="gap-1 text-xs">
-                            {getStatusIcon(task.status)}{getStatusLabel(task.status)}
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="gap-1 text-xs">
-                            <CheckCircle2 size={11} /> Completed
-                          </Badge>
-                        )}
-                      </div>
-                      <p className={`text-sm font-semibold text-foreground mt-2 ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
-                        {task.title}
-                      </p>
-                      {task.description && (
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.description}</p>
-                      )}
-                    </div>
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      <p className={`text-base font-bold flex items-center gap-1 ${!task.completed && task.status === 'overdue' ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
-                        <Clock size={13} className="text-muted-foreground" />
-                        {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                      <div className="flex items-center gap-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          onClick={(e) => handleEdit(e, task.id)}
-                        >
-                          <Edit size={15} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
-                          onClick={(e) => handleDelete(e, task.id)}
-                          disabled={deletingId === task.id}
-                        >
-                          {deletingId === task.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
-      {/* Pagination (card mode only) */}
-      {viewMode === 'card' && totalPages > 1 && (
-        <div className="flex items-center justify-between">
+      {/* Pagination — selalu tampil */}
+      {/* Sticky Pagination */}
+      {totalPages > 1 && (
+        <div className="sticky bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border px-4 py-3 flex items-center justify-between z-10 -mx-1">
           <p className="text-sm text-muted-foreground">
             Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredTasks.length)} of {filteredTasks.length}
           </p>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
               <ChevronLeft size={16} />
             </Button>
             <span className="text-sm text-foreground">Page {currentPage} of {totalPages}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
               <ChevronRight size={16} />
             </Button>
           </div>
