@@ -1,109 +1,87 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
-import { useTrash } from '../context/TrashContext';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { User as UserIcon, Lock, LogOut, Tag, Save, Loader2, Sun, Moon, Monitor, Camera, Wallet, Trash2 } from 'lucide-react';
+import { User as UserIcon, LogOut, Save, Loader2, Camera, AlertCircle, CheckCircle2, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+
+function Notification({ type, message }: { type: 'success' | 'error'; message: string }) {
+  return (
+    <div className={`p-3 rounded-lg border flex items-start gap-2 ${
+      type === 'success'
+        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+        : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+    }`}>
+      {type === 'success'
+        ? <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
+        : <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+      }
+      <p className={`text-sm ${
+        type === 'success' ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'
+      }`}>{message}</p>
+    </div>
+  );
+}
 
 export function Profile() {
   const navigate = useNavigate();
   const { user, signOut, updateProfile, loading } = useAuth();
-  const { theme, setTheme } = useTheme();
-  const { trashItems } = useTrash();
 
-  const [formData, setFormData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-  });
-
-  const [passwordData, setPasswordData] = useState({
-    newPassword: '',
-    confirmPassword: '',
-  });
-
+  const [formData, setFormData] = useState({ name: user?.name || '', email: user?.email || '' });
   const [submitting, setSubmitting] = useState(false);
-  const [changingPassword, setChangingPassword] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
-
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  // Delete account
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  const showNotif = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 4000);
+  };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     const { success, error } = await updateProfile({ name: formData.name });
-    if (success) alert('Profile updated successfully!');
-    else alert(error || 'Failed to update profile');
+    if (success) showNotif('success', 'Profile updated successfully!');
+    else showNotif('error', error || 'Failed to update profile');
     setSubmitting(false);
   };
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      alert('Only JPEG, PNG, and WebP images are supported');
+    if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
+      showNotif('error', 'Only JPEG, PNG, and WebP images are supported');
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      alert('Image must be smaller than 2MB');
+      showNotif('error', 'Image must be smaller than 2MB');
       return;
     }
-
     setUploadingAvatar(true);
     try {
       const ext = file.name.split('.').pop();
       const path = `avatars/${user.id}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(path, file, { upsert: true });
-
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
       if (uploadError) throw uploadError;
-
       const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
-      const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
-      const { success, error } = await updateProfile({ avatar: avatarUrl });
-
-      if (success) alert('Profile photo updated!');
+      const { success, error } = await updateProfile({ avatar: `${urlData.publicUrl}?t=${Date.now()}` });
+      if (success) showNotif('success', 'Profile photo updated!');
       else throw new Error(error || 'Failed to save avatar URL');
     } catch (err: any) {
-      alert(err.message || 'Failed to upload photo');
+      showNotif('error', err.message || 'Failed to upload photo');
     } finally {
       setUploadingAvatar(false);
       e.target.value = '';
-    }
-  };
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (passwordData.newPassword.length < 6) {
-      alert('Password must be at least 6 characters');
-      return;
-    }
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert('Passwords do not match');
-      return;
-    }
-    setChangingPassword(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password: passwordData.newPassword });
-      if (error) throw error;
-      alert('Password changed successfully!');
-      setPasswordData({ newPassword: '', confirmPassword: '' });
-      setShowPasswordForm(false);
-    } catch (err: any) {
-      alert(err.message || 'Failed to change password');
-    } finally {
-      setChangingPassword(false);
     }
   };
 
@@ -115,24 +93,39 @@ export function Profile() {
     navigate('/login');
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-    </div>
-  );
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') return;
+    setDeletingAccount(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('No active session');
 
-  if (!user) return (
-    <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
-      <p className="text-destructive">User not found</p>
-    </div>
-  );
+      const { error } = await supabase.functions.invoke('delete-account', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (error) throw error;
+
+      sessionStorage.clear();
+      await signOut();
+      navigate('/login');
+    } catch (err: any) {
+      showNotif('error', err.message || 'Failed to delete account. Please try again.');
+      setDeletingAccount(false);
+    }
+  };
+
+  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  if (!user) return <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg"><p className="text-destructive">User not found</p></div>;
 
   return (
     <div className="space-y-5 p-1">
       <div>
         <h1 className="text-3xl font-semibold text-foreground">Profile</h1>
-        <p className="text-muted-foreground mt-1">Manage your account settings</p>
+        <p className="text-muted-foreground mt-1">Your account information</p>
       </div>
+
+      {notification && <Notification type={notification.type} message={notification.message} />}
 
       {/* Avatar */}
       <Card className="border border-border bg-card">
@@ -154,23 +147,12 @@ export function Profile() {
               >
                 {uploadingAvatar ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
               </button>
-              <input
-                ref={avatarInputRef}
-                type="file"
-                accept="image/jpeg,image/jpg,image/png,image/webp"
-                onChange={handleAvatarChange}
-                className="hidden"
-              />
+              <input ref={avatarInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleAvatarChange} className="hidden" />
             </div>
             <div>
               <p className="font-semibold text-foreground text-lg">{user.name}</p>
               <p className="text-sm text-muted-foreground">{user.email}</p>
-              <button
-                type="button"
-                onClick={() => avatarInputRef.current?.click()}
-                disabled={uploadingAvatar}
-                className="text-xs text-primary hover:underline mt-0.5"
-              >
+              <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} className="text-xs text-primary hover:underline mt-0.5">
                 {uploadingAvatar ? 'Uploading...' : 'Change photo'}
               </button>
             </div>
@@ -178,23 +160,16 @@ export function Profile() {
         </CardContent>
       </Card>
 
-      {/* Personal Information */}
+      {/* Personal Info */}
       <form onSubmit={handleUpdateProfile}>
         <Card className="border border-border bg-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+          <CardContent className="space-y-4 pt-5 pb-5">
+            <div className="flex items-center gap-2 text-base font-semibold text-foreground">
               <UserIcon size={18} /> Personal Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-2">
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Your full name"
-              />
+              <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Your full name" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
@@ -208,179 +183,87 @@ export function Profile() {
         </Card>
       </form>
 
-      {/* Security */}
-      <Card className="border border-border bg-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
-            <Lock size={18} /> Security
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 pt-2">
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            type="button"
-            onClick={() => setShowPasswordForm(!showPasswordForm)}
-          >
-            <Lock size={15} /> Change Password
+      {/* Sign Out — mobile only */}
+      <Card className="border border-destructive/30 bg-card md:hidden">
+        <CardContent className="pt-5 pb-5">
+          <Button variant="destructive" className="w-full gap-2" onClick={handleLogout} disabled={signingOut} type="button">
+            {signingOut ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing out...</> : <><LogOut size={15} /> Sign Out</>}
           </Button>
+        </CardContent>
+      </Card>
 
-          {showPasswordForm && (
-            <form onSubmit={handleChangePassword} className="space-y-3 pt-1 pb-1">
+      {/* Danger Zone */}
+      <Card className="border border-destructive/40 bg-card">
+        <CardContent className="pt-5 pb-5 space-y-3">
+          <div className="flex items-center gap-2 text-base font-semibold text-destructive">
+            <Trash2 size={18} /> Danger Zone
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Permanently delete your account and all associated data. This action cannot be undone.
+          </p>
+
+          {!showDeleteConfirm ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2 border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              onClick={() => setShowDeleteConfirm(true)}
+            >
+              <Trash2 size={15} /> Delete Account
+            </Button>
+          ) : (
+            <div className="space-y-3 p-4 bg-destructive/5 border border-destructive/20 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle size={16} className="text-destructive shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-destructive">This will permanently delete:</p>
+                  <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside">
+                    <li>All your transactions, tasks, and notes</li>
+                    <li>All your accounts and categories</li>
+                    <li>Your profile photo and personal data</li>
+                    <li>Your login credentials</li>
+                  </ul>
+                </div>
+              </div>
+
               <div className="space-y-1.5">
-                <Label htmlFor="newPassword">New Password</Label>
+                <Label htmlFor="deleteConfirm" className="text-sm text-muted-foreground">
+                  Type <span className="font-bold text-destructive">DELETE</span> to confirm
+                </Label>
                 <Input
-                  id="newPassword"
-                  type="password"
-                  placeholder="Min. 6 characters"
-                  value={passwordData.newPassword}
-                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                  required
+                  id="deleteConfirm"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type DELETE here"
+                  disabled={deletingAccount}
+                  className="border-destructive/30 focus:border-destructive"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  placeholder="Re-enter new password"
-                  value={passwordData.confirmPassword}
-                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                  required
-                />
-              </div>
+
               <div className="flex gap-2">
-                <Button type="submit" className="flex-1 gap-2" disabled={changingPassword}>
-                  {changingPassword ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : 'Update Password'}
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="flex-1 gap-2"
+                  onClick={handleDeleteAccount}
+                  disabled={deleteConfirmText !== 'DELETE' || deletingAccount}
+                >
+                  {deletingAccount
+                    ? <><Loader2 size={14} className="animate-spin" /> Deleting...</>
+                    : <><Trash2 size={14} /> Confirm Delete</>
+                  }
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => { setShowPasswordForm(false); setPasswordData({ newPassword: '', confirmPassword: '' }); }}
+                  onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }}
+                  disabled={deletingAccount}
                 >
                   Cancel
                 </Button>
               </div>
-            </form>
+            </div>
           )}
-
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            onClick={() => navigate('/pin-setup', { state: { forgotPin: true } })}
-            type="button"
-          >
-            <Lock size={15} /> Change Security PIN
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Accounts — hanya tampil di mobile */}
-      <Card className="border border-border bg-card md:hidden">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
-            <Wallet size={18} /> Accounts
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-2">
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            onClick={() => navigate('/accounts')}
-            type="button"
-          >
-            <Wallet size={15} /> Manage Accounts
-          </Button>
-          <p className="text-xs text-muted-foreground mt-2">
-            Manage your bank, e-wallet, and cash accounts
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Categories */}
-      <Card className="border border-border bg-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
-            <Tag size={18} /> Categories
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-2">
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            onClick={() => navigate('/categories')}
-            type="button"
-          >
-            <Tag size={15} /> Manage Categories
-          </Button>
-          <p className="text-xs text-muted-foreground mt-2">
-            Customize categories for transactions, tasks, and notes
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Trash */}
-      <Card className="border border-border bg-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
-            <Trash2 size={18} /> Trash
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-2">
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2 relative"
-            onClick={() => navigate('/trash')}
-            type="button"
-          >
-            <Trash2 size={15} />
-            View Trash
-            {trashItems.length > 0 && (
-              <span className="ml-auto text-xs font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
-                {trashItems.length}
-              </span>
-            )}
-          </Button>
-          <p className="text-xs text-muted-foreground mt-2">
-            Items in trash are permanently deleted after 30 days
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Appearance */}
-      <Card className="border border-border bg-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
-            <Sun size={18} /> Appearance
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-2">
-          <div className="space-y-1.5">
-            <Label>Theme</Label>
-            <Select value={theme} onValueChange={(v: 'light' | 'dark' | 'system') => setTheme(v)}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="light"><div className="flex items-center gap-2"><Sun size={15} /> Light</div></SelectItem>
-                <SelectItem value="dark"><div className="flex items-center gap-2"><Moon size={15} /> Dark</div></SelectItem>
-                <SelectItem value="system"><div className="flex items-center gap-2"><Monitor size={15} /> System</div></SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Sign Out — hanya tampil di mobile */}
-      <Card className="border border-destructive/30 bg-card md:hidden">
-        <CardContent className="pt-5 pb-5">
-          <Button
-            variant="destructive"
-            className="w-full gap-2"
-            onClick={handleLogout}
-            disabled={signingOut}
-            type="button"
-          >
-            {signingOut ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing out...</> : <><LogOut size={15} /> Sign Out</>}
-          </Button>
         </CardContent>
       </Card>
     </div>

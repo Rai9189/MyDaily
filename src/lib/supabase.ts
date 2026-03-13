@@ -14,9 +14,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Create Supabase client
-// Tidak perlu set storage secara eksplisit — Supabase sudah default ke localStorage.
-// Mengeset window.localStorage secara manual bisa menyebabkan onAuthStateChange
-// tidak trigger karena konflik saat client diinisialisasi sebelum React mount.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
@@ -28,32 +25,75 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Export types for TypeScript
 export type { User, Session } from '@supabase/supabase-js';
 
-// Helper function untuk error handling
-export function handleSupabaseError(error: unknown): string {
-  if (error && typeof error === 'object' && 'message' in error) {
-    return (error as { message: string }).message;
+// ============================================
+// SECURITY: Obscure error messages
+// Pesan error dari Supabase bisa mengungkap info sensitif
+// (misal: "User not found" → attacker tahu email tidak terdaftar)
+// Semua error auth disamarkan menjadi pesan generik.
+// ============================================
+
+// Daftar pesan Supabase yang perlu disamarkan
+const OBSCURE_AUTH_ERRORS = [
+  'invalid login credentials',
+  'invalid password',
+  'user not found',
+  'email not confirmed',
+  'invalid email or password',
+  'no user found with that email',
+  'wrong password',
+  'password is incorrect',
+  'invalid credentials',
+  'email already in use',         // Jangan beri tahu email sudah terdaftar
+  'user already registered',
+  'email address is already registered',
+];
+
+const GENERIC_AUTH_ERROR = 'Invalid email or password.';
+const GENERIC_SIGNUP_ERROR = 'Registration failed. Please try again.';
+
+export function handleSupabaseError(error: unknown, context: 'signin' | 'signup' | 'general' = 'general'): string {
+  if (!error || typeof error !== 'object' || !('message' in error)) {
+    return 'An unknown error occurred';
   }
-  return 'An unknown error occurred';
+
+  const message = (error as { message: string }).message.toLowerCase();
+
+  // Samarkan semua error autentikasi yang sensitif
+  const isAuthError = OBSCURE_AUTH_ERRORS.some(pattern => message.includes(pattern));
+  if (isAuthError) {
+    if (context === 'signup') return GENERIC_SIGNUP_ERROR;
+    return GENERIC_AUTH_ERROR;
+  }
+
+  // Error jaringan / server
+  if (message.includes('fetch') || message.includes('network') || message.includes('timeout')) {
+    return 'Connection error. Please check your internet and try again.';
+  }
+
+  // Error rate limit dari Supabase server-side
+  if (message.includes('too many requests') || message.includes('rate limit')) {
+    return 'Too many attempts. Please wait a moment and try again.';
+  }
+
+  // Error umum yang aman ditampilkan
+  return (error as { message: string }).message;
 }
 
 // ============================================
 // FILE UPLOAD HELPERS
 // ============================================
 
-// Helper function untuk upload file
 export async function uploadFile(
   bucket: string,
   path: string,
   file: File
 ): Promise<{ url: string | null; path: string | null; error: string | null }> {
   try {
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+    const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
       return { url: null, path: null, error: 'File terlalu besar. Maksimal 10MB.' };
     }
 
-    // Validate file type (images and PDFs only)
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
     if (!allowedTypes.includes(file.type)) {
       return { url: null, path: null, error: 'Tipe file tidak didukung. Hanya gambar (JPEG, PNG, GIF, WebP) dan PDF.' };
@@ -66,58 +106,41 @@ export async function uploadFile(
         upsert: false,
       });
 
-    if (error) {
-      return { url: null, path: null, error: error.message };
-    }
+    if (error) return { url: null, path: null, error: error.message };
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(data.path);
-
+    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
     return { url: urlData.publicUrl, path: data.path, error: null };
   } catch (error) {
     return { url: null, path: null, error: handleSupabaseError(error) };
   }
 }
 
-// Helper function untuk delete file
 export async function deleteFile(
   bucket: string,
   path: string
 ): Promise<{ success: boolean; error: string | null }> {
   try {
     const { error } = await supabase.storage.from(bucket).remove([path]);
-
-    if (error) {
-      return { success: false, error: error.message };
-    }
-
+    if (error) return { success: false, error: error.message };
     return { success: true, error: null };
   } catch (error) {
     return { success: false, error: handleSupabaseError(error) };
   }
 }
 
-// Helper function untuk delete multiple files
 export async function deleteFiles(
   bucket: string,
   paths: string[]
 ): Promise<{ success: boolean; error: string | null }> {
   try {
     const { error } = await supabase.storage.from(bucket).remove(paths);
-
-    if (error) {
-      return { success: false, error: error.message };
-    }
-
+    if (error) return { success: false, error: error.message };
     return { success: true, error: null };
   } catch (error) {
     return { success: false, error: handleSupabaseError(error) };
   }
 }
 
-// Helper function untuk generate unique filename
 export function generateUniqueFileName(originalName: string): string {
   const timestamp = Date.now();
   const randomString = Math.random().toString(36).substring(2, 15);
@@ -125,18 +148,15 @@ export function generateUniqueFileName(originalName: string): string {
   return `${timestamp}-${randomString}.${extension}`;
 }
 
-// Helper function untuk get file extension
 export function getFileExtension(filename: string): string {
   return filename.split('.').pop()?.toLowerCase() || '';
 }
 
-// Helper function untuk check if file is image
 export function isImageFile(filename: string): boolean {
   const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
   return imageExtensions.includes(getFileExtension(filename));
 }
 
-// Helper function untuk format file size
 export function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
   const k = 1024;
@@ -145,5 +165,4 @@ export function formatFileSize(bytes: number): string {
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
-// Export default client
 export default supabase;

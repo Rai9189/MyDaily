@@ -1,11 +1,36 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Check, X } from 'lucide-react';
+
+// ============================================
+// PASSWORD STRENGTH CHECKER
+// ============================================
+interface PasswordRule {
+  label: string;
+  test: (pw: string) => boolean;
+}
+
+const PASSWORD_RULES: PasswordRule[] = [
+  { label: 'At least 8 characters',              test: pw => pw.length >= 8 },
+  { label: 'Contains uppercase letter (A–Z)',     test: pw => /[A-Z]/.test(pw) },
+  { label: 'Contains lowercase letter (a–z)',     test: pw => /[a-z]/.test(pw) },
+  { label: 'Contains number (0–9)',               test: pw => /[0-9]/.test(pw) },
+  { label: 'Contains special character (!@#$…)',  test: pw => /[^A-Za-z0-9]/.test(pw) },
+];
+
+function getStrength(password: string): { score: number; label: string; color: string } {
+  const score = PASSWORD_RULES.filter(r => r.test(password)).length;
+  if (score <= 1) return { score, label: 'Very weak',  color: 'bg-red-500' };
+  if (score === 2) return { score, label: 'Weak',       color: 'bg-orange-500' };
+  if (score === 3) return { score, label: 'Fair',       color: 'bg-yellow-500' };
+  if (score === 4) return { score, label: 'Strong',     color: 'bg-blue-500' };
+  return              { score, label: 'Very strong', color: 'bg-green-500' };
+}
 
 export function Register() {
   const navigate = useNavigate();
@@ -19,33 +44,36 @@ export function Register() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [passwordTouched, setPasswordTouched] = useState(false);
+
+  const strength = useMemo(() => getStrength(password), [password]);
+  const allRulesPassed = PASSWORD_RULES.every(r => r.test(password));
+  const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    // Validasi semua rules password
+    if (!allRulesPassed) {
+      setError('Password does not meet the requirements below.');
+      setPasswordTouched(true);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match!');
+      setError('Passwords do not match.');
       return;
     }
 
     setLoading(true);
-
     const { success, error: signUpError } = await signUp(email, password, name);
 
     if (success) {
-      // Setelah register, App.tsx/PublicRoute akan redirect ke /pin-setup otomatis
-      // karena user sudah login tapi belum punya PIN
       navigate('/pin-setup');
     } else {
       setError(signUpError || 'Registration failed. Please try again.');
     }
-
     setLoading(false);
   };
 
@@ -68,6 +96,7 @@ export function Register() {
               </div>
             )}
 
+            {/* Full Name */}
             <div className="space-y-1">
               <Label htmlFor="name" className="dark:text-gray-300">Full Name</Label>
               <Input
@@ -82,6 +111,7 @@ export function Register() {
               />
             </div>
 
+            {/* Email */}
             <div className="space-y-1">
               <Label htmlFor="email" className="dark:text-gray-300">Email</Label>
               <Input
@@ -96,17 +126,17 @@ export function Register() {
               />
             </div>
 
+            {/* Password */}
             <div className="space-y-1">
               <Label htmlFor="password" className="dark:text-gray-300">Password</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="At least 8 characters"
+                  placeholder="Create a strong password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); setPasswordTouched(true); }}
                   required
-                  minLength={8}
                   disabled={loading}
                   className="pr-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 />
@@ -119,8 +149,55 @@ export function Register() {
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
+
+              {/* Strength bar — tampil setelah user mulai mengetik */}
+              {passwordTouched && password.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {/* Bar */}
+                  <div className="flex gap-1">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                          i < strength.score ? strength.color : 'bg-gray-200 dark:bg-gray-600'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <p className={`text-xs font-medium ${
+                    strength.score <= 2 ? 'text-red-500' :
+                    strength.score === 3 ? 'text-yellow-500' :
+                    'text-green-500'
+                  }`}>
+                    {strength.label}
+                  </p>
+
+                  {/* Rules checklist */}
+                  <ul className="space-y-1">
+                    {PASSWORD_RULES.map((rule) => {
+                      const passed = rule.test(password);
+                      return (
+                        <li key={rule.label} className="flex items-center gap-1.5">
+                          {passed
+                            ? <Check size={13} className="text-green-500 shrink-0" />
+                            : <X size={13} className="text-red-400 shrink-0" />
+                          }
+                          <span className={`text-xs ${
+                            passed
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-gray-500 dark:text-gray-400'
+                          }`}>
+                            {rule.label}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
             </div>
 
+            {/* Confirm Password */}
             <div className="space-y-1">
               <Label htmlFor="confirmPassword" className="dark:text-gray-300">Confirm Password</Label>
               <div className="relative">
@@ -132,7 +209,13 @@ export function Register() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   disabled={loading}
-                  className="pr-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  className={`pr-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white ${
+                    confirmPassword.length > 0
+                      ? passwordsMatch
+                        ? 'border-green-400 dark:border-green-600'
+                        : 'border-red-400 dark:border-red-600'
+                      : ''
+                  }`}
                 />
                 <button
                   type="button"
@@ -143,9 +226,18 @@ export function Register() {
                   {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
+              {confirmPassword.length > 0 && (
+                <p className={`text-xs mt-1 ${passwordsMatch ? 'text-green-500' : 'text-red-400'}`}>
+                  {passwordsMatch ? '✓ Passwords match' : '✗ Passwords do not match'}
+                </p>
+              )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || !allRulesPassed || !passwordsMatch}
+            >
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />

@@ -207,4 +207,21 @@
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
   }
+
+
+}
+
+
+/* ✅ Dark mode: button outline hover pakai warna sidebar */
+.dark .hover\:bg-accent:hover {
+  background-color: var(--sidebar) !important;
+  border-color: var(--sidebar-border) !important;
+  color: var(--sidebar-foreground) !important;
+}
+
+/* ✅ Dark mode: hanya tombol outline delete (punya border-destructive DAN text-destructive) */
+.dark button[class*="border-destructive"][class*="text-destructive"]:hover {
+  background-color: var(--destructive) !important;
+  border-color: var(--destructive) !important;
+  color: var(--destructive-foreground) !important;
 }

@@ -27,7 +27,7 @@ export function NoteDetail() {
   const id = idFromParams || idFromUrl;
   const isNew = id === 'new' || !id;
 
-  const { getNoteById, createNote, updateNote, togglePin } = useNotes();
+  const { getNoteById, createNote, updateNote } = useNotes();
   const { getCategoriesByType } = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
 
@@ -52,7 +52,6 @@ export function NoteDetail() {
   const [attachments, setAttachments] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [pinning, setPinning] = useState(false);
 
   const isBusy = submitting || isUploadingPending;
 
@@ -124,15 +123,6 @@ export function NoteDetail() {
     }
   };
 
-  const handleTogglePin = async () => {
-    if (!id) return;
-    setPinning(true);
-    const { success, error } = await togglePin(id);
-    if (success) setFormData(prev => ({ ...prev, pinned: !prev.pinned }));
-    else alert(error || 'Failed to toggle pin');
-    setPinning(false);
-  };
-
   return (
     <div className="space-y-6 p-1">
       <div className="flex items-center gap-3">
@@ -154,24 +144,19 @@ export function NoteDetail() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-semibold text-foreground">Note Info</CardTitle>
-              {!isNew && (
-                <Button
-                  type="button"
-                  variant={formData.pinned ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={handleTogglePin}
-                  disabled={pinning}
-                  className="gap-1.5 h-7 text-xs px-2.5"
-                >
-                  {pinning ? <Loader2 size={12} className="animate-spin" /> : <Pin size={12} />}
-                  {formData.pinned ? 'Unpin' : 'Pin'}
-                </Button>
+
+              {/* Pin status badge — hanya tampil jika note sudah ada dan di-pin */}
+              {!isNew && formData.pinned && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  <Pin size={11} />
+                  Pinned
+                </span>
               )}
             </div>
           </CardHeader>
           <CardContent className="space-y-5 pt-2">
 
-            {/* Title — max 100 char */}
+            {/* Title */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
                 <Label htmlFor="title">Title</Label>
@@ -209,7 +194,7 @@ export function NoteDetail() {
               </Select>
             </div>
 
-            {/* Content — max 10.000 char */}
+            {/* Content */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
                 <Label htmlFor="content">Content</Label>
@@ -288,12 +273,23 @@ export function NoteDetail() {
           </Card>
         )}
 
-        {formData.pinned && (
-          <div className="flex items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg">
-            <Pin size={16} className="text-primary flex-shrink-0" />
+        {/* Pin status info banner */}
+        {!isNew && (
+          <div className={`flex items-center gap-3 p-4 rounded-lg border transition-colors ${
+            formData.pinned
+              ? 'bg-primary/5 border-primary/20'
+              : 'bg-muted/30 border-border'
+          }`}>
+            <Pin size={16} className={formData.pinned ? 'text-primary flex-shrink-0' : 'text-muted-foreground flex-shrink-0'} />
             <div>
-              <p className="text-sm font-medium text-foreground">This note is pinned</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Pinned notes appear at the top of your list and on the Dashboard</p>
+              <p className="text-sm font-medium text-foreground">
+                {formData.pinned ? 'This note is pinned' : 'This note is not pinned'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {formData.pinned
+                  ? 'Pinned notes appear at the top of your list and on the Dashboard'
+                  : 'Pin this note from the Notes list to make it appear at the top'}
+              </p>
             </div>
           </div>
         )}

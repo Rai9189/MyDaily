@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useAccounts } from '../context/AccountContext';
 import { useTransactions } from '../context/TransactionContext';
 import { useTasks } from '../context/TaskContext';
@@ -7,7 +7,7 @@ import { useCategories } from '../context/CategoryContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { AlertCircle, Wallet, TrendingUp, TrendingDown, Pin, Loader2, CalendarX } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 
 export function Dashboard() {
@@ -22,7 +22,6 @@ export function Dashboard() {
 
   const totalBalance = useMemo(() => accounts.reduce((sum, acc) => sum + acc.balance, 0), [accounts]);
 
-  // ✅ Urgent = urgent + overdue tasks
   const urgentTasks = useMemo(() =>
     tasks.filter(t => (t.status === 'urgent' || t.status === 'overdue') && !t.completed),
     [tasks]
@@ -40,7 +39,6 @@ export function Dashboard() {
     );
   }, [transactions]);
 
-  // ✅ Updated: 'income' / 'expense'
   const thisMonthIncome = useMemo(() =>
     filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0),
     [filteredTransactions]
@@ -64,12 +62,11 @@ export function Dashboard() {
     return Object.values(byCategory);
   }, [filteredTransactions, categories]);
 
-  // ✅ Updated: English status values + added overdue
   const taskStatusData = useMemo(() => [
-    { name: 'Overdue',  value: tasks.filter(t => t.status === 'overdue'   && !t.completed).length, color: '#b91c1c' },
-    { name: 'Urgent',   value: tasks.filter(t => t.status === 'urgent'    && !t.completed).length, color: '#ef4444' },
-    { name: 'Upcoming', value: tasks.filter(t => t.status === 'upcoming'  && !t.completed).length, color: '#f59e0b' },
-    { name: 'On Track', value: tasks.filter(t => t.status === 'on_track'  && !t.completed).length, color: '#10b981' },
+    { name: 'Overdue',  value: tasks.filter(t => t.status === 'overdue'  && !t.completed).length, color: '#b91c1c' },
+    { name: 'Urgent',   value: tasks.filter(t => t.status === 'urgent'   && !t.completed).length, color: '#ef4444' },
+    { name: 'Upcoming', value: tasks.filter(t => t.status === 'upcoming' && !t.completed).length, color: '#f59e0b' },
+    { name: 'On Track', value: tasks.filter(t => t.status === 'on_track' && !t.completed).length, color: '#10b981' },
   ], [tasks]);
 
   if (accountsLoading || transactionsLoading || tasksLoading || notesLoading) {
@@ -142,14 +139,14 @@ export function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+              {/* ✅ FIX: Hapus label prop dari Pie — label SVG terpotong saat container kecil
+                  Ganti dengan Legend di bawah chart + list detail di sebelah kanan */}
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
                   <Pie
                     data={categoryChartData}
                     cx="50%"
                     cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     outerRadius={80}
                     dataKey="amount"
                   >
@@ -158,17 +155,27 @@ export function Dashboard() {
                     ))}
                   </Pie>
                   <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                  {/* ✅ Legend di dalam chart area — tidak terpotong saat resize */}
+                  <Legend
+                    formatter={(value) => (
+                      <span style={{ fontSize: '12px', color: 'var(--foreground)' }}>{value}</span>
+                    )}
+                  />
                 </PieChart>
               </ResponsiveContainer>
 
+              {/* Detail list di sebelah kanan */}
               <div className="space-y-2">
                 {categoryChartData.map((item, index) => (
                   <div key={index} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
-                      <span className="text-sm text-foreground">{item.name}</span>
+                      {/* ✅ FIX: truncate agar nama panjang tidak overflow */}
+                      <span className="text-sm text-foreground truncate">{item.name}</span>
                     </div>
-                    <span className="text-sm font-medium text-foreground">{formatCurrency(item.amount)}</span>
+                    <span className="text-sm font-medium text-foreground ml-2 flex-shrink-0">
+                      {formatCurrency(item.amount)}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -183,11 +190,20 @@ export function Dashboard() {
           <CardTitle className="text-base font-semibold text-foreground">Task Status</CardTitle>
         </CardHeader>
         <CardContent>
+          {/* ✅ FIX: XAxis tick fontSize lebih kecil + interval=0 agar semua label tampil */}
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={taskStatusData} barSize={40}>
+            <BarChart data={taskStatusData} barSize={40} margin={{ left: -10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="name" tick={{ fill: 'var(--muted-foreground)', fontSize: 13 }} />
-              <YAxis tick={{ fill: 'var(--muted-foreground)', fontSize: 13 }} allowDecimals={false} />
+              <XAxis
+                dataKey="name"
+                tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                interval={0}
+              />
+              <YAxis
+                tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                allowDecimals={false}
+                width={30}
+              />
               <Tooltip
                 contentStyle={{
                   backgroundColor: 'var(--card)',
@@ -206,7 +222,7 @@ export function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Overdue Tasks — ditampilkan terpisah dengan warna lebih gelap */}
+      {/* Overdue Tasks */}
       {overdueTasks.length > 0 && (
         <Card className="border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20">
           <CardHeader className="pb-2">
@@ -219,13 +235,13 @@ export function Dashboard() {
             <div className="space-y-2">
               {overdueTasks.slice(0, 5).map((task) => (
                 <div key={task.id} className="flex justify-between items-center p-3 bg-white dark:bg-gray-800 rounded-lg border border-red-200 dark:border-red-800">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{task.title}</p>
+                  <div className="min-w-0 mr-2">
+                    <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Due: {new Date(task.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </p>
                   </div>
-                  <Badge variant="destructive" className="text-xs">Overdue</Badge>
+                  <Badge variant="destructive" className="text-xs flex-shrink-0">Overdue</Badge>
                 </div>
               ))}
             </div>
@@ -246,13 +262,13 @@ export function Dashboard() {
             <div className="space-y-2">
               {urgentTasks.filter(t => t.status === 'urgent').slice(0, 5).map((task) => (
                 <div key={task.id} className="flex justify-between items-center p-3 bg-white dark:bg-gray-800 rounded-lg border border-red-100 dark:border-red-900">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{task.title}</p>
+                  <div className="min-w-0 mr-2">
+                    <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Due: {new Date(task.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </p>
                   </div>
-                  <Badge variant="destructive" className="text-xs">Urgent</Badge>
+                  <Badge variant="destructive" className="text-xs flex-shrink-0">Urgent</Badge>
                 </div>
               ))}
             </div>
@@ -269,8 +285,8 @@ export function Dashboard() {
               <Card key={note.id} className="border border-border bg-card">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
-                    <Pin size={14} className="text-primary" />
-                    {note.title}
+                    <Pin size={14} className="text-primary flex-shrink-0" />
+                    <span className="truncate">{note.title}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>

@@ -1,5 +1,5 @@
 // src/app/components/Sidebar.tsx
-import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut } from 'lucide-react';
+import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
@@ -9,13 +9,22 @@ export function Sidebar() {
   const { signOut } = useAuth();
 
   const navItems = [
-    { path: '/', icon: Home, label: 'Dashboard' },
-    { path: '/transactions', icon: CreditCard, label: 'Transactions' },
-    { path: '/tasks', icon: CheckSquare, label: 'Tasks' },
-    { path: '/notes', icon: FileText, label: 'Notes' },
-    { path: '/accounts', icon: Wallet, label: 'Accounts' },
-    { path: '/profile', icon: User, label: 'Profile' },
+    { path: '/',             icon: Home,        label: 'Dashboard' },
+    { path: '/transactions', icon: CreditCard,  label: 'Transactions' },
+    { path: '/tasks',        icon: CheckSquare, label: 'Tasks' },
+    { path: '/notes',        icon: FileText,    label: 'Notes' },
+    { path: '/accounts',     icon: Wallet,      label: 'Accounts' },
+    { path: '/profile',      icon: User,        label: 'Profile' },
+    { path: '/settings',     icon: Settings,    label: 'Settings' },
   ];
+
+  // Route yang dianggap "aktif" untuk masing-masing nav item
+  const getIsActive = (path: string) => {
+    if (path === '/settings') {
+      return ['/settings', '/categories', '/trash'].includes(location.pathname);
+    }
+    return location.pathname === path;
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -30,10 +39,9 @@ export function Sidebar() {
         <img src="/logo.png" alt="MyDaily" className="w-full h-auto object-contain dark:invert" />
       </div>
 
-      <nav className="flex-1 p-4">
+      <nav className="flex-1 p-4 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path ||
-            (item.path === '/profile' && ['/profile', '/categories', '/trash'].includes(location.pathname));
+          const isActive = getIsActive(item.path);
           const Icon = item.icon;
           return (
             <Link

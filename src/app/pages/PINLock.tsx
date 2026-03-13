@@ -1,15 +1,23 @@
 // src/app/pages/PINLock.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
-import { Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Loader2, AlertCircle, Eye, EyeOff, Clock } from 'lucide-react';
+
+// ============================================
+// AUTO-LOGOUT CONFIG
+// Jika tab tidak aktif / idle selama X menit → signOut otomatis
+// ============================================
+const AUTO_LOGOUT_MINUTES = 15;
+const AUTO_LOGOUT_MS = AUTO_LOGOUT_MINUTES * 60 * 1000;
+const WARNING_BEFORE_MS = 60 * 1000; // tampilkan warning 1 menit sebelum logout
 
 export function PINLock() {
   const navigate = useNavigate();
-  const { user, signOut, loading: authLoading, verifyPin, hasPin } = useAuth();
+  const { user, signOut, loading: authLoading, verifyPin } = useAuth();
 
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
@@ -20,26 +28,90 @@ export function PINLock() {
   const [pinType, setPinType] = useState<'pin4' | 'pin6' | 'password'>('pin4');
   const [loading, setLoading] = useState(false);
 
+  // Auto-logout state
+  const [showIdleWarning, setShowIdleWarning] = useState(false);
+  const [idleCountdown, setIdleCountdown] = useState(0);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const MAX_ATTEMPTS = 5;
   const LOCK_DURATION = 30;
 
-  // Redirect ke login jika tidak ada user
+  // ============================================
+  // AUTO-LOGOUT: Reset idle timer setiap ada aktivitas
+  // ============================================
+  const handleAutoLogout = useCallback(async () => {
+    clearAllTimers();
+    sessionStorage.removeItem('pinUnlocked');
+    sessionStorage.removeItem('pinAttempts');
+    sessionStorage.removeItem('pinLockUntil');
+    await signOut();
+    navigate('/login', { replace: true });
+  }, [signOut, navigate]);
+
+  const clearAllTimers = () => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+  };
+
+  const resetIdleTimer = useCallback(() => {
+    clearAllTimers();
+    setShowIdleWarning(false);
+    setIdleCountdown(0);
+
+    // Set warning timer (tampil 1 menit sebelum logout)
+    warningTimerRef.current = setTimeout(() => {
+      setShowIdleWarning(true);
+      setIdleCountdown(Math.round(WARNING_BEFORE_MS / 1000));
+
+      // Countdown setiap detik
+      countdownIntervalRef.current = setInterval(() => {
+        setIdleCountdown(prev => {
+          if (prev <= 1) {
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }, AUTO_LOGOUT_MS - WARNING_BEFORE_MS);
+
+    // Set actual logout timer
+    idleTimerRef.current = setTimeout(() => {
+      handleAutoLogout();
+    }, AUTO_LOGOUT_MS);
+  }, [handleAutoLogout]);
+
+  // Pasang event listener untuk deteksi aktivitas user
+  useEffect(() => {
+    const events = ['mousemove', 'mousedown', 'keypress', 'touchstart', 'scroll', 'click'];
+    const onActivity = () => resetIdleTimer();
+
+    events.forEach(e => window.addEventListener(e, onActivity, { passive: true }));
+    resetIdleTimer(); // mulai timer saat komponen mount
+
+    return () => {
+      events.forEach(e => window.removeEventListener(e, onActivity));
+      clearAllTimers();
+    };
+  }, [resetIdleTimer]);
+
+  // ============================================
+  // EXISTING LOGIC (tidak berubah)
+  // ============================================
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/login', { replace: true });
     }
   }, [authLoading, user, navigate]);
 
-  // Tentukan pinType dari data user di Supabase
   useEffect(() => {
     if (user?.pin_type) {
-      // pin_type di DB: 'numeric' atau 'password'
-      // Kita perlu tentukan apakah numeric itu pin4 atau pin6
-      // Cek panjang pin_hash sebagai petunjuk (btoa('1234') = 8 char, btoa('123456') = 12 char)
       if (user.pin_type === 'password') {
         setPinType('password');
       } else {
-        // Decode panjang hash untuk tahu pin4 atau pin6
         try {
           const decoded = atob(user.pin_hash || '');
           setPinType(decoded.length === 6 ? 'pin6' : 'pin4');
@@ -50,7 +122,6 @@ export function PINLock() {
     }
   }, [user]);
 
-  // Restore lock state dari sessionStorage (hanya untuk lock timer, bukan PIN)
   useEffect(() => {
     const lockUntil = sessionStorage.getItem('pinLockUntil');
     if (lockUntil) {
@@ -63,12 +134,10 @@ export function PINLock() {
         sessionStorage.removeItem('pinAttempts');
       }
     }
-
     const savedAttempts = sessionStorage.getItem('pinAttempts');
     if (savedAttempts) setAttempts(parseInt(savedAttempts));
   }, []);
 
-  // Countdown timer
   useEffect(() => {
     if (locked && lockTimer > 0) {
       const timer = setTimeout(() => setLockTimer(lockTimer - 1), 1000);
@@ -89,15 +158,12 @@ export function PINLock() {
     }
 
     setLoading(true);
-
     try {
-      // Verifikasi PIN dari Supabase
       const { success } = await verifyPin(pin);
-
       if (success) {
-        // Bersihkan lock state
         sessionStorage.removeItem('pinAttempts');
         sessionStorage.removeItem('pinLockUntil');
+        clearAllTimers(); // stop idle timer setelah berhasil unlock
         navigate('/');
       } else {
         const newAttempts = attempts + 1;
@@ -121,6 +187,7 @@ export function PINLock() {
   };
 
   const handleSwitchAccount = async () => {
+    clearAllTimers();
     sessionStorage.removeItem('pinUnlocked');
     await signOut();
     navigate('/login');
@@ -131,7 +198,6 @@ export function PINLock() {
   };
 
   const getMaxLength = () => pinType === 'pin4' ? 4 : pinType === 'pin6' ? 6 : undefined;
-
   const getPinLabel = () => {
     switch (pinType) {
       case 'pin4': return '4-Digit PIN';
@@ -139,7 +205,6 @@ export function PINLock() {
       case 'password': return 'Password';
     }
   };
-
   const isNumericPin = pinType !== 'password';
 
   if (authLoading || !user) {
@@ -154,13 +219,8 @@ export function PINLock() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <Card className="w-full max-w-md dark:bg-gray-800 dark:border-gray-700">
         <CardContent className="pt-6 pb-6">
-
           <div className="flex justify-center mb-3">
-            <img
-              src="/logo.png"
-              alt="MyDaily"
-              className="w-48 h-auto object-contain dark:invert"
-            />
+            <img src="/logo.png" alt="MyDaily" className="w-48 h-auto object-contain dark:invert" />
           </div>
 
           <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-5">
@@ -168,6 +228,25 @@ export function PINLock() {
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-3">
+
+            {/* Idle warning */}
+            {showIdleWarning && (
+              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg flex items-start gap-2">
+                <Clock className="w-4 h-4 text-yellow-600 dark:text-yellow-400 shrink-0 mt-0.5" />
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                  Inactive for too long. Auto-logout in <strong>{idleCountdown}s</strong>.{' '}
+                  <button
+                    type="button"
+                    className="underline font-medium"
+                    onClick={resetIdleTimer}
+                  >
+                    Stay logged in
+                  </button>
+                </p>
+              </div>
+            )}
+
+            {/* Lockout */}
             {locked && (
               <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                 <div className="flex items-start gap-3">
@@ -240,7 +319,7 @@ export function PINLock() {
                     ))}
                     <button
                       type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                       onClick={() => setShowPin(!showPin)}
                       disabled={locked || loading}
                     >
@@ -262,7 +341,7 @@ export function PINLock() {
                   />
                   <button
                     type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                     onClick={() => setShowPin(!showPin)}
                     disabled={locked || loading}
                   >
