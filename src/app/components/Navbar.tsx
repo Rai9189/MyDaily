@@ -1,8 +1,8 @@
+// src/app/components/Navbar.tsx
 import { useState } from 'react';
 import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut, Settings, Menu, X } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 const navItems = [
   { path: '/',             icon: Home,        label: 'Dashboard' },
@@ -14,17 +14,25 @@ const navItems = [
   { path: '/settings',     icon: Settings,    label: 'Settings' },
 ];
 
-export function MobileNav() {
+export function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const [open, setOpen] = useState(false);
 
   const getIsActive = (path: string) => {
-    if (path === '/settings') {
-      return ['/settings', '/categories', '/trash'].includes(location.pathname);
-    }
-    return location.pathname === path;
+    if (path === '/settings') return ['/settings', '/categories', '/trash'].includes(location.pathname);
+    if (path === '/') return location.pathname === '/';
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
+
+  const getPageTitle = () => {
+    if (['/settings', '/categories', '/trash'].includes(location.pathname)) return 'Settings';
+    const match = navItems.find(item => {
+      if (item.path === '/') return location.pathname === '/';
+      return location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+    });
+    return match?.label ?? 'Dashboard';
   };
 
   const handleLogout = async () => {
@@ -36,43 +44,41 @@ export function MobileNav() {
 
   return (
     <>
-      {/* Top bar — mobile only */}
-      <header className="fixed top-0 left-0 right-0 h-14 bg-primary flex items-center justify-between px-4 md:hidden z-50">
-        <img src="/logo.png" alt="MyDaily" className="h-10 w-auto object-contain dark:invert" />
+      {/* ── Top Navbar — no logo/text on right side ── */}
+      <header className="fixed top-0 left-0 right-0 h-16 bg-primary flex items-center px-5 z-50 shadow-md">
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="text-white p-1.5 rounded-lg hover:bg-white/15 transition-colors"
+          className="text-white p-2 rounded-lg hover:bg-white/15 transition-colors"
           aria-label="Open menu"
         >
-          <Menu size={24} />
+          <Menu size={26} />
         </button>
+        <span className="text-white font-bold text-xl tracking-wide ml-3">{getPageTitle()}</span>
       </header>
 
-      {/* Overlay backdrop */}
+      {/* ── Overlay ── */}
       {open && (
-        <div
-          className="fixed inset-0 bg-black/50 z-50 md:hidden"
-          onClick={() => setOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setOpen(false)} />
       )}
 
-      {/* Drawer panel */}
-      <div className={`fixed top-0 right-0 h-full w-72 z-50 md:hidden flex flex-col transition-transform duration-300 ease-in-out ${
-        open ? 'translate-x-0' : 'translate-x-full'
-      }`}
+      {/* ── Drawer ── */}
+      <div
+        className={`fixed top-0 left-0 h-full w-72 z-50 flex flex-col transition-transform duration-300 ease-in-out ${
+          open ? 'translate-x-0' : '-translate-x-full'
+        }`}
         style={{ background: 'linear-gradient(to bottom, var(--primary), color-mix(in srgb, var(--primary) 80%, black))' }}
       >
-        {/* Drawer header */}
-        <div className="flex items-center justify-between p-5 border-b border-white/20">
-          <img src="/logo.png" alt="MyDaily" className="h-9 w-auto object-contain dark:invert" />
+        {/* Drawer header — logo here */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/20">
+          <img src="/logo.png" alt="MyDaily" className="h-14 w-auto object-contain dark:invert" />
           <button
             type="button"
             onClick={() => setOpen(false)}
             className="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/15 transition-colors"
             aria-label="Close menu"
           >
-            <X size={20} />
+            <X size={22} />
           </button>
         </div>
 
