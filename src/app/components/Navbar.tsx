@@ -27,7 +27,16 @@ export function Navbar() {
   };
 
   const getPageTitle = () => {
-    if (['/settings', '/categories', '/trash'].includes(location.pathname)) return 'Settings';
+    if (location.pathname === '/trash')      return 'Trash';
+    if (location.pathname === '/categories') return 'Categories';
+    if (location.pathname === '/settings')   return 'Settings';
+    if (location.pathname === '/transactions/new')              return 'New Transaction';
+    if (location.pathname.startsWith('/transactions/'))         return 'Transaction Detail';
+    if (location.pathname === '/tasks/new')                     return 'New Task';
+    if (location.pathname.startsWith('/tasks/'))                return 'Task Detail';
+    if (location.pathname === '/notes/new')                     return 'New Note';
+    if (location.pathname.startsWith('/notes/'))                return 'Note Detail';
+    if (location.pathname.startsWith('/accounts/'))             return 'Account Detail';
     const match = navItems.find(item => {
       if (item.path === '/') return location.pathname === '/';
       return location.pathname === item.path || location.pathname.startsWith(item.path + '/');
@@ -44,7 +53,7 @@ export function Navbar() {
 
   return (
     <>
-      {/* ── Top Navbar — no logo/text on right side ── */}
+      {/* ── Top Navbar ── */}
       <header className="fixed top-0 left-0 right-0 h-16 bg-primary flex items-center px-5 z-50 shadow-md">
         <button
           type="button"
@@ -69,7 +78,7 @@ export function Navbar() {
         }`}
         style={{ background: 'linear-gradient(to bottom, var(--primary), color-mix(in srgb, var(--primary) 80%, black))' }}
       >
-        {/* Drawer header — logo here */}
+        {/* Drawer header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/20">
           <img src="/logo.png" alt="MyDaily" className="h-14 w-auto object-contain dark:invert" />
           <button
