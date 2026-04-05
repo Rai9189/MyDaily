@@ -18,7 +18,7 @@ type SortOption = 'newest' | 'oldest' | 'az';
 export function Notes() {
   const navigate = useNavigate();
   const { notes, loading, error, deleteNote, togglePin } = useNotes();
-  const { categories, getCategoriesByType } = useCategories();
+  const { categories, getCategoriesByType, getEffectiveCategoryName, getEffectiveCategoryColor } = useCategories();
 
   const [searchQuery, setSearchQuery]       = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -32,7 +32,7 @@ export function Notes() {
   const [viewMode, setViewMode]             = useState<'card' | 'list'>('card');
   const filterRef = useRef<HTMLDivElement>(null);
 
-  const noteCategories = getCategoriesByType('note');
+  const noteCategories = categories.filter(c => c.type === 'note');
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -51,8 +51,8 @@ export function Notes() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const getCategoryName  = (id: string) => categories.find(c => c.id === id)?.name  || 'Other';
-  const getCategoryColor = (id: string) => categories.find(c => c.id === id)?.color || '#6b7280';
+  const getCategoryName  = (id: string, subId?: string | null) => getEffectiveCategoryName(id, subId);
+  const getCategoryColor = (id: string, subId?: string | null) => getEffectiveCategoryColor(id, subId);
 
   const filteredNotes = useMemo(() => {
     let result = [...notes];
@@ -66,7 +66,7 @@ export function Notes() {
     }
 
     // Category filter
-    if (filterCategory !== 'all') result = result.filter(n => n.categoryId === filterCategory);
+    if (filterCategory !== 'all') result = result.filter(n => n.categoryId === filterCategory || n.subcategoryId === filterCategory);
 
     // Pinned filter
     if (filterPinned === 'pinned')   result = result.filter(n => n.pinned);
@@ -156,8 +156,8 @@ export function Notes() {
             <div className="flex-1 min-w-0" onClick={() => navigate(`/notes/${note.id}`)}>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                  style={{ borderColor: getCategoryColor(note.categoryId), color: getCategoryColor(note.categoryId) }}>
-                  {getCategoryName(note.categoryId)}
+                  style={{ borderColor: getCategoryColor(note.categoryId, note.subcategoryId), color: getCategoryColor(note.categoryId, note.subcategoryId) }}>
+                  {getCategoryName(note.categoryId, note.subcategoryId)}
                 </span>
                 {note.pinned && <Pin size={13} className="text-amber-500" />}
               </div>
@@ -298,11 +298,27 @@ export function Notes() {
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</label>
                     <Select value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setCurrentPage(1); }}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="All Categories" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Categories</SelectItem>
-                        {noteCategories.map(cat => (
-                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                        {noteCategories.filter(c => !c.parentId).map(parent => (
+                          <div key={parent.id}>
+                            <SelectItem value={parent.id}>
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: parent.color }} />
+                                <span className="font-medium">{parent.name}</span>
+                              </div>
+                            </SelectItem>
+                            {noteCategories.filter(c => c.parentId === parent.id).map(sub => (
+                              <SelectItem key={sub.id} value={sub.id}>
+                                <div className="flex items-center gap-2 pl-4">
+                                  <span className="text-muted-foreground text-xs">└</span>
+                                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || parent.color }} />
+                                  <span className="text-sm">{sub.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </div>
                         ))}
                       </SelectContent>
                     </Select>
@@ -459,8 +475,8 @@ export function Notes() {
                     </td>
                     <td className="px-4 py-3.5 whitespace-nowrap">
                       <span className="text-xs font-medium px-2.5 py-1 rounded-full border"
-                        style={{ borderColor: getCategoryColor(note.categoryId), color: getCategoryColor(note.categoryId) }}>
-                        {getCategoryName(note.categoryId)}
+                        style={{ borderColor: getCategoryColor(note.categoryId, note.subcategoryId), color: getCategoryColor(note.categoryId, note.subcategoryId) }}>
+                        {getCategoryName(note.categoryId, note.subcategoryId)}
                       </span>
                     </td>
                     <td className="px-4 py-3.5 whitespace-nowrap">
@@ -511,8 +527,8 @@ export function Notes() {
                     </td>
                     <td className="px-4 py-3.5 whitespace-nowrap">
                       <span className="text-xs font-medium px-2.5 py-1 rounded-full border"
-                        style={{ borderColor: getCategoryColor(note.categoryId), color: getCategoryColor(note.categoryId) }}>
-                        {getCategoryName(note.categoryId)}
+                        style={{ borderColor: getCategoryColor(note.categoryId, note.subcategoryId), color: getCategoryColor(note.categoryId, note.subcategoryId) }}>
+                        {getCategoryName(note.categoryId, note.subcategoryId)}
                       </span>
                     </td>
                     <td className="px-4 py-3.5 whitespace-nowrap">

@@ -26,7 +26,7 @@ function computeStatus(deadline: string, completed: boolean): TaskStatus {
   const deadlineDate = new Date(deadline);
   deadlineDate.setHours(0, 0, 0, 0);
   const daysLeft = Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  if (daysLeft < 0) return 'overdue';
+  if (daysLeft < 0)  return 'overdue';
   if (daysLeft <= 3) return 'urgent';
   if (daysLeft <= 7) return 'upcoming';
   return 'on_track';
@@ -36,6 +36,7 @@ function mapToTask(row: any): Task {
   return {
     id: row.id,
     categoryId: row.category_id,
+    subcategoryId: row.subcategory_id ?? null,
     title: row.title,
     description: row.description || '',
     deadline: row.deadline,
@@ -90,6 +91,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         .insert({
           user_id: user.id,
           category_id: task.categoryId,
+          subcategory_id: task.subcategoryId ?? null,
           title: task.title,
           description: task.description,
           deadline: task.deadline,
@@ -102,6 +104,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       const newTask: Task = {
         id: data.id,
         categoryId: task.categoryId,
+        subcategoryId: task.subcategoryId ?? null,
         title: task.title,
         description: task.description || '',
         deadline: task.deadline,
@@ -123,11 +126,12 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       setError(null);
       if (!id || id === 'new') throw new Error('Invalid task ID');
       const dbUpdates: any = {};
-      if (updates.categoryId !== undefined) dbUpdates.category_id = updates.categoryId;
-      if (updates.title !== undefined) dbUpdates.title = updates.title;
-      if (updates.description !== undefined) dbUpdates.description = updates.description;
-      if (updates.deadline !== undefined) dbUpdates.deadline = updates.deadline;
-      if (updates.completed !== undefined) dbUpdates.completed = updates.completed;
+      if (updates.categoryId    !== undefined) dbUpdates.category_id    = updates.categoryId;
+      if (updates.subcategoryId !== undefined) dbUpdates.subcategory_id = updates.subcategoryId ?? null;
+      if (updates.title         !== undefined) dbUpdates.title          = updates.title;
+      if (updates.description   !== undefined) dbUpdates.description    = updates.description;
+      if (updates.deadline      !== undefined) dbUpdates.deadline       = updates.deadline;
+      if (updates.completed     !== undefined) dbUpdates.completed      = updates.completed;
       if (updates.completionNote !== undefined) dbUpdates.completion_note = updates.completionNote;
       const { error: updateError } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
       if (updateError) throw updateError;

@@ -24,6 +24,7 @@ function mapToTransaction(row: any): Transaction {
     id: row.id,
     accountId: row.account_id,
     categoryId: row.category_id,
+    subcategoryId: row.subcategory_id ?? null,
     amount: row.amount,
     type: row.type,
     date: row.date,
@@ -61,7 +62,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchTransactions();
-    // Re-fetch saat ada restore dari Trash
     const unsub = trashEvents.subscribeRestore((table) => {
       if (table === 'transactions') fetchTransactions();
     });
@@ -80,6 +80,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
           user_id: user.id,
           account_id: transaction.accountId,
           category_id: transaction.categoryId,
+          subcategory_id: transaction.subcategoryId ?? null,
           amount: transaction.amount,
           type: transaction.type,
           date: transaction.date,
@@ -106,12 +107,13 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       if (!id || id === 'new') throw new Error('Invalid transaction ID');
       const oldTransaction = transactions.find(t => t.id === id);
       const dbUpdates: any = {};
-      if (updates.accountId !== undefined) dbUpdates.account_id = updates.accountId;
-      if (updates.categoryId !== undefined) dbUpdates.category_id = updates.categoryId;
-      if (updates.amount !== undefined) dbUpdates.amount = updates.amount;
-      if (updates.type !== undefined) dbUpdates.type = updates.type;
-      if (updates.date !== undefined) dbUpdates.date = updates.date;
-      if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.accountId    !== undefined) dbUpdates.account_id     = updates.accountId;
+      if (updates.categoryId   !== undefined) dbUpdates.category_id    = updates.categoryId;
+      if (updates.subcategoryId !== undefined) dbUpdates.subcategory_id = updates.subcategoryId ?? null;
+      if (updates.amount       !== undefined) dbUpdates.amount         = updates.amount;
+      if (updates.type         !== undefined) dbUpdates.type           = updates.type;
+      if (updates.date         !== undefined) dbUpdates.date           = updates.date;
+      if (updates.description  !== undefined) dbUpdates.description    = updates.description;
       const { error: updateError } = await supabase.from('transactions').update(dbUpdates).eq('id', id);
       if (updateError) throw updateError;
       setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
@@ -119,9 +121,9 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         const oldDelta = oldTransaction.type === 'income' ? -oldTransaction.amount : oldTransaction.amount;
         updateBalanceLocally(oldTransaction.accountId, oldDelta);
         const newAccountId = updates.accountId ?? oldTransaction.accountId;
-        const newAmount = updates.amount ?? oldTransaction.amount;
-        const newType = updates.type ?? oldTransaction.type;
-        const newDelta = newType === 'income' ? newAmount : -newAmount;
+        const newAmount    = updates.amount    ?? oldTransaction.amount;
+        const newType      = updates.type      ?? oldTransaction.type;
+        const newDelta     = newType === 'income' ? newAmount : -newAmount;
         updateBalanceLocally(newAccountId, newDelta);
       }
       return { success: true, error: null };

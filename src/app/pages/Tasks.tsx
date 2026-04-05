@@ -17,7 +17,7 @@ import {
 export function Tasks() {
   const navigate = useNavigate();
   const { tasks, loading, error, deleteTask } = useTasks();
-  const { categories, getCategoriesByType } = useCategories();
+  const { categories, getCategoriesByType, getEffectiveCategoryName, getEffectiveCategoryColor } = useCategories();
 
   const [searchQuery, setSearchQuery]         = useState('');
   const [filterStatus, setFilterStatus]       = useState('all');
@@ -32,7 +32,7 @@ export function Tasks() {
   const [viewMode, setViewMode]               = useState<'list' | 'card'>('list');
   const filterRef = useRef<HTMLDivElement>(null);
 
-  const taskCategories = getCategoriesByType('task');
+  const taskCategories = categories.filter(c => c.type === 'task');
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -51,8 +51,8 @@ export function Tasks() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const getCategoryName  = (id: string) => categories.find(c => c.id === id)?.name  || 'Other';
-  const getCategoryColor = (id: string) => categories.find(c => c.id === id)?.color || '#6b7280';
+  const getCategoryName  = (id: string, subId?: string | null) => getEffectiveCategoryName(id, subId);
+  const getCategoryColor = (id: string, subId?: string | null) => getEffectiveCategoryColor(id, subId);
 
   const getStatusConfig = (status: string) => {
     switch (status) {
@@ -115,11 +115,11 @@ export function Tasks() {
       result = result.filter(t =>
         t.title.toLowerCase().includes(q) ||
         t.description?.toLowerCase().includes(q) ||
-        getCategoryName(t.categoryId).toLowerCase().includes(q)
+        getCategoryName(t.categoryId, t.subcategoryId).toLowerCase().includes(q)
       );
     }
     if (filterStatus   !== 'all') result = result.filter(t => t.status === filterStatus);
-    if (filterCategory !== 'all') result = result.filter(t => t.categoryId === filterCategory);
+    if (filterCategory !== 'all') result = result.filter(t => t.categoryId === filterCategory || t.subcategoryId === filterCategory);
     if (filterCompleted === 'completed') result = result.filter(t =>  t.completed);
     if (filterCompleted === 'active')    result = result.filter(t => !t.completed);
     result.sort((a, b) => {
@@ -288,11 +288,27 @@ export function Tasks() {
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</label>
                     <Select value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setCurrentPage(1); }}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="All Categories" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Categories</SelectItem>
-                        {taskCategories.map(cat => (
-                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                        {taskCategories.filter(c => !c.parentId).map(parent => (
+                          <div key={parent.id}>
+                            <SelectItem value={parent.id}>
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: parent.color }} />
+                                <span className="font-medium">{parent.name}</span>
+                              </div>
+                            </SelectItem>
+                            {taskCategories.filter(c => c.parentId === parent.id).map(sub => (
+                              <SelectItem key={sub.id} value={sub.id}>
+                                <div className="flex items-center gap-2 pl-4">
+                                  <span className="text-muted-foreground text-xs">└</span>
+                                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || parent.color }} />
+                                  <span className="text-sm">{sub.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </div>
                         ))}
                       </SelectContent>
                     </Select>
@@ -422,8 +438,8 @@ export function Tasks() {
                       </td>
                       <td className={`px-4 whitespace-nowrap ${itemsPerPage === 5 ? "py-2" : "py-4"}`}>
                         <span className="text-xs font-medium px-2.5 py-1 rounded-full border"
-                          style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}>
-                          {getCategoryName(task.categoryId)}
+                          style={{ borderColor: getCategoryColor(task.categoryId, task.subcategoryId), color: getCategoryColor(task.categoryId, task.subcategoryId) }}>
+                          {getCategoryName(task.categoryId, task.subcategoryId)}
                         </span>
                       </td>
                       <td className={`px-4 whitespace-nowrap ${itemsPerPage === 5 ? "py-2" : "py-4"}`}>
@@ -467,8 +483,8 @@ export function Tasks() {
                     <div className="flex-1 min-w-0" onClick={() => navigate(`/tasks/${task.id}`)}>
                       <div className="flex items-center gap-2 flex-wrap mb-1.5">
                         <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                          style={{ borderColor: getCategoryColor(task.categoryId), color: getCategoryColor(task.categoryId) }}>
-                          {getCategoryName(task.categoryId)}
+                          style={{ borderColor: getCategoryColor(task.categoryId, task.subcategoryId), color: getCategoryColor(task.categoryId, task.subcategoryId) }}>
+                          {getCategoryName(task.categoryId, task.subcategoryId)}
                         </span>
                         <StatusBadge task={task} />
                       </div>

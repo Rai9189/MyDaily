@@ -23,6 +23,7 @@ function mapToNote(row: any): Note {
   return {
     id: row.id,
     categoryId: row.category_id,
+    subcategoryId: row.subcategory_id ?? null,
     title: row.title,
     content: row.content,
     pinned: row.pinned,
@@ -76,6 +77,7 @@ export function NoteProvider({ children }: { children: ReactNode }) {
         .insert({
           user_id: user.id,
           category_id: note.categoryId,
+          subcategory_id: note.subcategoryId ?? null,
           title: note.title,
           content: note.content,
           pinned: note.pinned || false,
@@ -98,10 +100,11 @@ export function NoteProvider({ children }: { children: ReactNode }) {
       setError(null);
       if (!id || id === 'new') throw new Error('Invalid note ID');
       const dbUpdates: any = {};
-      if (updates.categoryId !== undefined) dbUpdates.category_id = updates.categoryId;
-      if (updates.title !== undefined) dbUpdates.title = updates.title;
-      if (updates.content !== undefined) dbUpdates.content = updates.content;
-      if (updates.pinned !== undefined) dbUpdates.pinned = updates.pinned;
+      if (updates.categoryId    !== undefined) dbUpdates.category_id    = updates.categoryId;
+      if (updates.subcategoryId !== undefined) dbUpdates.subcategory_id = updates.subcategoryId ?? null;
+      if (updates.title         !== undefined) dbUpdates.title          = updates.title;
+      if (updates.content       !== undefined) dbUpdates.content        = updates.content;
+      if (updates.pinned        !== undefined) dbUpdates.pinned         = updates.pinned;
       const { error: updateError } = await supabase.from('notes').update(dbUpdates).eq('id', id);
       if (updateError) throw updateError;
       setNotes(prev => prev.map(n => (n.id === id ? { ...n, ...updates } : n)));

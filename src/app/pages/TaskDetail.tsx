@@ -1,5 +1,5 @@
 // src/app/pages/TaskDetail.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTasks } from '../context/TaskContext';
 import { useCategories } from '../context/CategoryContext';
@@ -17,6 +17,7 @@ import {
   ChevronLeft, X, Loader2, FileText, Image as ImageIcon,
   Save, CheckCircle2, CalendarX, AlertCircle, Clock,
 } from 'lucide-react';
+import { CategorySelect } from '../components/CategorySelect';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 
 const MAX_TITLE = 100;
@@ -33,7 +34,7 @@ export function TaskDetail() {
   const isNew        = id === 'new' || !id;
 
   const { getTaskById, createTask, updateTask, completeTask } = useTasks();
-  const { getCategoriesByType } = useCategories();
+  const { categories } = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
 
   const {
@@ -44,14 +45,19 @@ export function TaskDetail() {
   } = usePendingAttachments();
 
   const task          = isNew ? null : getTaskById(id!);
-  const taskCategories = getCategoriesByType('task');
+  // All task categories including subcategories
+  const taskCategories = useMemo(
+    () => categories.filter(c => c.type === 'task'),
+    [categories],
+  );
 
   const [formData, setFormData] = useState({
-    title:       '',
-    deadline:    new Date().toISOString().split('T')[0],
-    categoryId:  '',
-    description: '',
-    completed:   false,
+    title:         '',
+    deadline:      new Date().toISOString().split('T')[0],
+    categoryId:    '',
+    subcategoryId: null as string | null,
+    description:   '',
+    completed:     false,
   });
   const [completionNote, setCompletionNote] = useState('');
   const [attachments, setAttachments]       = useState<any[]>([]);
@@ -89,11 +95,12 @@ export function TaskDetail() {
   useEffect(() => {
     if (!isNew && task) {
       setFormData({
-        title:       task.title,
-        deadline:    task.deadline,
-        categoryId:  task.categoryId,
-        description: task.description || '',
-        completed:   task.completed,
+        title:         task.title,
+        deadline:      task.deadline,
+        categoryId:    task.categoryId,
+        subcategoryId: task.subcategoryId ?? null,
+        description:   task.description || '',
+        completed:     task.completed,
       });
     }
   }, [isNew, task?.id]);
@@ -188,7 +195,6 @@ export function TaskDetail() {
     }
   };
 
-  const selectedCategory = taskCategories.find(c => c.id === formData.categoryId);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -295,32 +301,16 @@ export function TaskDetail() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="category">Category <span className="text-destructive">*</span></Label>
-                    <Select
-                      value={formData.categoryId}
-                      onValueChange={(v) => setFormData({ ...formData, categoryId: v })}
+                    <CategorySelect
+                      id="category"
+                      categories={taskCategories}
+                      value={formData.subcategoryId || formData.categoryId}
+                      onChange={(categoryId, subcategoryId) =>
+                        setFormData(prev => ({ ...prev, categoryId, subcategoryId }))
+                      }
+                      placeholder="Select category"
                       disabled={task?.completed}
-                    >
-                      <SelectTrigger id="category">
-                        {selectedCategory ? (
-                          <div className="flex items-center gap-2">
-                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: selectedCategory.color }} />
-                            <span>{selectedCategory.name}</span>
-                          </div>
-                        ) : (
-                          <SelectValue placeholder="Select category" />
-                        )}
-                      </SelectTrigger>
-                      <SelectContent>
-                        {taskCategories.map(cat => (
-                          <SelectItem key={cat.id} value={cat.id}>
-                            <div className="flex items-center gap-2">
-                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
-                              <span>{cat.name}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
                 </div>
 

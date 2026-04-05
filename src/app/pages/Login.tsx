@@ -1,3 +1,4 @@
+// src/app/pages/Login.tsx
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -7,9 +8,9 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Eye, EyeOff, Loader2, ShieldAlert } from 'lucide-react';
 
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS     = 3;
 const COOLDOWN_SECONDS = 30;
-const STORAGE_KEY_ATTEMPTS = 'login_attempts';
+const STORAGE_KEY_ATTEMPTS   = 'login_attempts';
 const STORAGE_KEY_LOCK_UNTIL = 'login_lock_until';
 
 function getRemainingCooldown(): number {
@@ -26,26 +27,20 @@ export function Login() {
   const navigate = useNavigate();
   const { signIn } = useAuth();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail]             = useState('');
+  const [password, setPassword]       = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+  const [attempts, setAttempts]       = useState<number>(getAttempts);
+  const [cooldown, setCooldown]       = useState<number>(getRemainingCooldown);
 
-  // Rate limiting state
-  const [attempts, setAttempts] = useState<number>(getAttempts);
-  const [cooldown, setCooldown] = useState<number>(getRemainingCooldown);
-
-  // Countdown timer
   useEffect(() => {
     if (cooldown <= 0) return;
     const interval = setInterval(() => {
       const remaining = getRemainingCooldown();
       setCooldown(remaining);
-      if (remaining <= 0) {
-        clearInterval(interval);
-        setError(null);
-      }
+      if (remaining <= 0) { clearInterval(interval); setError(null); }
     }, 1000);
     return () => clearInterval(interval);
   }, [cooldown]);
@@ -56,7 +51,6 @@ export function Login() {
     const newAttempts = getAttempts() + 1;
     sessionStorage.setItem(STORAGE_KEY_ATTEMPTS, String(newAttempts));
     setAttempts(newAttempts);
-
     if (newAttempts >= MAX_ATTEMPTS) {
       const lockUntil = Date.now() + COOLDOWN_SECONDS * 1000;
       sessionStorage.setItem(STORAGE_KEY_LOCK_UNTIL, String(lockUntil));
@@ -74,22 +68,16 @@ export function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (isLocked) return;
-
     setLoading(true);
     setError(null);
-
     const { success, error: signInError } = await signIn(email, password);
     setLoading(false);
-
     if (success) {
       resetAttempts();
-      // Routing ditangani oleh PublicRoute di App.tsx
     } else {
       const newAttempts = recordFailedAttempt();
-      const remaining = MAX_ATTEMPTS - newAttempts;
-
+      const remaining   = MAX_ATTEMPTS - newAttempts;
       if (newAttempts >= MAX_ATTEMPTS) {
         setError(`Too many failed attempts. Please wait ${COOLDOWN_SECONDS} seconds.`);
       } else {
@@ -102,130 +90,102 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md dark:bg-gray-800 dark:border-gray-700">
-        <CardContent className="pt-6 pb-6">
-          <div className="flex justify-center mb-5">
-            <img
-              src="/logo.png"
-              alt="MyDaily"
-              className="w-full max-w-xs h-auto object-contain dark:invert"
-            />
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+        <Card className="border-2 border-blue-200 dark:border-blue-900/50 bg-white dark:bg-card shadow-lg rounded-2xl">
+          <CardContent className="pt-8 pb-7 px-7">
+            {/* Logo inside card */}
+            <div className="flex justify-center mb-6">
+              <img src="/logo.png" alt="MyDaily" className="w-40 h-auto object-contain dark:invert" />
+            </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="mb-5">
+              <h1 className="text-xl font-semibold text-foreground">Welcome back</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">Sign in to your account</p>
+            </div>
 
-            {/* Error / Lockout message */}
-            {error && (
-              <div className={`p-3 rounded-lg border flex items-start gap-2 ${
-                isLocked
-                  ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
-                  : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-              }`}>
-                {isLocked && <ShieldAlert className="w-4 h-4 text-orange-500 mt-0.5 shrink-0" />}
-                <p className={`text-sm ${
+            <form onSubmit={handleLogin} className="space-y-4">
+
+              {/* Lockout / error banner */}
+              {error && (
+                <div className={`flex items-start gap-2.5 px-3.5 py-3 rounded-xl border-2 text-sm ${
                   isLocked
-                    ? 'text-orange-600 dark:text-orange-400'
-                    : 'text-red-600 dark:text-red-400'
+                    ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400'
+                    : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400'
                 }`}>
-                  {isLocked
-                    ? `Account temporarily locked. Try again in ${cooldown}s.`
-                    : error}
-                </p>
-              </div>
-            )}
-
-            {/* Attempts warning (show when >= 3 attempts but not yet locked) */}
-            {attempts >= 3 && !isLocked && (
-              <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                <p className="text-xs text-yellow-700 dark:text-yellow-400 text-center">
-                  ⚠️ {MAX_ATTEMPTS - attempts} attempt{MAX_ATTEMPTS - attempts > 1 ? 's' : ''} left before temporary lockout
-                </p>
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <Label htmlFor="email" className="dark:text-gray-300">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="name@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading || isLocked}
-                className="dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="password" className="dark:text-gray-300">Password</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={loading || isLocked}
-                  className="pr-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50"
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                  onClick={() => setShowPassword(!showPassword)}
-                  disabled={loading || isLocked}
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex justify-start">
-              <Button
-                type="button"
-                variant="link"
-                className="p-0 h-auto text-sm"
-                onClick={() => navigate('/forgot-password')}
-                disabled={loading}
-              >
-                Forgot password?
-              </Button>
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={loading || isLocked}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Signing in...
-                </>
-              ) : isLocked ? (
-                `Locked (${cooldown}s)`
-              ) : (
-                'Sign In'
+                  {isLocked && <ShieldAlert size={15} className="shrink-0 mt-0.5" />}
+                  <p>{isLocked ? `Account temporarily locked. Try again in ${cooldown}s.` : error}</p>
+                </div>
               )}
-            </Button>
 
-            <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-              Don't have an account?{' '}
-              <Button
-                type="button"
-                variant="link"
-                className="p-0 h-auto"
-                onClick={() => navigate('/register')}
-                disabled={loading}
-              >
-                Register now
+              {/* Attempts warning */}
+              {attempts >= 2 && !isLocked && (
+                <div className="px-3 py-2 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl">
+                  <p className="text-xs text-amber-700 dark:text-amber-400 text-center">
+                    ⚠️ {MAX_ATTEMPTS - attempts} attempt{MAX_ATTEMPTS - attempts > 1 ? 's' : ''} remaining before temporary lockout
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email" type="email" placeholder="name@example.com"
+                  value={email} onChange={(e) => setEmail(e.target.value)}
+                  required disabled={loading || isLocked}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Input
+                    id="password" type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    value={password} onChange={(e) => setPassword(e.target.value)}
+                    required disabled={loading || isLocked}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => setShowPassword(!showPassword)}
+                    disabled={loading || isLocked}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  type="button" variant="link" className="p-0 h-auto text-sm"
+                  onClick={() => navigate('/forgot-password')} disabled={loading}
+                >
+                  Forgot password?
+                </Button>
+              </div>
+
+              <Button type="submit" className="w-full gap-2" disabled={loading || isLocked}>
+                {loading
+                  ? <><Loader2 size={16} className="animate-spin" /> Signing in...</>
+                  : isLocked ? `Locked (${cooldown}s)` : 'Sign In'
+                }
               </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+
+              <p className="text-center text-sm text-muted-foreground">
+                Don't have an account?{' '}
+                <Button
+                  type="button" variant="link" className="p-0 h-auto font-medium"
+                  onClick={() => navigate('/register')} disabled={loading}
+                >
+                  Register now
+                </Button>
+              </p>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

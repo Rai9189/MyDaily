@@ -16,8 +16,8 @@ export interface Category {
   name: string;
   type: 'transaction' | 'task' | 'note';
   color?: string;
-  subtype?: 'income' | 'expense';
-  parentId?: string | null; // ✅ null = parent category, string = subcategory
+  subtype?: string;
+  parentId?: string | null;
 }
 
 export interface Attachment {
@@ -34,6 +34,7 @@ export interface Transaction {
   type: TransactionType;
   date: string;
   categoryId: string;
+  subcategoryId?: string | null;
   description?: string;
   attachments?: Attachment[];
 }
@@ -47,6 +48,7 @@ export interface Task {
   status: TaskStatus;
   completed: boolean;
   categoryId: string;
+  subcategoryId?: string | null;
   description?: string;
   completionNote?: string;
   completionAttachments?: Attachment[];
@@ -59,6 +61,7 @@ export interface Note {
   timestamp: string;
   pinned: boolean;
   categoryId: string;
+  subcategoryId?: string | null;
   attachments?: Attachment[];
 }
 

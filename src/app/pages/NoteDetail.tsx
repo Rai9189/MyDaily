@@ -15,6 +15,7 @@ import {
   ChevronLeft, Pin, X, Loader2, FileText,
   Image as ImageIcon, Save,
 } from 'lucide-react';
+import { CategorySelect } from '../components/CategorySelect';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 
 const MAX_TITLE   = 100;
@@ -31,7 +32,7 @@ export function NoteDetail() {
   const isNew        = id === 'new' || !id;
 
   const { getNoteById, createNote, updateNote, togglePin } = useNotes();
-  const { getCategoriesByType }                 = useCategories();
+  const { categories }                          = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
 
   const {
@@ -42,16 +43,20 @@ export function NoteDetail() {
   } = usePendingAttachments();
 
   const note           = isNew ? null : getNoteById(id!);
-  const noteCategories = getCategoriesByType('note');
+  const noteCategories = useMemo(
+    () => categories.filter(c => c.type === 'note'),
+    [categories],
+  );
 
   const [formData, setFormData] = useState({
-    title:      '',
-    content:    '',
-    categoryId: '',
-    pinned:     false,
+    title:         '',
+    content:       '',
+    categoryId:    '',
+    subcategoryId: null as string | null,
+    pinned:        false,
   });
   const [initialFormData, setInitialFormData] = useState({
-    title: '', content: '', categoryId: '', pinned: false,
+    title: '', content: '', categoryId: '', subcategoryId: null as string | null, pinned: false,
   });
   const [attachments, setAttachments] = useState<any[]>([]);
   const [uploading, setUploading]     = useState(false);
@@ -64,9 +69,10 @@ export function NoteDetail() {
 
   /* ── Has changed — disable save if nothing changed ── */
   const hasChanged = isNew || (
-    formData.title      !== initialFormData.title      ||
-    formData.content    !== initialFormData.content    ||
-    formData.categoryId !== initialFormData.categoryId
+    formData.title         !== initialFormData.title      ||
+    formData.content       !== initialFormData.content    ||
+    formData.categoryId    !== initialFormData.categoryId ||
+    formData.subcategoryId !== initialFormData.subcategoryId
   );
 
   /* ── Auto-resize textarea ── */
@@ -85,10 +91,11 @@ export function NoteDetail() {
   useEffect(() => {
     if (!isNew && note) {
       const data = {
-        title:      note.title,
-        content:    note.content,
-        categoryId: note.categoryId,
-        pinned:     note.pinned,
+        title:         note.title,
+        content:       note.content,
+        categoryId:    note.categoryId,
+        subcategoryId: note.subcategoryId ?? null,
+        pinned:        note.pinned,
       };
       setFormData(data);
       setInitialFormData(data);
@@ -169,7 +176,6 @@ export function NoteDetail() {
     }
   };
 
-  const selectedCategory = noteCategories.find(c => c.id === formData.categoryId);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -250,31 +256,15 @@ export function NoteDetail() {
 
                   <div className="space-y-1.5">
                     <Label htmlFor="category">Category <span className="text-destructive">*</span></Label>
-                    <Select
-                      value={formData.categoryId}
-                      onValueChange={(v) => setFormData({ ...formData, categoryId: v })}
-                    >
-                      <SelectTrigger id="category">
-                        {selectedCategory ? (
-                          <div className="flex items-center gap-2">
-                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: selectedCategory.color }} />
-                            <span>{selectedCategory.name}</span>
-                          </div>
-                        ) : (
-                          <SelectValue placeholder="Select category" />
-                        )}
-                      </SelectTrigger>
-                      <SelectContent>
-                        {noteCategories.map(cat => (
-                          <SelectItem key={cat.id} value={cat.id}>
-                            <div className="flex items-center gap-2">
-                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
-                              <span>{cat.name}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <CategorySelect
+                      id="category"
+                      categories={noteCategories}
+                      value={formData.subcategoryId || formData.categoryId}
+                      onChange={(categoryId, subcategoryId) =>
+                        setFormData(prev => ({ ...prev, categoryId, subcategoryId }))
+                      }
+                      placeholder="Select category"
+                    />
                   </div>
                 </div>
 

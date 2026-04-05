@@ -19,7 +19,7 @@ export function Transactions() {
   const navigate = useNavigate();
   const { transactions, loading, error, deleteTransaction } = useTransactions();
   const { accounts }                                        = useAccounts();
-  const { categories, getCategoriesByType, getCategoriesBySubtype } = useCategories();
+  const { categories, getCategoriesByType, getCategoriesBySubtype, getEffectiveCategoryName, getEffectiveCategoryColor } = useCategories();
 
   const [searchQuery, setSearchQuery]     = useState('');
   const [filterAccount, setFilterAccount]   = useState('all');
@@ -59,8 +59,8 @@ export function Transactions() {
   const getAccountName    = (id: string | null) =>
     !id ? 'Deleted Account' : accounts.find(a => a.id === id)?.name ?? 'Deleted Account';
   const isDeletedAccount  = (id: string | null) => !id || !accounts.find(a => a.id === id);
-  const getCategoryName   = (id: string) => categories.find(c => c.id === id)?.name  || 'Other';
-  const getCategoryColor  = (id: string) => categories.find(c => c.id === id)?.color || '#6b7280';
+  const getCategoryName  = (id: string, subId?: string | null) => getEffectiveCategoryName(id, subId);
+  const getCategoryColor = (id: string, subId?: string | null) => getEffectiveCategoryColor(id, subId);
 
   const filteredTransactions = useMemo(() => {
     let result = [...transactions];
@@ -69,13 +69,15 @@ export function Transactions() {
       result = result.filter(t =>
         t.description?.toLowerCase().includes(q) ||
         getAccountName(t.accountId).toLowerCase().includes(q) ||
-        getCategoryName(t.categoryId).toLowerCase().includes(q) ||
+        getCategoryName(t.categoryId, t.subcategoryId).toLowerCase().includes(q) ||
         t.amount.toString().includes(q)
       );
     }
     if (filterAccount  !== 'all') result = result.filter(t => t.accountId  === filterAccount);
     if (filterType     !== 'all') result = result.filter(t => t.type       === filterType);
-    if (filterCategory !== 'all') result = result.filter(t => t.categoryId === filterCategory);
+    if (filterCategory !== 'all') result = result.filter(t =>
+      t.categoryId === filterCategory || t.subcategoryId === filterCategory
+    );
     if (dateFrom) result = result.filter(t => t.date >= dateFrom);
     if (dateTo)   result = result.filter(t => t.date <= dateTo);
     result.sort((a, b) => {
@@ -303,12 +305,46 @@ export function Transactions() {
                       )}
                     </label>
                     <Select key={filterType} value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setCurrentPage(1); }}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All Categories">
+                          {filterCategory === 'all' ? 'All Categories' : (() => {
+                            const cat = categories.find(c => c.id === filterCategory);
+                            if (!cat) return 'All Categories';
+                            if (cat.parentId) {
+                              const parent = categories.find(c => c.id === cat.parentId);
+                              return parent ? `${parent.name} / ${cat.name}` : cat.name;
+                            }
+                            return cat.name;
+                          })()}
+                        </SelectValue>
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Categories</SelectItem>
-                        {filteredCategoryOptions.map(cat => (
-                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                        ))}
+                        {filteredCategoryOptions
+                          .filter(cat => !cat.parentId)
+                          .map(parent => (
+                            <div key={parent.id}>
+                              <SelectItem value={parent.id}>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: parent.color }} />
+                                  <span className="font-medium">{parent.name}</span>
+                                </div>
+                              </SelectItem>
+                              {filteredCategoryOptions
+                                .filter(c => c.parentId === parent.id)
+                                .map(sub => (
+                                  <SelectItem key={sub.id} value={sub.id}>
+                                    <div className="flex items-center gap-2 pl-4">
+                                      <span className="text-muted-foreground text-xs">└</span>
+                                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || parent.color }} />
+                                      <span className="text-sm">{sub.name}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))
+                              }
+                            </div>
+                          ))
+                        }
                       </SelectContent>
                     </Select>
                   </div>
@@ -468,8 +504,8 @@ export function Transactions() {
                       {/* Category + description as subtext */}
                       <td className={`px-4 ${itemsPerPage === 5 ? "py-2" : "py-4"}`}>
                         <span className="text-xs font-medium px-2.5 py-1 rounded-full border"
-                          style={{ borderColor: getCategoryColor(t.categoryId), color: getCategoryColor(t.categoryId) }}>
-                          {getCategoryName(t.categoryId)}
+                          style={{ borderColor: getCategoryColor(t.categoryId, t.subcategoryId), color: getCategoryColor(t.categoryId, t.subcategoryId) }}>
+                          {getCategoryName(t.categoryId, t.subcategoryId)}
                         </span>
                         {t.description && (
                           <p className="text-xs text-slate-400 mt-1 truncate max-w-[160px]">{t.description}</p>
@@ -540,8 +576,8 @@ export function Transactions() {
                           : <TrendingDown size={15} className="text-red-600 dark:text-red-400" />}
                       </div>
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                        style={{ borderColor: getCategoryColor(t.categoryId), color: getCategoryColor(t.categoryId) }}>
-                        {getCategoryName(t.categoryId)}
+                        style={{ borderColor: getCategoryColor(t.categoryId, t.subcategoryId), color: getCategoryColor(t.categoryId, t.subcategoryId) }}>
+                        {getCategoryName(t.categoryId, t.subcategoryId)}
                       </span>
                     </div>
                     <div className="flex items-center gap-0" onClick={(e) => e.stopPropagation()}>

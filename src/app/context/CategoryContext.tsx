@@ -9,10 +9,16 @@ interface CategoryContextType {
   categories: Category[];
   loading: boolean;
   error: string | null;
+  // Returns only parent categories (no subcategories) — used for display grouping
   getCategoriesByType: (type: 'transaction' | 'task' | 'note') => Category[];
+  // Returns parent + their subcategories for a given subtype — used in dropdowns
   getCategoriesBySubtype: (subtype: 'income' | 'expense') => Category[];
   getSubcategories: (parentId: string) => Category[];
   hasSubcategories: (parentId: string) => boolean;
+  // Returns the best display name: subcategory name if subcategoryId exists, else category name
+  getEffectiveCategoryName: (categoryId: string, subcategoryId?: string | null) => string;
+  // Returns the best display color
+  getEffectiveCategoryColor: (categoryId: string, subcategoryId?: string | null) => string;
   createCategory: (category: Omit<Category, 'id'>) => Promise<{ success: boolean; data?: Category; error: string | null }>;
   updateCategory: (id: string, updates: Partial<Category>) => Promise<{ success: boolean; error: string | null }>;
   deleteCategory: (id: string) => Promise<{ success: boolean; error: string | null }>;
@@ -66,19 +72,56 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     return unsub;
   }, [user]);
 
+  // ── Only parent categories (for display/grouping) ──
   const getCategoriesByType = (type: 'transaction' | 'task' | 'note') =>
     categories.filter(cat => cat.type === type && !cat.parentId);
 
-  const getCategoriesBySubtype = (subtype: 'income' | 'expense') =>
-    categories.filter(cat =>
+  // ── Fix #3: Parent + subcategories for a given subtype ──
+  // Subcategories inherit subtype from their parent, so we:
+  // 1. Find all parents matching the subtype
+  // 2. Also include their subcategories
+  const getCategoriesBySubtype = (subtype: 'income' | 'expense') => {
+    const parents = categories.filter(cat =>
       cat.type === 'transaction' && !cat.parentId && cat.subtype === subtype
     );
+    const parentIds = new Set(parents.map(p => p.id));
+    const subs = categories.filter(cat =>
+      cat.type === 'transaction' && cat.parentId != null && parentIds.has(cat.parentId)
+    );
+    return [...parents, ...subs];
+  };
 
   const getSubcategories = (parentId: string) =>
     categories.filter(cat => cat.parentId === parentId);
 
   const hasSubcategories = (parentId: string) =>
     categories.some(cat => cat.parentId === parentId);
+
+  // ── Fix #2: Effective category name for list/card display ──
+  // If subcategoryId exists → show "ParentName / SubName"
+  // Otherwise → show parent category name
+  const getEffectiveCategoryName = (categoryId: string, subcategoryId?: string | null): string => {
+    if (subcategoryId) {
+      const sub = categories.find(c => c.id === subcategoryId);
+      if (sub) {
+        const parent = categories.find(c => c.id === sub.parentId);
+        return parent ? `${parent.name} / ${sub.name}` : sub.name;
+      }
+    }
+    return categories.find(c => c.id === categoryId)?.name ?? 'Other';
+  };
+
+  // ── Effective color: prefer subcategory color, fallback to parent ──
+  const getEffectiveCategoryColor = (categoryId: string, subcategoryId?: string | null): string => {
+    if (subcategoryId) {
+      const sub = categories.find(c => c.id === subcategoryId);
+      if (sub?.color) return sub.color;
+      // fallback to parent color
+      const parent = categories.find(c => c.id === sub?.parentId);
+      if (parent?.color) return parent.color;
+    }
+    return categories.find(c => c.id === categoryId)?.color ?? '#6b7280';
+  };
 
   const createCategory = async (category: Omit<Category, 'id'>) => {
     try {
@@ -111,9 +154,9 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       const dbUpdates: any = {};
-      if (updates.name !== undefined) dbUpdates.name = updates.name;
-      if (updates.color !== undefined) dbUpdates.color = updates.color;
-      if (updates.subtype !== undefined) dbUpdates.subtype = updates.subtype;
+      if (updates.name     !== undefined) dbUpdates.name      = updates.name;
+      if (updates.color    !== undefined) dbUpdates.color     = updates.color;
+      if (updates.subtype  !== undefined) dbUpdates.subtype   = updates.subtype;
       if (updates.parentId !== undefined) dbUpdates.parent_id = updates.parentId;
       const { error: updateError } = await supabase.from('categories').update(dbUpdates).eq('id', id);
       if (updateError) throw updateError;
@@ -152,6 +195,7 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     categories, loading, error,
     getCategoriesByType, getCategoriesBySubtype,
     getSubcategories, hasSubcategories,
+    getEffectiveCategoryName, getEffectiveCategoryColor,
     createCategory, updateCategory, deleteCategory, refreshCategories,
   };
   return <CategoryContext.Provider value={value}>{children}</CategoryContext.Provider>;

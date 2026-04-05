@@ -18,6 +18,7 @@ import {
   ChevronLeft, X, Loader2, FileText, Image as ImageIcon,
   Save, AlertCircle, AlertTriangle, TrendingUp, TrendingDown,
 } from 'lucide-react';
+import { CategorySelect } from '../components/CategorySelect';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 
 const MAX_AMOUNT = 1_000_000_000;
@@ -53,7 +54,7 @@ export function TransactionDetail() {
 
   const { getTransactionById, createTransaction, updateTransaction } = useTransactions();
   const { accounts }                            = useAccounts();
-  const { categories, getCategoriesBySubtype }  = useCategories();
+  const { categories } = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
 
   const {
@@ -68,22 +69,31 @@ export function TransactionDetail() {
 
   const [amountDisplay, setAmountDisplay] = useState('');
   const [formData, setFormData] = useState({
-    accountId:   '',
-    amount:      0,
-    type:        '' as 'income' | 'expense' | '',
-    date:        new Date().toISOString().split('T')[0],
-    categoryId:  '',
-    description: '',
+    accountId:     '',
+    amount:        0,
+    type:          '' as 'income' | 'expense' | '',
+    date:          new Date().toISOString().split('T')[0],
+    categoryId:    '',
+    subcategoryId: null as string | null,
+    description:   '',
   });
   const [attachments, setAttachments]   = useState<any[]>([]);
   const [uploading, setUploading]       = useState(false);
   const [submitting, setSubmitting]     = useState(false);
   const [amountError, setAmountError]   = useState('');
 
-  const displayCategories = useMemo(
-    () => formData.type ? getCategoriesBySubtype(formData.type as 'income' | 'expense') : [],
-    [formData.type, categories],
-  );
+  // All categories for the selected type (parent + their subcategories)
+  const allCategoriesForType = useMemo(() => {
+    if (!formData.type) return [];
+    const parents = categories.filter(c =>
+      c.type === 'transaction' && !c.parentId && c.subtype === formData.type
+    );
+    const parentIds = new Set(parents.map(p => p.id));
+    const subs = categories.filter(c =>
+      c.type === 'transaction' && c.parentId != null && parentIds.has(c.parentId)
+    );
+    return [...parents, ...subs];
+  }, [formData.type, categories]);
 
   const selectedAccount = accounts.find(a => a.id === formData.accountId);
   const isOverBalance   =
@@ -96,12 +106,13 @@ export function TransactionDetail() {
   useEffect(() => {
     if (!isNew && transaction) {
       setFormData({
-        accountId:   transaction.accountId || '',
-        amount:      transaction.amount,
-        type:        transaction.type,
-        date:        transaction.date,
-        categoryId:  transaction.categoryId,
-        description: transaction.description || '',
+        accountId:     transaction.accountId || '',
+        amount:        transaction.amount,
+        type:          transaction.type,
+        date:          transaction.date,
+        categoryId:    transaction.categoryId,
+        subcategoryId: transaction.subcategoryId ?? null,
+        description:   transaction.description || '',
       });
       setAmountDisplay(formatAmountDisplay(transaction.amount));
     }
@@ -137,7 +148,7 @@ export function TransactionDetail() {
   };
 
   const handleTypeChange = (v: 'income' | 'expense') => {
-    setFormData(prev => ({ ...prev, type: v, categoryId: '' }));
+    setFormData(prev => ({ ...prev, type: v, categoryId: '', subcategoryId: null }));
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -337,38 +348,17 @@ export function TransactionDetail() {
                   {/* Category */}
                   <div className="space-y-1.5">
                     <Label htmlFor="category">Category <span className="text-destructive">*</span></Label>
-                    <Select
-                      key={formData.type}
-                      value={formData.categoryId}
-                      onValueChange={(v) => setFormData({ ...formData, categoryId: v })}
+                    <CategorySelect
+                      id="category"
+                      categories={allCategoriesForType}
+                      value={formData.subcategoryId || formData.categoryId}
+                      onChange={(categoryId, subcategoryId) =>
+                        setFormData(prev => ({ ...prev, categoryId, subcategoryId }))
+                      }
+                      placeholder={typeSelected ? 'Select category' : 'Select type first'}
                       disabled={!typeSelected}
-                    >
-                      <SelectTrigger id="category" className={!typeSelected ? 'opacity-50 cursor-not-allowed' : ''}>
-                        {formData.categoryId ? (
-                          (() => {
-                            const cat = displayCategories.find(c => c.id === formData.categoryId);
-                            return cat ? (
-                              <div className="flex items-center gap-2">
-                                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
-                                <span>{cat.name}</span>
-                              </div>
-                            ) : <SelectValue placeholder="Select category" />;
-                          })()
-                        ) : (
-                          <SelectValue placeholder={typeSelected ? 'Select category' : 'Select type first'} />
-                        )}
-                      </SelectTrigger>
-                      <SelectContent>
-                        {displayCategories.map(cat => (
-                          <SelectItem key={cat.id} value={cat.id}>
-                            <div className="flex items-center gap-2">
-                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
-                              <span>{cat.name}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      className={!typeSelected ? 'opacity-50 cursor-not-allowed' : ''}
+                    />
                   </div>
                 </div>
 
