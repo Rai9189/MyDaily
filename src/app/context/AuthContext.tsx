@@ -22,6 +22,17 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// ✅ SECURITY FIX: Hash PIN pakai SHA-256 via Web Crypto API
+// Menggantikan btoa() yang hanya encoding base64 (bisa di-decode siapapun)
+// SHA-256 adalah one-way hash — tidak bisa di-reverse
+async function hashPin(pin: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(pin);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -101,7 +112,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        console.log('onAuthStateChange event:', _event, 'session:', !!session);
         if (!isMounted) return;
         if (!initialized.current) return;
 
@@ -120,10 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (_event === 'SIGNED_IN') {
-          if (isSigningUp.current) {
-            console.log('onAuthStateChange: skipping, signUp in progress');
-            return;
-          }
+          if (isSigningUp.current) return;
 
           if (lastFetchedUserId.current === session.user.id) {
             setSession(prev =>
@@ -155,23 +162,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       isSigningUp.current = true;
 
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
+      const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
       if (authError) throw authError;
       if (!authData.user) throw new Error('User creation failed');
 
       const { error: profileError } = await supabase
         .from('users')
-        .insert({
-          id: authData.user.id,
-          name,
-          email,
-          pin_type: 'numeric',
-          pin_hash: null,
-        });
+        .insert({ id: authData.user.id, name, email, pin_type: 'numeric', pin_hash: null });
 
       if (profileError) throw profileError;
 
@@ -193,14 +190,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       setError(null);
-
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -234,16 +225,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
 
-      // FIX: Gunakan VITE_APP_URL agar link email selalu mengarah ke URL yang benar
-      // Di localhost: VITE_APP_URL=http://localhost:5173
-      // Di Vercel:    VITE_APP_URL=https://my-daily-five.vercel.app
       const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
       const redirectTo = `${appUrl}/reset-password`;
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo,
-      });
-
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
       if (error) throw error;
 
       return { success: true, error: null };
@@ -259,15 +244,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       if (!user) throw new Error('No user logged in');
 
-      const { error } = await supabase
-        .from('users')
-        .update(updates)
-        .eq('id', user.id);
-
+      const { error } = await supabase.from('users').update(updates).eq('id', user.id);
       if (error) throw error;
 
       setUser({ ...user, ...updates });
-
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -281,15 +261,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       if (!user) throw new Error('No user logged in');
 
-      const pinHash = btoa(pin);
+      // ✅ SECURITY FIX: Ganti btoa() dengan SHA-256
+      const pinHash = await hashPin(pin);
       const dbPinType = pinType === 'password' ? 'password' : 'numeric';
 
       const { error } = await supabase
         .from('users')
-        .update({
-          pin_hash: pinHash,
-          pin_type: dbPinType,
-        })
+        .update({ pin_hash: pinHash, pin_type: dbPinType })
         .eq('id', user.id);
 
       if (error) throw error;
@@ -309,7 +287,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
 
-      const pinHash = btoa(pin);
+      // ✅ SECURITY FIX: Hash dulu sebelum dibandingkan
+      const pinHash = await hashPin(pin);
 
       if (user?.pin_hash) {
         if (pinHash !== user.pin_hash) {
@@ -331,7 +310,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (fetchError) throw fetchError;
       if (!data?.pin_hash) return { success: false, error: 'PIN not set up yet' };
 
-      if (btoa(pin) !== data.pin_hash) {
+      if (pinHash !== data.pin_hash) {
         return { success: false, error: 'Wrong PIN' };
       }
 
@@ -343,24 +322,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const hasPin = () => {
-    return !!(user?.pin_hash);
-  };
+  const hasPin = () => !!(user?.pin_hash);
 
   const value = {
-    user,
-    session,
-    loading,
-    profileLoading,
-    error,
-    signUp,
-    signIn,
-    signOut,
-    resetPassword,
-    updateProfile,
-    savePin,
-    verifyPin,
-    hasPin,
+    user, session, loading, profileLoading, error,
+    signUp, signIn, signOut, resetPassword,
+    updateProfile, savePin, verifyPin, hasPin,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -368,8 +335,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 }
