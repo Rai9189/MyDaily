@@ -60,25 +60,40 @@ function LoadingScreen() {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, session, loading, profileLoading, hasPin } = useAuth();
+
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
-  if (profileLoading && !user) return <LoadingScreen />;
+
+  // FIX: Tunggu sampai profile benar-benar selesai di-load sebelum cek PIN
+  // Sebelumnya: (profileLoading && !user) — bisa lolos saat profileLoading=false tapi user masih null
+  // karena ada jeda kecil antara profileLoading selesai dan user ter-set (race condition di Vercel)
+  if (profileLoading || !user) return <LoadingScreen />;
+
   if (!hasPin()) return <Navigate to="/pin-setup" replace />;
+
   const pinUnlocked = sessionStorage.getItem('pinUnlocked');
   if (!pinUnlocked) return <Navigate to="/pin-lock" replace />;
+
   return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, session, loading, profileLoading, hasPin } = useAuth();
+
   if (loading) return <LoadingScreen />;
+
   if (session) {
-    if (profileLoading && !user) return <LoadingScreen />;
+    // FIX: Sama seperti ProtectedRoute — tunggu user benar-benar ada
+    if (profileLoading || !user) return <LoadingScreen />;
+
     if (!hasPin()) return <Navigate to="/pin-setup" replace />;
+
     const pinUnlocked = sessionStorage.getItem('pinUnlocked');
     if (!pinUnlocked) return <Navigate to="/pin-lock" replace />;
+
     return <Navigate to="/" replace />;
   }
+
   return <>{children}</>;
 }
 
@@ -87,13 +102,18 @@ function PINRoute({ children, requireNotUnlocked = false }: {
   requireNotUnlocked?: boolean;
 }) {
   const { session, loading, profileLoading, user, hasPin } = useAuth();
+
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
-  if (profileLoading && !user) return <LoadingScreen />;
+
+  // FIX: Tunggu user selesai di-load sebelum evaluasi kondisi PIN
+  if (profileLoading || !user) return <LoadingScreen />;
+
   if (requireNotUnlocked) {
     const pinUnlocked = sessionStorage.getItem('pinUnlocked');
     if (pinUnlocked && hasPin()) return <Navigate to="/" replace />;
   }
+
   return <>{children}</>;
 }
 
@@ -139,7 +159,6 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
-          {/* Toaster harus di dalam App agar selalu tersedia di semua halaman */}
           <Toaster
             position="top-center"
             richColors
