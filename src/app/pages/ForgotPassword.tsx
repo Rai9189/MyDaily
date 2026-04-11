@@ -6,7 +6,8 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { ChevronLeft, Mail, Loader2, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, Loader2, CheckCircle2, KeyRound } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function ForgotPassword() {
   const navigate  = useNavigate();
@@ -16,17 +17,26 @@ export function ForgotPassword() {
   const prefillEmail = location.state?.email || '';
   const fromProfile  = location.state?.fromProfile === true;
 
-  const [email, setEmail]   = useState(prefillEmail);
-  const [sent, setSent]     = useState(false);
+  const [email, setEmail]     = useState(prefillEmail);
+  const [sent, setSent]       = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError]   = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    await resetPassword(email);
-    setSent(true);
+
+    const { success, error: resetError } = await resetPassword(email);
+
+    if (success) {
+      setSent(true);
+    } else {
+      const message = resetError || 'Failed to send reset link. Please try again.';
+      setError(message);
+      toast.error(message);
+    }
+
     setLoading(false);
   };
 
@@ -41,29 +51,29 @@ export function ForgotPassword() {
         <Card className="border-2 border-blue-200 dark:border-blue-900/50 bg-white dark:bg-card shadow-lg rounded-2xl">
           <CardContent className="pt-8 pb-7 px-7">
 
-            {/* Logo */}
-            <div className="flex justify-center mb-6">
-              <img src="/logo.png" alt="MyDaily" className="w-40 h-auto object-contain dark:invert" />
-            </div>
-
             {!sent ? (
               <>
                 {/* Header */}
-                <div className="mb-5">
-                  <button type="button" onClick={handleBack} disabled={loading}
-                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3">
-                    <ChevronLeft size={16} />
-                    {fromProfile ? 'Back to Profile' : 'Back to Login'}
-                  </button>
-                  <h1 className="text-xl font-semibold text-foreground">
+                <div className="flex flex-col items-center mb-6">
+                  <div className="w-11 h-11 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-3">
+                    <KeyRound size={20} className="text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h1 className="text-2xl font-bold text-foreground text-center">
                     {fromProfile ? 'Change Password' : 'Forgot Password'}
                   </h1>
-                  <p className="text-sm text-muted-foreground mt-0.5">
+                  <p className="text-sm text-muted-foreground mt-1 text-center">
                     We'll send a reset link to your email
                   </p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* Back link */}
+                  <button type="button" onClick={handleBack} disabled={loading}
+                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                    <ChevronLeft size={16} />
+                    {fromProfile ? 'Back to Profile' : 'Back to Login'}
+                  </button>
+
                   {error && (
                     <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl border-2 bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-400">
                       <p>{error}</p>
@@ -110,7 +120,7 @@ export function ForgotPassword() {
                   </div>
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-foreground">Check your inbox</h2>
+                  <h2 className="text-2xl font-bold text-foreground">Check your inbox</h2>
                   <p className="text-sm text-muted-foreground mt-2">
                     If an account exists for <span className="font-medium text-foreground">{email}</span>, a reset link has been sent. Check your inbox or spam folder.
                   </p>

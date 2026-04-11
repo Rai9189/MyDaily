@@ -8,11 +8,22 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Plus, Edit, Trash2, Loader2, Wallet, Smartphone, Banknote, CreditCard } from 'lucide-react';
 import { Account, AccountType } from '../types';
+import { toast } from 'sonner';
+import { ListPageSkeleton } from '../components/Skeletons';
 
 const MAX_BALANCE = 1_000_000_000;
 const MAX_NAME = 100;
+
+interface ConfirmState {
+  open: boolean;
+  accountName: string;
+  onConfirm: () => void;
+}
+
+const DEFAULT_CONFIRM: ConfirmState = { open: false, accountName: '', onConfirm: () => {} };
 
 export function Accounts() {
   const { accounts, loading, error, createAccount, updateAccount, deleteAccount } = useAccounts();
@@ -23,44 +34,19 @@ export function Accounts() {
   const [submitting, setSubmitting] = useState(false);
   const [balanceDisplay, setBalanceDisplay] = useState('');
   const [balanceError, setBalanceError] = useState('');
+  const [confirmState, setConfirmState] = useState<ConfirmState>(DEFAULT_CONFIRM);
+
+  const closeConfirm = () => setConfirmState(DEFAULT_CONFIRM);
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 
   const getTypeConfig = (type: string) => {
     switch (type) {
-      case 'Bank':     return {
-        bg: 'bg-blue-50 dark:bg-blue-900/20',
-        text: 'text-blue-700 dark:text-blue-300',
-        border: 'border-blue-200 dark:border-blue-800',
-        icon: <Wallet size={14} />,
-        cardBorder: 'border-2 border-blue-200 dark:border-blue-900/50',
-        dot: 'bg-blue-500',
-      };
-      case 'E-Wallet': return {
-        bg: 'bg-green-50 dark:bg-green-900/20',
-        text: 'text-green-700 dark:text-green-300',
-        border: 'border-green-200 dark:border-green-800',
-        icon: <Smartphone size={14} />,
-        cardBorder: 'border-2 border-green-200 dark:border-green-900/50',
-        dot: 'bg-green-500',
-      };
-      case 'Cash':     return {
-        bg: 'bg-amber-50 dark:bg-amber-900/20',
-        text: 'text-amber-700 dark:text-amber-300',
-        border: 'border-amber-200 dark:border-amber-800',
-        icon: <Banknote size={14} />,
-        cardBorder: 'border-2 border-amber-200 dark:border-amber-900/50',
-        dot: 'bg-amber-500',
-      };
-      default: return {
-        bg: 'bg-muted',
-        text: 'text-muted-foreground',
-        border: 'border-border',
-        icon: <CreditCard size={14} />,
-        cardBorder: 'border-2 border-border',
-        dot: 'bg-slate-400',
-      };
+      case 'Bank':     return { bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-800', icon: <Wallet size={14} />, cardBorder: 'border-2 border-blue-200 dark:border-blue-900/50', dot: 'bg-blue-500' };
+      case 'E-Wallet': return { bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-700 dark:text-green-300', border: 'border-green-200 dark:border-green-800', icon: <Smartphone size={14} />, cardBorder: 'border-2 border-green-200 dark:border-green-900/50', dot: 'bg-green-500' };
+      case 'Cash':     return { bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800', icon: <Banknote size={14} />, cardBorder: 'border-2 border-amber-200 dark:border-amber-900/50', dot: 'bg-amber-500' };
+      default:         return { bg: 'bg-muted', text: 'text-muted-foreground', border: 'border-border', icon: <CreditCard size={14} />, cardBorder: 'border-2 border-border', dot: 'bg-slate-400' };
     }
   };
 
@@ -99,29 +85,37 @@ export function Accounts() {
     try {
       if (editingAccount) {
         const { success, error } = await updateAccount(editingAccount.id, formData);
-        if (success) setIsDialogOpen(false);
-        else alert(error || 'Failed to update account');
+        if (success) { setIsDialogOpen(false); toast.success('Account updated!'); }
+        else toast.error(error || 'Failed to update account');
       } else {
         const { success, error } = await createAccount(formData);
-        if (success) setIsDialogOpen(false);
-        else alert(error || 'Failed to create account');
+        if (success) { setIsDialogOpen(false); toast.success('Account created!'); }
+        else toast.error(error || 'Failed to create account');
       }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this account?')) return;
-    const { success, error } = await deleteAccount(id);
-    if (!success) alert(error || 'Failed to delete account');
+  const handleDelete = (id: string, name: string) => {
+    setConfirmState({
+      open: true,
+      accountName: name,
+      onConfirm: async () => {
+        const { success, error } = await deleteAccount(id);
+        if (success) toast.success('Account deleted');
+        else toast.error(error || 'Failed to delete account');
+      },
+    });
   };
 
-  const totalBalance   = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+  const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex-1 overflow-y-auto no-scrollbar">
+        <ListPageSkeleton rows={3} />
+      </div>
     </div>
   );
 
@@ -136,7 +130,6 @@ export function Accounts() {
       <div className="flex-1 overflow-y-auto no-scrollbar">
         <div className="space-y-4 pb-6">
 
-          {/* ── Header ── */}
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-foreground/65">Your Financial Accounts</p>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -152,8 +145,6 @@ export function Accounts() {
                   </DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-5 mt-2">
-
-                  {/* Account Name */}
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center">
                       <Label htmlFor="name">Account Name</Label>
@@ -161,17 +152,10 @@ export function Accounts() {
                         {formData.name.length}/{MAX_NAME}
                       </span>
                     </div>
-                    <Input
-                      id="name"
-                      value={formData.name}
+                    <Input id="name" value={formData.name}
                       onChange={(e) => { if (e.target.value.length <= MAX_NAME) setFormData({ ...formData, name: e.target.value }); }}
-                      placeholder="e.g. BCA Main, GoPay"
-                      maxLength={MAX_NAME}
-                      required
-                    />
+                      placeholder="e.g. BCA Main, GoPay" maxLength={MAX_NAME} required />
                   </div>
-
-                  {/* Account Type */}
                   <div className="space-y-1.5">
                     <Label htmlFor="type">Account Type</Label>
                     <Select value={formData.type} onValueChange={(v: AccountType) => setFormData({ ...formData, type: v })}>
@@ -183,39 +167,26 @@ export function Accounts() {
                       </SelectContent>
                     </Select>
                   </div>
-
-                  {/* Balance */}
                   <div className="space-y-1.5">
                     <Label htmlFor="balance">Initial Balance</Label>
                     <div className={`flex rounded-md border overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${balanceError ? 'border-destructive' : 'border-input'}`}>
                       <span className="flex items-center px-3 bg-muted text-muted-foreground text-sm font-medium border-r border-input select-none">Rp</span>
-                      <Input
-                        id="balance"
-                        type="text"
-                        inputMode="numeric"
-                        value={balanceDisplay}
-                        onChange={handleBalanceChange}
-                        placeholder="0"
-                        required
-                        className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                      />
+                      <Input id="balance" type="text" inputMode="numeric" value={balanceDisplay}
+                        onChange={handleBalanceChange} placeholder="0" required
+                        className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0" />
                     </div>
                     {balanceError && <p className="text-xs text-destructive">{balanceError}</p>}
                     <p className="text-xs text-muted-foreground">Maximum: Rp 1,000,000,000</p>
                   </div>
-
                   <Button type="submit" className="w-full gap-2" disabled={submitting}>
-                    {submitting
-                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
-                      : editingAccount ? 'Update Account' : 'Save Account'
-                    }
+                    {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : editingAccount ? 'Update Account' : 'Save Account'}
                   </Button>
                 </form>
               </DialogContent>
             </Dialog>
           </div>
 
-          {/* ── Summary Card ── */}
+          {/* Summary Card */}
           <Card className="bg-primary text-primary-foreground border-0 shadow-lg rounded-xl">
             <CardContent className="pt-5 pb-5 px-5">
               <div className="flex items-center justify-between mb-4">
@@ -229,7 +200,6 @@ export function Accounts() {
                 </div>
                 <div className="opacity-10 hidden md:block"><Wallet size={56} /></div>
               </div>
-              {/* Balance per type breakdown */}
               <div className="grid grid-cols-3 gap-3 pt-4 border-t border-white/20">
                 {[
                   { label: 'Bank',     icon: <Wallet size={13} />,     type: 'Bank'     },
@@ -240,9 +210,7 @@ export function Accounts() {
                   const typeBalance  = typeAccounts.reduce((s, a) => s + a.balance, 0);
                   return (
                     <div key={item.label} className="flex items-start gap-2">
-                      <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        {item.icon}
-                      </div>
+                      <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-0.5">{item.icon}</div>
                       <div className="min-w-0">
                         <p className="text-xs opacity-70 leading-none">{item.label} ({typeAccounts.length})</p>
                         <p className="text-sm font-bold leading-tight mt-0.5 truncate">{formatCurrency(typeBalance)}</p>
@@ -254,7 +222,7 @@ export function Accounts() {
             </CardContent>
           </Card>
 
-          {/* ── Account Cards ── */}
+          {/* Account Cards */}
           {accounts.length === 0 ? (
             <Card className="border-2 border-slate-200 dark:border-border bg-white dark:bg-card shadow-sm">
               <CardContent className="py-16 text-center">
@@ -267,42 +235,24 @@ export function Accounts() {
               {accounts.map((account) => {
                 const cfg = getTypeConfig(account.type);
                 return (
-                  <Card
-                    key={account.id}
-                    className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer ${cfg.cardBorder}`}
-                    onClick={() => navigate(`/transactions?accountId=${account.id}`)}
-                  >
+                  <Card key={account.id} className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer ${cfg.cardBorder}`}
+                    onClick={() => navigate(`/transactions?accountId=${account.id}`)}>
                     <CardContent className="p-4">
-                      {/* Top row: type badge + actions */}
                       <div className="flex items-center justify-between mb-3">
                         <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-                          {cfg.icon}
-                          {account.type}
+                          {cfg.icon}{account.type}
                         </span>
                         <div className="flex items-center gap-0" onClick={e => e.stopPropagation()}>
-                          <Button
-                            variant="ghost" size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                            onClick={() => handleOpenDialog(account)}
-                            title="Edit"
-                          >
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleOpenDialog(account)}>
                             <Edit size={14} />
                           </Button>
-                          <Button
-                            variant="ghost" size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:bg-red-500 hover:text-white"
-                            onClick={() => handleDelete(account.id)}
-                            title="Delete"
-                          >
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-red-500 hover:text-white"
+                            onClick={() => handleDelete(account.id, account.name)}>
                             <Trash2 size={14} />
                           </Button>
                         </div>
                       </div>
-
-                      {/* Account name */}
                       <p className="text-sm font-semibold text-foreground leading-tight mb-3">{account.name}</p>
-
-                      {/* Balance + hint */}
                       <div className="flex items-end justify-between">
                         <div>
                           <p className="text-xs text-muted-foreground mb-0.5">Current Balance</p>
@@ -316,9 +266,20 @@ export function Accounts() {
               })}
             </div>
           )}
-
         </div>
       </div>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={confirmState.open}
+        title="Delete Account?"
+        description={`"${confirmState.accountName}" will be permanently deleted. This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        icon={<Trash2 size={20} />}
+        onConfirm={confirmState.onConfirm}
+        onCancel={closeConfirm}
+      />
     </div>
   );
 }

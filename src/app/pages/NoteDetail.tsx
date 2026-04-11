@@ -1,5 +1,5 @@
 // src/app/pages/NoteDetail.tsx
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useNotes } from '../context/NoteContext';
 import { useCategories } from '../context/CategoryContext';
@@ -10,17 +10,68 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import {
   ChevronLeft, Pin, X, Loader2, FileText,
   Image as ImageIcon, Save,
 } from 'lucide-react';
 import { CategorySelect } from '../components/CategorySelect';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
+import { toast } from 'sonner';
 
 const MAX_TITLE   = 100;
 const MAX_CONTENT = 10_000;
 
+/* ─── Skeleton ─── */
+function NoteDetailSkeleton() {
+  return (
+    <div className="space-y-4 pb-6 animate-pulse">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="h-4 w-28 bg-muted rounded-full" />
+        <div className="h-6 w-16 bg-muted rounded-full" />
+      </div>
+
+      {/* Main card */}
+      <div className="rounded-xl border-2 border-muted bg-white dark:bg-card p-4 space-y-4">
+        {/* Title + Category row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <div className="h-3.5 w-16 bg-muted rounded-full" />
+            <div className="h-10 bg-muted rounded-md" />
+          </div>
+          <div className="space-y-1.5">
+            <div className="h-3.5 w-20 bg-muted rounded-full" />
+            <div className="h-10 bg-muted rounded-md" />
+          </div>
+        </div>
+
+        {/* Content textarea */}
+        <div className="space-y-1.5">
+          <div className="h-3.5 w-16 bg-muted rounded-full" />
+          <div className="h-40 bg-muted rounded-md" />
+        </div>
+
+        {/* Timestamps */}
+        <div className="flex justify-between">
+          <div className="h-3 w-36 bg-muted rounded-full" />
+          <div className="h-3 w-40 bg-muted rounded-full" />
+        </div>
+      </div>
+
+      {/* Attachments card */}
+      <div className="rounded-xl border-2 border-muted bg-white dark:bg-card p-4 space-y-3">
+        <div className="h-4 w-24 bg-muted rounded-full" />
+        <div className="h-10 bg-muted rounded-md" />
+        <div className="h-3 w-48 bg-muted rounded-full" />
+      </div>
+
+      {/* Save button */}
+      <div className="h-10 bg-muted rounded-md" />
+    </div>
+  );
+}
+
+/* ─── Main Component ─── */
 export function NoteDetail() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -31,9 +82,9 @@ export function NoteDetail() {
   const id           = idFromParams || idFromUrl;
   const isNew        = id === 'new' || !id;
 
-  const { getNoteById, createNote, updateNote, togglePin } = useNotes();
-  const { categories }                          = useCategories();
-  const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
+  const { notes, loading: notesLoading, getNoteById, createNote, updateNote, togglePin } = useNotes();
+  const { categories }                                                                    = useCategories();
+  const { uploadAttachment, deleteAttachment, getAttachments }                           = useAttachments();
 
   const {
     pendingFiles, addFiles,
@@ -58,35 +109,28 @@ export function NoteDetail() {
   const [initialFormData, setInitialFormData] = useState({
     title: '', content: '', categoryId: '', subcategoryId: null as string | null, pinned: false,
   });
-  const [attachments, setAttachments] = useState<any[]>([]);
-  const [uploading, setUploading]     = useState(false);
-  const [submitting, setSubmitting]   = useState(false);
-  const [togglingPin, setTogglingPin] = useState(false);
-  const [toast, setToast]             = useState<string | null>(null);
-  const textareaRef                   = useRef<HTMLTextAreaElement>(null);
+  const [attachments, setAttachments]   = useState<any[]>([]);
+  const [uploading, setUploading]       = useState(false);
+  const [submitting, setSubmitting]     = useState(false);
+  const [togglingPin, setTogglingPin]   = useState(false);
+  const [attachsLoading, setAttachsLoading] = useState(false);
+  const textareaRef                     = useRef<HTMLTextAreaElement>(null);
 
   const isBusy = submitting || isUploadingPending;
 
-  /* ── Has changed — disable save if nothing changed ── */
   const hasChanged = isNew || (
-    formData.title         !== initialFormData.title      ||
-    formData.content       !== initialFormData.content    ||
-    formData.categoryId    !== initialFormData.categoryId ||
+    formData.title         !== initialFormData.title         ||
+    formData.content       !== initialFormData.content       ||
+    formData.categoryId    !== initialFormData.categoryId    ||
     formData.subcategoryId !== initialFormData.subcategoryId
   );
 
-  /* ── Auto-resize textarea ── */
   const autoResize = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.max(160, el.scrollHeight)}px`;
   }, []);
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  };
 
   useEffect(() => {
     if (!isNew && note) {
@@ -109,19 +153,24 @@ export function NoteDetail() {
 
   const loadAttachments = async () => {
     if (!id) return;
+    setAttachsLoading(true);
     const { data } = await getAttachments('note', id);
     if (data) setAttachments(data);
+    setAttachsLoading(false);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !id) return;
     setUploading(true);
+    const uploadToast = toast.loading('Uploading...');
     for (let i = 0; i < files.length; i++) {
       const { success, data, error } = await uploadAttachment(files[i], 'note', id);
       if (success && data) setAttachments(prev => [...prev, data]);
-      else alert(error || 'Failed to upload file');
+      else toast.error(error || 'Failed to upload file');
     }
+    toast.dismiss(uploadToast);
+    toast.success('Upload complete');
     setUploading(false);
     e.target.value = '';
   };
@@ -129,8 +178,12 @@ export function NoteDetail() {
   const handleDeleteAttachment = async (attachmentId: string, url: string) => {
     if (!confirm('Remove this attachment?')) return;
     const { success, error } = await deleteAttachment(attachmentId, url);
-    if (success) setAttachments(prev => prev.filter(a => a.id !== attachmentId));
-    else alert(error || 'Failed to delete attachment');
+    if (success) {
+      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+      toast.success('Attachment removed');
+    } else {
+      toast.error(error || 'Failed to delete attachment');
+    }
   };
 
   const handleTogglePin = async () => {
@@ -141,56 +194,61 @@ export function NoteDetail() {
       const newPinned = !formData.pinned;
       setFormData(prev => ({ ...prev, pinned: newPinned }));
       setInitialFormData(prev => ({ ...prev, pinned: newPinned }));
-      showToast(newPinned ? 'Note pinned!' : 'Note unpinned');
-    } else alert(error || 'Failed to toggle pin');
+      toast.success(newPinned ? 'Note pinned!' : 'Note unpinned');
+    } else {
+      toast.error(error || 'Failed to toggle pin');
+    }
     setTogglingPin(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim())   return alert('Please enter a note title.');
-    if (!formData.content.trim()) return alert('Please enter note content.');
-    if (!formData.categoryId)     return alert('Please select a category.');
+    if (!formData.title.trim())   { toast.warning('Please enter a note title.'); return; }
+    if (!formData.content.trim()) { toast.warning('Please enter note content.'); return; }
+    if (!formData.categoryId)     { toast.warning('Please select a category.'); return; }
 
     setSubmitting(true);
     try {
       if (isNew) {
         const { success, data, error } = await createNote(formData);
-        if (!success || !data) { alert(error || 'Failed to create note'); return; }
+        if (!success || !data) { toast.error(error || 'Failed to create note'); return; }
         if (pendingFiles.length > 0) {
           const { error: uploadError } = await uploadAllPending('note', data.id);
-          if (uploadError) alert(`Note saved, but some attachments failed:\n${uploadError}`);
+          if (uploadError) toast.warning(`Note saved, but some attachments failed.`);
         }
-        showToast('Note saved!');
-        setTimeout(() => navigate('/notes'), 800);
+        toast.success('Note saved!');
+        navigate('/notes');
       } else {
-        if (!id || id === 'new') { alert('Invalid note ID'); return; }
+        if (!id || id === 'new') { toast.error('Invalid note ID'); return; }
         const { success, error } = await updateNote(id, formData);
         if (success) {
-          showToast('Note updated!');
-          setTimeout(() => navigate('/notes'), 800);
-        } else alert(error || 'Failed to update note');
+          // Update initialFormData agar tombol Save kembali disabled
+          setInitialFormData({ ...formData });
+          toast.success('Note updated!');
+        } else {
+          toast.error(error || 'Failed to update note');
+        }
       }
     } finally {
       setSubmitting(false);
     }
   };
 
+  /* ── Show skeleton while notes are loading for existing note ── */
+  if (!isNew && notesLoading) {
+    return (
+      <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+          <NoteDetailSkeleton />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex-1 overflow-y-auto no-scrollbar">
         <div className="space-y-4 pb-6">
-
-          {/* ── Toast ── */}
-          {toast && (
-            <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 bg-green-600 text-white text-sm font-medium rounded-xl shadow-lg flex items-center gap-2">
-              <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                <path d="M12.5 3.5L6 10L2.5 6.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              {toast}
-            </div>
-          )}
 
           {/* ── Header ── */}
           <div className="flex items-center justify-between">
@@ -202,7 +260,6 @@ export function NoteDetail() {
               <ChevronLeft size={16} />
               Back to Notes
             </button>
-            {/* Pin toggle button */}
             {!isNew && (
               <button
                 type="button"
@@ -232,7 +289,7 @@ export function NoteDetail() {
             }`}>
               <CardContent className="pt-4 pb-4 px-4 space-y-4">
 
-                {/* Title + Category — side by side */}
+                {/* Title + Category */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center">
@@ -295,7 +352,7 @@ export function NoteDetail() {
                   />
                 </div>
 
-                {/* Created + Last updated */}
+                {/* Timestamps */}
                 {!isNew && note && (
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>
@@ -334,13 +391,16 @@ export function NoteDetail() {
                     <Input type="file" accept="image/*,application/pdf" multiple
                       onChange={handleFileUpload} disabled={uploading} />
                     <p className="text-xs text-muted-foreground">JPEG, PNG, GIF, WebP, PDF — max 10MB per file</p>
-                    {uploading && (
-                      <div className="flex items-center gap-2 text-sm text-primary">
-                        <Loader2 className="w-4 h-4 animate-spin" /> Uploading...
-                      </div>
-                    )}
                   </div>
-                  {attachments.length > 0 ? (
+
+                  {/* Skeleton saat load attachment */}
+                  {attachsLoading ? (
+                    <div className="space-y-2 animate-pulse">
+                      {[1, 2].map(i => (
+                        <div key={i} className="h-12 bg-muted rounded-lg" />
+                      ))}
+                    </div>
+                  ) : attachments.length > 0 ? (
                     <div className="space-y-2">
                       {attachments.map(file => (
                         <div key={file.id} className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
@@ -372,7 +432,11 @@ export function NoteDetail() {
             )}
 
             {/* ── Save button ── */}
-            <Button type="submit" className={`w-full gap-2 transition-opacity ${!hasChanged && !isBusy ? 'opacity-40 cursor-not-allowed' : ''}`} disabled={isBusy || !hasChanged}>
+            <Button
+              type="submit"
+              className={`w-full gap-2 transition-opacity ${!hasChanged && !isBusy ? 'opacity-40 cursor-not-allowed' : ''}`}
+              disabled={isBusy || !hasChanged}
+            >
               {isBusy
                 ? <><Loader2 className="w-4 h-4 animate-spin" /> {isUploadingPending ? 'Uploading...' : 'Saving...'}</>
                 : <><Save size={15} /> {isNew ? 'Save Note' : 'Update Note'}</>

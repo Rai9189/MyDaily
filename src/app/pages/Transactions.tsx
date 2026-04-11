@@ -11,9 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import {
   Plus, TrendingUp, TrendingDown, Paperclip, ArrowUpDown,
   ChevronLeft, ChevronRight, Filter, CalendarDays,
-  Search, Loader2, X, Edit, Trash2, Wallet,
+  Search, X, Edit, Trash2, Wallet,
   LayoutGrid, List,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { ListPageSkeleton } from '../components/Skeletons';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export function Transactions() {
   const navigate = useNavigate();
@@ -21,20 +24,32 @@ export function Transactions() {
   const { accounts }                                        = useAccounts();
   const { categories, getCategoriesByType, getCategoriesBySubtype, getEffectiveCategoryName, getEffectiveCategoryColor } = useCategories();
 
-  const [searchQuery, setSearchQuery]     = useState('');
+  const [searchQuery, setSearchQuery]       = useState('');
   const [filterAccount, setFilterAccount]   = useState('all');
   const [filterType, setFilterType]         = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
   const [dateFrom, setDateFrom]             = useState('');
   const [dateTo, setDateTo]                 = useState('');
-  const [sortBy, setSortBy]               = useState<'date' | 'amount'>('date');
-  const [sortOrder, setSortOrder]         = useState<'asc' | 'desc'>('desc');
-  const [itemsPerPage, setItemsPerPage]   = useState<number | 'all'>(10);
-  const [currentPage, setCurrentPage]     = useState(1);
-  const [filterOpen, setFilterOpen]       = useState(false);
-  const [deletingId, setDeletingId]       = useState<string | null>(null);
-  const [viewMode, setViewMode]           = useState<'list' | 'card'>('list');
+  const [sortBy, setSortBy]                 = useState<'date' | 'amount'>('date');
+  const [sortOrder, setSortOrder]           = useState<'asc' | 'desc'>('desc');
+  const [itemsPerPage, setItemsPerPage]     = useState<number | 'all'>(10);
+  const [currentPage, setCurrentPage]       = useState(1);
+  const [filterOpen, setFilterOpen]         = useState(false);
+  const [deleteTarget, setDeleteTarget]     = useState<{ id: string; amount: number; type: string } | null>(null);
+  const [deleting, setDeleting]             = useState(false);
+  const [viewMode, setViewMode]             = useState<'list' | 'card'>('list');
   const filterRef = useRef<HTMLDivElement>(null);
+
+  // On mobile always use card view
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const handler = (e: MediaQueryListEvent) => {
+      if (!e.matches) setViewMode('card');
+    };
+    if (!mq.matches) setViewMode('card');
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -56,9 +71,9 @@ export function Transactions() {
   const fmt = (n: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
-  const getAccountName    = (id: string | null) =>
+  const getAccountName   = (id: string | null) =>
     !id ? 'Deleted Account' : accounts.find(a => a.id === id)?.name ?? 'Deleted Account';
-  const isDeletedAccount  = (id: string | null) => !id || !accounts.find(a => a.id === id);
+  const isDeletedAccount = (id: string | null) => !id || !accounts.find(a => a.id === id);
   const getCategoryName  = (id: string, subId?: string | null) => getEffectiveCategoryName(id, subId);
   const getCategoryColor = (id: string, subId?: string | null) => getEffectiveCategoryColor(id, subId);
 
@@ -87,11 +102,10 @@ export function Transactions() {
       return sortOrder === 'desc' ? b.amount - a.amount : a.amount - b.amount;
     });
     return result;
-  }, [transactions, searchQuery, filterAccount, filterType, filterCategory, sortBy, sortOrder]);
+  }, [transactions, searchQuery, filterAccount, filterType, filterCategory, sortBy, sortOrder, dateFrom, dateTo]);
 
   useMemo(() => { setCurrentPage(1); }, [searchQuery, filterAccount, filterType, filterCategory, dateFrom, dateTo, itemsPerPage]);
 
-  /* ── Summary totals from filtered results ── */
   const summaryIncome  = useMemo(() => filteredTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),  [filteredTransactions]);
   const summaryExpense = useMemo(() => filteredTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0), [filteredTransactions]);
 
@@ -129,13 +143,19 @@ export function Transactions() {
     setSortBy('date'); setSortOrder('desc'); setCurrentPage(1);
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const handleDeleteRequest = (e: React.MouseEvent, t: any) => {
     e.stopPropagation();
-    if (!confirm('Delete this transaction?')) return;
-    setDeletingId(id);
-    const { success, error } = await deleteTransaction(id);
-    if (!success) alert(error || 'Failed to delete transaction');
-    setDeletingId(null);
+    setDeleteTarget({ id: t.id, amount: t.amount, type: t.type });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { success, error } = await deleteTransaction(deleteTarget.id);
+    if (success) toast.success('Transaction deleted');
+    else toast.error(error || 'Failed to delete transaction');
+    setDeleting(false);
+    setDeleteTarget(null);
   };
 
   const handleEdit = (e: React.MouseEvent, id: string) => {
@@ -144,8 +164,10 @@ export function Transactions() {
   };
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex-1 overflow-y-auto no-scrollbar">
+        <ListPageSkeleton rows={5} />
+      </div>
     </div>
   );
 
@@ -180,6 +202,19 @@ export function Transactions() {
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-2">
 
+      {/* ── CONFIRM DIALOG ── */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Transaction"
+        description={`Delete this ${deleteTarget?.type} transaction of ${deleteTarget ? fmt(deleteTarget.amount) : ''}?`}
+        confirmLabel="Delete"
+        variant="danger"
+        icon={<Trash2 size={20} />}
+        loading={deleting}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
       {/* ── HEADER ── */}
       <div className="flex-shrink-0 space-y-2">
 
@@ -190,7 +225,6 @@ export function Transactions() {
           </Button>
         </div>
 
-        {/* Active filter chips */}
         {activeFilterCount > 0 && (
           <div className="flex flex-wrap gap-2 text-xs items-center">
             {filterAccount !== 'all' && (
@@ -228,12 +262,11 @@ export function Transactions() {
           </div>
         )}
 
-        {/* Search + Filter & Sort */}
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
             <Input
-              placeholder="Search by description, account, category, or amount..."
+              placeholder="Search transactions..."
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="pl-10 border border-border shadow-sm"
@@ -242,7 +275,8 @@ export function Transactions() {
 
           <div className="relative" ref={filterRef}>
             <Button variant="outline" className="gap-2 relative" onClick={() => setFilterOpen(prev => !prev)}>
-              <Filter size={18} /> Filter & Sort
+              <Filter size={18} />
+              <span className="hidden sm:inline">Filter & Sort</span>
               {activeFilterCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
                   {activeFilterCount}
@@ -264,7 +298,6 @@ export function Transactions() {
                   </div>
                 </div>
                 <div className="p-4 space-y-4">
-                  {/* Account */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Account</label>
                     <Select value={filterAccount} onValueChange={(v) => { setFilterAccount(v); setCurrentPage(1); }}>
@@ -275,12 +308,11 @@ export function Transactions() {
                       </SelectContent>
                     </Select>
                   </div>
-                  {/* Type */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</label>
                     <div className="flex gap-2">
                       {([
-                        { value: 'all',     label: 'All'     },
+                        { value: 'all',     label: 'All'      },
                         { value: 'income',  label: '↑ Income'  },
                         { value: 'expense', label: '↓ Expense' },
                       ] as const).map(opt => (
@@ -296,13 +328,9 @@ export function Transactions() {
                       ))}
                     </div>
                   </div>
-                  {/* Category */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Category
-                      {filterType !== 'all' && (
-                        <span className="ml-1 text-primary normal-case capitalize">({filterType})</span>
-                      )}
+                      Category{filterType !== 'all' && <span className="ml-1 text-primary normal-case capitalize">({filterType})</span>}
                     </label>
                     <Select key={filterType} value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setCurrentPage(1); }}>
                       <SelectTrigger>
@@ -320,35 +348,28 @@ export function Transactions() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Categories</SelectItem>
-                        {filteredCategoryOptions
-                          .filter(cat => !cat.parentId)
-                          .map(parent => (
-                            <div key={parent.id}>
-                              <SelectItem value={parent.id}>
-                                <div className="flex items-center gap-2">
-                                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: parent.color }} />
-                                  <span className="font-medium">{parent.name}</span>
+                        {filteredCategoryOptions.filter(cat => !cat.parentId).map(parent => (
+                          <div key={parent.id}>
+                            <SelectItem value={parent.id}>
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: parent.color }} />
+                                <span className="font-medium">{parent.name}</span>
+                              </div>
+                            </SelectItem>
+                            {filteredCategoryOptions.filter(c => c.parentId === parent.id).map(sub => (
+                              <SelectItem key={sub.id} value={sub.id}>
+                                <div className="flex items-center gap-2 pl-4">
+                                  <span className="text-muted-foreground text-xs">└</span>
+                                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || parent.color }} />
+                                  <span className="text-sm">{sub.name}</span>
                                 </div>
                               </SelectItem>
-                              {filteredCategoryOptions
-                                .filter(c => c.parentId === parent.id)
-                                .map(sub => (
-                                  <SelectItem key={sub.id} value={sub.id}>
-                                    <div className="flex items-center gap-2 pl-4">
-                                      <span className="text-muted-foreground text-xs">└</span>
-                                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || parent.color }} />
-                                      <span className="text-sm">{sub.name}</span>
-                                    </div>
-                                  </SelectItem>
-                                ))
-                              }
-                            </div>
-                          ))
-                        }
+                            ))}
+                          </div>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  {/* Date Range */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date Range</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -370,7 +391,6 @@ export function Transactions() {
                         className="text-xs text-primary hover:underline">Clear dates</button>
                     )}
                   </div>
-                  {/* Sort */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sort By</label>
                     <div className="flex gap-2">
@@ -382,8 +402,7 @@ export function Transactions() {
                         </SelectContent>
                       </Select>
                       <Button variant="outline" size="icon"
-                        onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                        title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}>
+                        onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
                         <ArrowUpDown size={15} />
                       </Button>
                     </div>
@@ -394,7 +413,7 @@ export function Transactions() {
           </div>
         </div>
 
-        {/* Show + View toggle + count */}
+        {/* Show + View toggle (desktop only) + count */}
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-foreground/65">Show:</span>
           <div className="inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
@@ -410,7 +429,8 @@ export function Transactions() {
             ))}
           </div>
 
-          <div className="inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
+          {/* View toggle — hidden on mobile */}
+          <div className="hidden md:inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             <button onClick={() => setViewMode('list')} title="List view"
               className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
               <List size={16} />
@@ -429,7 +449,7 @@ export function Transactions() {
           </span>
         </div>
 
-        {/* ── Summary bar ── */}
+        {/* Summary bar */}
         {filteredTransactions.length > 0 && (
           <div className="grid grid-cols-2 gap-3">
             <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/10 border-2 border-green-200 dark:border-green-900/40">
@@ -465,29 +485,29 @@ export function Transactions() {
           </Card>
 
         ) : viewMode === 'list' ? (
-          /* ── LIST VIEW ── */
+          /* ── LIST VIEW (desktop only) ── */
           <div className="rounded-xl overflow-hidden w-full bg-white dark:bg-card border-2 border-slate-200 dark:border-border shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full divide-y divide-slate-100 dark:divide-border">
                 <thead className="bg-slate-100 dark:bg-muted/60">
                   <tr>
                     <th className="pl-4 pr-2 py-3 w-12" />
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Category</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Account</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Date</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Amount</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider pr-5">Actions</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Category</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Account</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Date</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Amount</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-border/50">
                   {paginatedTransactions.map((t) => (
                     <tr key={t.id}
-                      className="hover:bg-slate-50 dark:hover:bg-muted/40 cursor-pointer transition-colors group"
+                      className="group hover:bg-slate-50 dark:hover:bg-muted/40 cursor-pointer transition-colors relative"
                       onClick={() => navigate(`/transactions/${t.id}`)}>
 
-                      {/* Left accent + type icon */}
-                      <td className={`pl-0 pr-2 whitespace-nowrap ${itemsPerPage === 5 ? "py-2" : "py-4"}`}>
-                        <div className={`flex items-center gap-0`}>
+                      {/* Type indicator */}
+                      <td className={`pl-0 pr-2 whitespace-nowrap ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                        <div className="flex items-center gap-0">
                           <div className={`w-1 self-stretch rounded-r-full mr-3 ${
                             t.type === 'income' ? 'bg-green-400 dark:bg-green-600' : 'bg-red-400 dark:bg-red-600'
                           }`} />
@@ -501,33 +521,40 @@ export function Transactions() {
                         </div>
                       </td>
 
-                      {/* Category + description as subtext */}
-                      <td className={`px-4 ${itemsPerPage === 5 ? "py-2" : "py-4"}`}>
-                        <span className="text-xs font-medium px-2.5 py-1 rounded-full border"
-                          style={{ borderColor: getCategoryColor(t.categoryId, t.subcategoryId), color: getCategoryColor(t.categoryId, t.subcategoryId) }}>
-                          {getCategoryName(t.categoryId, t.subcategoryId)}
-                        </span>
-                        {t.description && (
-                          <p className="text-xs text-slate-400 mt-1 truncate max-w-[160px]">{t.description}</p>
-                        )}
+                      {/* Category — center, description as tooltip on row hover */}
+                      <td className={`px-4 text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                        <div className="relative inline-block">
+                          <span className="text-xs font-medium px-2.5 py-1 rounded-full border inline-block cursor-default"
+                            style={{ borderColor: getCategoryColor(t.categoryId, t.subcategoryId), color: getCategoryColor(t.categoryId, t.subcategoryId) }}>
+                            {getCategoryName(t.categoryId, t.subcategoryId)}
+                          </span>
+                          {t.description && (
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover:block pointer-events-none">
+                              <div className="bg-foreground text-background text-xs rounded-lg px-3 py-1.5 whitespace-nowrap max-w-[200px] truncate shadow-lg">
+                                {t.description}
+                              </div>
+                              <div className="w-2 h-2 bg-foreground rotate-45 mx-auto -mt-1" />
+                            </div>
+                          )}
+                        </div>
                       </td>
 
-                      {/* Account */}
-                      <td className={`px-4 whitespace-nowrap ${itemsPerPage === 5 ? "py-2" : "py-4"}`}>
+                      {/* Account — center */}
+                      <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <span className={`text-sm font-medium ${isDeletedAccount(t.accountId) ? 'text-muted-foreground italic' : 'text-foreground'}`}>
                           {getAccountName(t.accountId)}
                         </span>
                       </td>
 
-                      {/* Date */}
-                      <td className={`px-4 whitespace-nowrap ${itemsPerPage === 5 ? "py-2" : "py-4"}`}>
+                      {/* Date — center */}
+                      <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <span className="text-sm text-slate-500 dark:text-foreground/65">
                           {new Date(t.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </span>
                       </td>
 
-                      {/* Amount */}
-                      <td className={`px-4 whitespace-nowrap text-right ${itemsPerPage === 5 ? "py-2" : "py-4"}`}>
+                      {/* Amount — center */}
+                      <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <span className={`text-sm font-bold ${
                           t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                         }`}>
@@ -535,14 +562,14 @@ export function Transactions() {
                         </span>
                       </td>
 
-                      {/* Actions */}
-                      <td className={`px-4 whitespace-nowrap text-right pr-5 ${itemsPerPage === 5 ? "py-2" : "py-4"}`} onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
+                      {/* Actions — center */}
+                      <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`} onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-foreground"
                             onClick={(e) => handleEdit(e, t.id)}><Edit size={14} /></Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:bg-red-500 hover:text-white"
-                            onClick={(e) => handleDelete(e, t.id)} disabled={deletingId === t.id}>
-                            {deletingId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            onClick={(e) => handleDeleteRequest(e, t)}>
+                            <Trash2 size={14} />
                           </Button>
                         </div>
                       </td>
@@ -565,7 +592,6 @@ export function Transactions() {
                 }`}
                 onClick={() => navigate(`/transactions/${t.id}`)}>
                 <CardContent className="p-4">
-                  {/* Top row: type icon + category + actions */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
@@ -584,20 +610,16 @@ export function Transactions() {
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-foreground"
                         onClick={(e) => handleEdit(e, t.id)}><Edit size={13} /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:bg-red-500 hover:text-white"
-                        onClick={(e) => handleDelete(e, t.id)} disabled={deletingId === t.id}>
-                        {deletingId === t.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                        onClick={(e) => handleDeleteRequest(e, t)}>
+                        <Trash2 size={13} />
                       </Button>
                     </div>
                   </div>
-
-                  {/* Amount — prominent */}
                   <p className={`text-xl font-bold mb-3 ${
                     t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                   }`}>
                     {t.type === 'income' ? '+' : '-'}{fmt(t.amount)}
                   </p>
-
-                  {/* Details */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">Account</span>
@@ -633,20 +655,16 @@ export function Transactions() {
         )}
       </div>
 
-      {/* ── FIXED BOTTOM PAGINATION ── */}
+      {/* ── PAGINATION ── */}
       {itemsPerPage !== 'all' && totalPages > 1 && (
-        <div className="fixed bottom-0 left-0 right-0 z-30
-                        bg-white dark:bg-card
-                        border-t-2 border-slate-200 dark:border-border
-                        shadow-[0_-4px_16px_rgba(0,0,0,0.08)]
-                        py-3 px-6">
+        <div className="fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-card border-t-2 border-slate-200 dark:border-border shadow-[0_-4px_16px_rgba(0,0,0,0.08)] py-3 px-6">
           <div className="flex items-center justify-between w-full">
             <p className="text-sm font-medium text-foreground/65">
               Showing {startIndex + 1}–{Math.min(startIndex + (itemsPerPage as number), filteredTransactions.length)} of {filteredTransactions.length}
             </p>
             <div className="flex items-center gap-1.5">
               <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="gap-1">
-                <ChevronLeft size={16} /> Previous
+                <ChevronLeft size={16} /> <span className="hidden sm:inline">Previous</span>
               </Button>
               <div className="flex gap-1">
                 {getPageNumbers().map((page, index) =>
@@ -661,13 +679,14 @@ export function Transactions() {
                 )}
               </div>
               <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="gap-1">
-                Next <ChevronRight size={16} />
+                <span className="hidden sm:inline">Next</span> <ChevronRight size={16} />
               </Button>
             </div>
           </div>
         </div>
       )}
       {itemsPerPage !== 'all' && totalPages > 1 && <div className="h-16 flex-shrink-0" />}
+
     </div>
   );
 }

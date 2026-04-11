@@ -13,6 +13,7 @@ interface TaskContextType {
   updateTask: (id: string, updates: Partial<Task>) => Promise<{ success: boolean; error: string | null }>;
   deleteTask: (id: string) => Promise<{ success: boolean; error: string | null }>;
   completeTask: (id: string, note?: string) => Promise<{ success: boolean; error: string | null }>;
+  uncompleteTask: (id: string) => Promise<{ success: boolean; error: string | null }>;
   getTaskById: (id: string) => Task | undefined;
   refreshTasks: () => Promise<void>;
 }
@@ -126,12 +127,12 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       setError(null);
       if (!id || id === 'new') throw new Error('Invalid task ID');
       const dbUpdates: any = {};
-      if (updates.categoryId    !== undefined) dbUpdates.category_id    = updates.categoryId;
-      if (updates.subcategoryId !== undefined) dbUpdates.subcategory_id = updates.subcategoryId ?? null;
-      if (updates.title         !== undefined) dbUpdates.title          = updates.title;
-      if (updates.description   !== undefined) dbUpdates.description    = updates.description;
-      if (updates.deadline      !== undefined) dbUpdates.deadline       = updates.deadline;
-      if (updates.completed     !== undefined) dbUpdates.completed      = updates.completed;
+      if (updates.categoryId     !== undefined) dbUpdates.category_id     = updates.categoryId;
+      if (updates.subcategoryId  !== undefined) dbUpdates.subcategory_id  = updates.subcategoryId ?? null;
+      if (updates.title          !== undefined) dbUpdates.title           = updates.title;
+      if (updates.description    !== undefined) dbUpdates.description     = updates.description;
+      if (updates.deadline       !== undefined) dbUpdates.deadline        = updates.deadline;
+      if (updates.completed      !== undefined) dbUpdates.completed       = updates.completed;
       if (updates.completionNote !== undefined) dbUpdates.completion_note = updates.completionNote;
       const { error: updateError } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
       if (updateError) throw updateError;
@@ -179,7 +180,30 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       setTasks(prev =>
         prev.map(t =>
           t.id === id
-            ? { ...t, completed: true, completionNote: note, status: computeStatus(t.deadline, true) }
+            ? { ...t, completed: true, completionNote: note || '', status: computeStatus(t.deadline, true) }
+            : t
+        )
+      );
+      return { success: true, error: null };
+    } catch (err) {
+      const errorMessage = handleSupabaseError(err);
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  const uncompleteTask = async (id: string) => {
+    try {
+      setError(null);
+      const { error: updateError } = await supabase
+        .from('tasks')
+        .update({ completed: false, completion_note: null, completed_at: null })
+        .eq('id', id);
+      if (updateError) throw updateError;
+      setTasks(prev =>
+        prev.map(t =>
+          t.id === id
+            ? { ...t, completed: false, completionNote: '', status: computeStatus(t.deadline, false) }
             : t
         )
       );
@@ -193,7 +217,12 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   const refreshTasks = async () => { await fetchTasks(); };
 
-  const value = { tasks, loading, error, createTask, updateTask, deleteTask, completeTask, getTaskById, refreshTasks };
+  const value = {
+    tasks, loading, error,
+    createTask, updateTask, deleteTask,
+    completeTask, uncompleteTask,
+    getTaskById, refreshTasks,
+  };
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;
 }
 

@@ -56,54 +56,58 @@
 }
 
 .dark {
-  --background: #0f2d45;
-  --foreground: #e8f4fd;
+  /* Semua tone dalam satu family navy — tidak ada yang "jumping out" */
+  --background: #0e1c2a;
+  --foreground: #cde0f0;
 
-  --card: #163854;
-  --card-foreground: #e8f4fd;
+  --card: #162435;
+  --card-foreground: #cde0f0;
 
-  --popover: #163854;
-  --popover-foreground: #e8f4fd;
+  --popover: #162435;
+  --popover-foreground: #cde0f0;
 
-  --primary: #1a5276;
-  --primary-foreground: #ffffff;
+  /* Primary lebih gelap & desaturated — topbar tidak terlalu pop out */
+  --primary: #1f5680;
+  --primary-foreground: #e8f4fd;
 
-  --secondary: #1e4a6b;
-  --secondary-foreground: #e8f4fd;
+  --secondary: #1a3048;
+  --secondary-foreground: #cde0f0;
 
-  --muted: #1e4a6b;
-  --muted-foreground: #93c6e0;
+  --muted: #121f2e;
+  --muted-foreground: #6a9ab8;
 
-  --accent: #d4ac0d;
-  --accent-foreground: #0d1b2a;
+  --accent: #a07810;
+  --accent-foreground: #ffffff;
 
-  --destructive: #c0392b;
-  --destructive-foreground: #fecaca;
+  --destructive: #8b2218;
+  --destructive-foreground: #ffffff;
 
-  --border: rgba(100, 180, 220, 0.2);
-  --input: #1e4a6b;
-  --input-background: #1e4a6b;
-  --switch-background: #1a5276;
+  --border: rgba(80, 140, 180, 0.18);
 
-  --ring: #2e86c1;
+  --input: rgba(80, 140, 180, 0.1);
+  --input-background: #1a3048;
+  --switch-background: #1f5680;
+
+  --ring: #2471a3;
 
   --font-weight-medium: 500;
   --font-weight-normal: 400;
 
-  --chart-1: #d4ac0d;
-  --chart-2: #2e86c1;
-  --chart-3: #52b3d9;
-  --chart-4: #f0b429;
-  --chart-5: #1abc9c;
+  --chart-1: #a07810;
+  --chart-2: #2471a3;
+  --chart-3: #4a90be;
+  --chart-4: #c8900e;
+  --chart-5: #0e7a63;
 
-  --sidebar: #1a6090;
-  --sidebar-foreground: #ffffff;
-  --sidebar-primary: #1a5276;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e4a6b;
-  --sidebar-accent-foreground: #e8f4fd;
-  --sidebar-border: rgba(255, 255, 255, 0.15);
-  --sidebar-ring: #2e86c1;
+  /* Sidebar senada dengan card */
+  --sidebar: #162435;
+  --sidebar-foreground: #cde0f0;
+  --sidebar-primary: #1f5680;
+  --sidebar-primary-foreground: #e8f4fd;
+  --sidebar-accent: #1a3048;
+  --sidebar-accent-foreground: #cde0f0;
+  --sidebar-border: rgba(255, 255, 255, 0.05);
+  --sidebar-ring: #2471a3;
 }
 
 @theme inline {
@@ -207,10 +211,7 @@
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
   }
-
-
 }
-
 
 /* ✅ Dark mode: button outline hover pakai warna sidebar */
 .dark .hover\:bg-accent:hover {
@@ -224,4 +225,28 @@
   background-color: var(--destructive) !important;
   border-color: var(--destructive) !important;
   color: var(--destructive-foreground) !important;
+}
+
+/* ✅ Dark mode: pastikan placeholder teks cukup terbaca */
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #7ab3d0;
+  opacity: 1;
+}
+
+/* ✅ Fix: browser autofill (Chrome) override background jadi putih/kuning */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 9999px var(--input-background) inset !important;
+  box-shadow: 0 0 0 9999px var(--input-background) inset !important;
+  -webkit-text-fill-color: var(--foreground) !important;
+  caret-color: var(--foreground);
+  transition: background-color 99999s ease-in-out 0s;
+}
+
+/* ✅ Dark mode: link variant button (Forgot PIN, Sign in with another, dll) */
+.dark [class*="text-muted-foreground"] {
+  color: var(--muted-foreground);
 }

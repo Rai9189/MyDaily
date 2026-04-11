@@ -14,19 +14,19 @@ export function PINLock() {
   const navigate = useNavigate();
   const { user, signOut, loading: authLoading, verifyPin } = useAuth();
 
-  const [pin, setPin]           = useState('');
-  const [showPin, setShowPin]   = useState(false);
-  const [error, setError]       = useState('');
-  const [attempts, setAttempts] = useState(0);
-  const [locked, setLocked]     = useState(false);
+  const [pin, setPin]             = useState('');
+  const [showPin, setShowPin]     = useState(false);
+  const [error, setError]         = useState('');
+  const [attempts, setAttempts]   = useState(0);
+  const [locked, setLocked]       = useState(false);
   const [lockTimer, setLockTimer] = useState(0);
-  const [pinType, setPinType]   = useState<'pin4' | 'pin6' | 'password'>('pin4');
-  const [loading, setLoading]   = useState(false);
+  const [pinType, setPinType]     = useState<'pin4' | 'pin6' | 'password'>('pin4');
+  const [loading, setLoading]     = useState(false);
 
-  const [showIdleWarning, setShowIdleWarning]   = useState(false);
-  const [idleCountdown, setIdleCountdown]       = useState(0);
-  const idleTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const warningTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showIdleWarning, setShowIdleWarning] = useState(false);
+  const [idleCountdown, setIdleCountdown]     = useState(0);
+  const idleTimerRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const MAX_ATTEMPTS  = 5;
@@ -42,8 +42,8 @@ export function PINLock() {
   }, [signOut, navigate]);
 
   const clearAllTimers = () => {
-    if (idleTimerRef.current)      clearTimeout(idleTimerRef.current);
-    if (warningTimerRef.current)   clearTimeout(warningTimerRef.current);
+    if (idleTimerRef.current)         clearTimeout(idleTimerRef.current);
+    if (warningTimerRef.current)      clearTimeout(warningTimerRef.current);
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
   };
 
@@ -105,7 +105,7 @@ export function PINLock() {
       const timer = setTimeout(() => setLockTimer(lockTimer - 1), 1000);
       return () => clearTimeout(timer);
     } else if (locked && lockTimer === 0) {
-      setLocked(false); setAttempts(0);
+      setLocked(false); setAttempts(0); setError('');
       sessionStorage.removeItem('pinLockUntil');
       sessionStorage.removeItem('pinAttempts');
     }
@@ -113,7 +113,7 @@ export function PINLock() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (locked) { setError(`Too many attempts. Try again in ${lockTimer} seconds.`); return; }
+    if (locked) return;
     setLoading(true);
     try {
       const { success } = await verifyPin(pin);
@@ -130,9 +130,15 @@ export function PINLock() {
           const lockUntil = Date.now() + LOCK_DURATION * 1000;
           sessionStorage.setItem('pinLockUntil', lockUntil.toString());
           setLocked(true); setLockTimer(LOCK_DURATION);
-          setError(`Too many failed attempts! Wait ${LOCK_DURATION} seconds.`);
+          setError('');
         } else {
-          setError(`Wrong PIN/Password! (${newAttempts}/${MAX_ATTEMPTS} attempts)`);
+          const remaining = MAX_ATTEMPTS - newAttempts;
+          const label = pinType === 'password' ? 'Wrong Password!' : 'Wrong PIN!';
+          setError(
+            remaining === 1
+              ? `${label} Last attempt before lockout.`
+              : `${label} ${remaining} attempts remaining before lockout.`
+          );
         }
         setPin('');
       }
@@ -164,21 +170,16 @@ export function PINLock() {
         <Card className="border-2 border-blue-200 dark:border-blue-900/50 bg-white dark:bg-card shadow-lg rounded-2xl">
           <CardContent className="pt-8 pb-7 px-7">
 
-            {/* Logo */}
-            <div className="flex justify-center mb-5">
-              <img src="/logo.png" alt="MyDaily" className="w-40 h-auto object-contain dark:invert" />
-            </div>
-
             {/* User greeting */}
             <div className="flex flex-col items-center mb-6">
               <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center mb-3">
                 <Shield size={22} className="text-primary-foreground" />
               </div>
-              <p className="text-base font-semibold text-foreground">
-                {user?.name ? `Hello, ${user.name}` : 'Welcome back'}
-              </p>
+              <h1 className="text-2xl font-bold text-foreground">
+                {user?.name ? `Hello, ${user.name.split(' ')[0]}` : 'Welcome back'}
+              </h1>
               {user?.email && (
-                <p className="text-xs text-muted-foreground mt-0.5">{user.email}</p>
+                <p className="text-sm text-muted-foreground mt-1">{user.email}</p>
               )}
             </div>
 
@@ -210,19 +211,11 @@ export function PINLock() {
                 </div>
               )}
 
-              {/* Error */}
+              {/* Single merged error + attempt counter banner */}
               {!locked && error && (
                 <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl border-2 bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-400">
+                  <AlertCircle size={15} className="shrink-0 mt-0.5" />
                   <p>{error}</p>
-                </div>
-              )}
-
-              {/* Attempts warning */}
-              {!locked && attempts > 0 && attempts < MAX_ATTEMPTS && (
-                <div className="px-3.5 py-2.5 rounded-xl border-2 bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800">
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
-                    ⚠️ {MAX_ATTEMPTS - attempts} attempt{MAX_ATTEMPTS - attempts > 1 ? 's' : ''} remaining before lockout
-                  </p>
                 </div>
               )}
 
@@ -233,8 +226,7 @@ export function PINLock() {
                 {isNumericPin ? (
                   <div className="relative">
                     <input
-                      type="text"
-                      inputMode="numeric"
+                      type="text" inputMode="numeric"
                       value={pin}
                       onChange={(e) => { setPin(e.target.value.replace(/\D/g, '')); setError(''); }}
                       maxLength={getMaxLength()}
@@ -254,9 +246,7 @@ export function PINLock() {
                             </span>
                           ) : (
                             <div className={`rounded-full transition-all duration-200 ${
-                              pin[i]
-                                ? 'w-4 h-4 bg-primary shadow-sm'
-                                : 'w-3.5 h-3.5 border-2 border-muted-foreground/30 bg-transparent'
+                              pin[i] ? 'w-4 h-4 bg-primary shadow-sm' : 'w-3.5 h-3.5 border-2 border-muted-foreground/30 bg-transparent'
                             }`} />
                           )}
                         </div>

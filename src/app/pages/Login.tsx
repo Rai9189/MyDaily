@@ -6,7 +6,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Eye, EyeOff, Loader2, ShieldAlert } from 'lucide-react';
+import { Eye, EyeOff, Loader2, ShieldAlert, LogIn } from 'lucide-react';
 
 const MAX_ATTEMPTS     = 3;
 const COOLDOWN_SECONDS = 30;
@@ -27,13 +27,13 @@ export function Login() {
   const navigate = useNavigate();
   const { signIn } = useAuth();
 
-  const [email, setEmail]             = useState('');
-  const [password, setPassword]       = useState('');
+  const [email, setEmail]               = useState('');
+  const [password, setPassword]         = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState<string | null>(null);
-  const [attempts, setAttempts]       = useState<number>(getAttempts);
-  const [cooldown, setCooldown]       = useState<number>(getRemainingCooldown);
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState<string | null>(null);
+  const [attempts, setAttempts]         = useState<number>(getAttempts);
+  const [cooldown, setCooldown]         = useState<number>(getRemainingCooldown);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -94,14 +94,14 @@ export function Login() {
       <div className="w-full max-w-sm">
         <Card className="border-2 border-blue-200 dark:border-blue-900/50 bg-white dark:bg-card shadow-lg rounded-2xl">
           <CardContent className="pt-8 pb-7 px-7">
-            {/* Logo inside card */}
-            <div className="flex justify-center mb-6">
-              <img src="/logo.png" alt="MyDaily" className="w-40 h-auto object-contain dark:invert" />
-            </div>
 
-            <div className="mb-5">
-              <h1 className="text-xl font-semibold text-foreground">Welcome back</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">Sign in to your account</p>
+            {/* Header */}
+            <div className="flex flex-col items-center mb-6">
+              <div className="w-11 h-11 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-3">
+                <LogIn size={20} className="text-blue-600 dark:text-blue-400" />
+              </div>
+              <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
+              <p className="text-sm text-muted-foreground mt-1">Sign in to your account</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
@@ -143,8 +143,7 @@ export function Login() {
                     id="password" type={showPassword ? 'text' : 'password'}
                     placeholder="Enter your password"
                     value={password} onChange={(e) => setPassword(e.target.value)}
-                    required disabled={loading || isLocked}
-                    className="pr-10"
+                    required disabled={loading || isLocked} className="pr-10"
                   />
                   <button
                     type="button"

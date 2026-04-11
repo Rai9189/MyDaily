@@ -8,19 +8,20 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function PINSetup() {
   const navigate  = useNavigate();
   const location  = useLocation();
   const { user, loading: authLoading, hasPin, savePin } = useAuth();
 
-  const [pinType, setPinType]             = useState<'pin4' | 'pin6' | 'password'>('pin4');
-  const [pin, setPin]                     = useState('');
-  const [confirmPin, setConfirmPin]       = useState('');
-  const [showPin, setShowPin]             = useState(false);
+  const [pinType, setPinType]               = useState<'pin4' | 'pin6' | 'password'>('pin4');
+  const [pin, setPin]                       = useState('');
+  const [confirmPin, setConfirmPin]         = useState('');
+  const [showPin, setShowPin]               = useState(false);
   const [showConfirmPin, setShowConfirmPin] = useState(false);
-  const [submitting, setSubmitting]       = useState(false);
-  const [error, setError]                 = useState<string | null>(null);
+  const [submitting, setSubmitting]         = useState(false);
+  const [error, setError]                   = useState<string | null>(null);
 
   const isForgotPin = location.state?.forgotPin === true;
 
@@ -48,17 +49,26 @@ export function PINSetup() {
     setSubmitting(true);
     try {
       const { success, error: saveError } = await savePin(pin, pinType);
-      if (!success) { setError(saveError || 'Failed to save PIN. Please try again.'); return; }
+      if (!success) {
+        const message = saveError || 'Failed to save PIN. Please try again.';
+        setError(message);
+        toast.error(message);
+        return;
+      }
+      const label = pinType === 'pin4' ? '4-digit PIN' : pinType === 'pin6' ? '6-digit PIN' : 'password';
+      toast.success(isForgotPin ? `PIN reset successfully.` : `${label} set up successfully.`);
       navigate('/');
     } catch {
-      setError('Failed to save PIN. Please try again.');
+      const message = 'Failed to save PIN. Please try again.';
+      setError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const getPinLabel       = () => pinType === 'pin4' ? '4-Digit PIN' : pinType === 'pin6' ? '6-Digit PIN' : 'Password';
-  const isNumeric         = pinType !== 'password';
+  const getPinLabel = () => pinType === 'pin4' ? '4-Digit PIN' : pinType === 'pin6' ? '6-Digit PIN' : 'Password';
+  const isNumeric   = pinType !== 'password';
 
   if (authLoading) return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -72,24 +82,17 @@ export function PINSetup() {
         <Card className="border-2 border-blue-200 dark:border-blue-900/50 bg-white dark:bg-card shadow-lg rounded-2xl">
           <CardContent className="pt-8 pb-7 px-7">
 
-            {/* Logo */}
-            <div className="flex justify-center mb-6">
-              <img src="/logo.png" alt="MyDaily" className="w-40 h-auto object-contain dark:invert" />
-            </div>
-
             {/* Header */}
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+            <div className="flex flex-col items-center mb-6">
+              <div className="w-11 h-11 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-3">
                 <ShieldCheck size={20} className="text-blue-600 dark:text-blue-400" />
               </div>
-              <div>
-                <h1 className="text-lg font-semibold text-foreground">
-                  {isForgotPin ? 'Reset your PIN' : 'Set up PIN lock'}
-                </h1>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {isForgotPin ? 'Create a new PIN for your account' : 'Protect your app with a PIN or password'}
-                </p>
-              </div>
+              <h1 className="text-2xl font-bold text-foreground text-center">
+                {isForgotPin ? 'Reset your PIN' : 'Set up PIN lock'}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 text-center">
+                {isForgotPin ? 'Create a new PIN for your account' : 'Protect your app with a PIN or password'}
+              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -120,14 +123,9 @@ export function PINSetup() {
                 {isNumeric ? (
                   <div className="relative">
                     <input
-                      id="pin"
-                      type="text"
-                      inputMode="numeric"
+                      id="pin" type="text" inputMode="numeric"
                       value={pin}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, '');
-                        setPin(val);
-                      }}
+                      onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                       maxLength={pinType === 'pin4' ? 4 : 6}
                       required disabled={submitting}
                       className="opacity-0 absolute inset-0 w-full h-full cursor-default z-10"
@@ -144,9 +142,7 @@ export function PINSetup() {
                             </span>
                           ) : (
                             <div className={`rounded-full transition-all duration-200 ${
-                              pin[i]
-                                ? 'w-4 h-4 bg-primary shadow-sm'
-                                : 'w-3.5 h-3.5 border-2 border-muted-foreground/30 bg-transparent'
+                              pin[i] ? 'w-4 h-4 bg-primary shadow-sm' : 'w-3.5 h-3.5 border-2 border-muted-foreground/30 bg-transparent'
                             }`} />
                           )}
                         </div>
@@ -161,11 +157,9 @@ export function PINSetup() {
                 ) : (
                   <div className="relative">
                     <Input
-                      id="pin"
-                      type={showPin ? 'text' : 'password'}
+                      id="pin" type={showPin ? 'text' : 'password'}
                       placeholder="Enter password (min. 6 chars)"
-                      value={pin}
-                      onChange={(e) => setPin(e.target.value)}
+                      value={pin} onChange={(e) => setPin(e.target.value)}
                       required disabled={submitting} className="pr-10"
                     />
                     <button type="button" onClick={() => setShowPin(!showPin)} disabled={submitting}
@@ -182,14 +176,9 @@ export function PINSetup() {
                 {isNumeric ? (
                   <div className="relative">
                     <input
-                      id="confirmPin"
-                      type="text"
-                      inputMode="numeric"
+                      id="confirmPin" type="text" inputMode="numeric"
                       value={confirmPin}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, '');
-                        setConfirmPin(val);
-                      }}
+                      onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
                       maxLength={pinType === 'pin4' ? 4 : 6}
                       required disabled={submitting}
                       className="opacity-0 absolute inset-0 w-full h-full cursor-default z-10"
@@ -210,9 +199,7 @@ export function PINSetup() {
                             </span>
                           ) : (
                             <div className={`rounded-full transition-all duration-200 ${
-                              confirmPin[i]
-                                ? `w-4 h-4 shadow-sm ${pin === confirmPin.slice(0, i + 1) + (confirmPin[i] || '') ? 'bg-primary' : 'bg-primary'}`
-                                : 'w-3.5 h-3.5 border-2 border-muted-foreground/30 bg-transparent'
+                              confirmPin[i] ? 'w-4 h-4 bg-primary shadow-sm' : 'w-3.5 h-3.5 border-2 border-muted-foreground/30 bg-transparent'
                             }`} />
                           )}
                         </div>
@@ -233,11 +220,9 @@ export function PINSetup() {
                   <div className="space-y-1">
                     <div className="relative">
                       <Input
-                        id="confirmPin"
-                        type={showConfirmPin ? 'text' : 'password'}
+                        id="confirmPin" type={showConfirmPin ? 'text' : 'password'}
                         placeholder="Repeat password"
-                        value={confirmPin}
-                        onChange={(e) => setConfirmPin(e.target.value)}
+                        value={confirmPin} onChange={(e) => setConfirmPin(e.target.value)}
                         required disabled={submitting}
                         className={`pr-10 ${
                           confirmPin.length > 0

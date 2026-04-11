@@ -10,16 +10,30 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
   Plus, Edit, Trash2, Search, Loader2, Save,
   ChevronRight, ChevronLeft, FolderOpen, Tag, AlertTriangle,
 } from 'lucide-react';
 import { Category } from '../types';
+import { toast } from 'sonner';
+import { ListPageSkeleton } from '../components/Skeletons';
 
 type DialogMode = 'add-parent' | 'add-sub' | 'edit';
 type TabType    = 'transaction' | 'task' | 'note';
+type Subtype    = 'income' | 'expense' | '';
 
-/* ── Preset colors ── */
+interface ConfirmState {
+  open: boolean;
+  title: string;
+  description: string;
+  onConfirm: () => void;
+}
+
+const DEFAULT_CONFIRM: ConfirmState = {
+  open: false, title: '', description: '', onConfirm: () => {},
+};
+
 const PRESET_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#eab308',
   '#84cc16', '#22c55e', '#10b981', '#14b8a6',
@@ -29,11 +43,7 @@ const PRESET_COLORS = [
 
 export function Categories() {
   const navigate = useNavigate();
-  const {
-    loading, error,
-    getCategoriesByType, getSubcategories, hasSubcategories,
-    createCategory, updateCategory, deleteCategory,
-  } = useCategories();
+  const { loading, error, getCategoriesByType, getSubcategories, hasSubcategories, createCategory, updateCategory, deleteCategory } = useCategories();
   const { transactions } = useTransactions();
   const { tasks }        = useTasks();
   const { notes }        = useNotes();
@@ -45,15 +55,14 @@ export function Categories() {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [selectedParent, setSelectedParent]   = useState<Category | null>(null);
   const [expandedIds, setExpandedIds]         = useState<Set<string>>(new Set());
-  const [formData, setFormData] = useState({
-    name: '', type: 'transaction' as TabType,
-    subtype: '' as 'income' | 'expense' | '', color: '#3b82f6',
-  });
+  const [formData, setFormData] = useState({ name: '', type: 'transaction' as TabType, subtype: '' as Subtype, color: '#3b82f6' });
   const [submitting, setSubmitting]       = useState(false);
   const [subtypeFilter, setSubtypeFilter] = useState<'all' | 'income' | 'expense'>('all');
-  const [hexInput, setHexInput]           = useState('3B82F6'); // display state for hex input
+  const [hexInput, setHexInput]           = useState('3B82F6');
+  const [confirmState, setConfirmState]   = useState<ConfirmState>(DEFAULT_CONFIRM);
 
-  /* ── Usage count map ── */
+  const closeConfirm = () => setConfirmState(DEFAULT_CONFIRM);
+
   const usageMap = useMemo(() => {
     const map: Record<string, number> = {};
     transactions.forEach(t => { map[t.categoryId] = (map[t.categoryId] || 0) + 1; });
@@ -67,24 +76,27 @@ export function Categories() {
     return (usageMap[id] || 0) + subs.reduce((s, sub) => s + (usageMap[sub.id] || 0), 0);
   };
 
-  /* ── Dialog handlers ── */
+  const toSubtype = (value: string | undefined): Subtype => {
+    if (value === 'income' || value === 'expense') return value;
+    return '';
+  };
+
   const openAddParent = (type: TabType) => {
     setDialogMode('add-parent'); setEditingCategory(null); setSelectedParent(null);
-    setFormData({ name: '', type, subtype: '', color: '#3b82f6' });
-    setHexInput('3B82F6');
+    setFormData({ name: '', type, subtype: '', color: '#3b82f6' }); setHexInput('3B82F6');
     setIsDialogOpen(true);
   };
 
   const openAddSub = (parent: Category) => {
     setDialogMode('add-sub'); setEditingCategory(null); setSelectedParent(parent);
-    setFormData({ name: '', type: parent.type, subtype: parent.subtype ?? '', color: parent.color || '#3b82f6' });
+    setFormData({ name: '', type: parent.type, subtype: toSubtype(parent.subtype), color: parent.color || '#3b82f6' });
     setHexInput((parent.color || '#3b82f6').replace(/^#/, '').toUpperCase());
     setIsDialogOpen(true);
   };
 
   const openEdit = (category: Category) => {
     setDialogMode('edit'); setEditingCategory(category); setSelectedParent(null);
-    setFormData({ name: category.name, type: category.type, subtype: category.subtype ?? '', color: category.color || '#3b82f6' });
+    setFormData({ name: category.name, type: category.type, subtype: toSubtype(category.subtype), color: category.color || '#3b82f6' });
     setHexInput((category.color || '#3b82f6').replace(/^#/, '').toUpperCase());
     setIsDialogOpen(true);
   };
@@ -98,38 +110,52 @@ export function Categories() {
         if (editingCategory.type === 'transaction' && !editingCategory.parentId)
           updates.subtype = formData.subtype || undefined;
         const { success, error } = await updateCategory(editingCategory.id, updates);
-        if (success) setIsDialogOpen(false); else alert(error || 'Failed to update');
-
+        if (success) { setIsDialogOpen(false); toast.success('Category updated!'); }
+        else toast.error(error || 'Failed to update');
       } else if (dialogMode === 'add-sub' && selectedParent) {
         const { success, error } = await createCategory({
           name: formData.name, type: selectedParent.type, color: formData.color,
           parentId: selectedParent.id, subtype: selectedParent.subtype,
         });
-        if (success) { setIsDialogOpen(false); setExpandedIds(prev => new Set([...prev, selectedParent.id])); }
-        else alert(error || 'Failed to create subcategory');
-
+        if (success) {
+          setIsDialogOpen(false);
+          setExpandedIds(prev => new Set([...prev, selectedParent.id]));
+          toast.success('Subcategory created!');
+        } else toast.error(error || 'Failed to create subcategory');
       } else {
         const { success, error } = await createCategory({
           name: formData.name, type: formData.type, color: formData.color, parentId: null,
           subtype: formData.type === 'transaction' && formData.subtype ? formData.subtype : undefined,
         });
-        if (success) setIsDialogOpen(false); else alert(error || 'Failed to create category');
+        if (success) { setIsDialogOpen(false); toast.success('Category created!'); }
+        else toast.error(error || 'Failed to create category');
       }
     } finally { setSubmitting(false); }
   };
 
-  const handleDelete = async (category: Category) => {
+  const handleDelete = (category: Category) => {
     const hasSubs  = hasSubcategories(category.id);
     const usage    = getCategoryUsage(category.id);
     const subCount = getSubcategories(category.id).length;
-    let msg = `Delete "${category.name}"?`;
+
     const warnings: string[] = [];
-    if (hasSubs)    warnings.push(`${subCount} subcategor${subCount > 1 ? 'ies' : 'y'} will also be deleted`);
-    if (usage > 0)  warnings.push(`${usage} item${usage > 1 ? 's' : ''} using this category will lose their category`);
-    if (warnings.length > 0) msg += `\n\n⚠️ Warning:\n• ${warnings.join('\n• ')}`;
-    if (!confirm(msg)) return;
-    const { success, error } = await deleteCategory(category.id);
-    if (!success) alert(error || 'Failed to delete category');
+    if (hasSubs)   warnings.push(`${subCount} subcategor${subCount > 1 ? 'ies' : 'y'} will also be deleted`);
+    if (usage > 0) warnings.push(`${usage} item${usage > 1 ? 's' : ''} using this will lose their category`);
+
+    const description = warnings.length > 0
+      ? `"${category.name}" will be deleted. Note: ${warnings.join(' and ')}.`
+      : `"${category.name}" will be permanently deleted. This action cannot be undone.`;
+
+    setConfirmState({
+      open: true,
+      title: 'Delete Category?',
+      description,
+      onConfirm: async () => {
+        const { success, error } = await deleteCategory(category.id);
+        if (success) toast.success('Category deleted');
+        else toast.error(error || 'Failed to delete category');
+      },
+    });
   };
 
   const toggleExpand = (id: string) => {
@@ -149,22 +175,17 @@ export function Categories() {
     (dialogMode === 'edit' && editingCategory?.type === 'transaction' && !editingCategory?.parentId);
 
   const dialogTitle = dialogMode === 'edit' ? 'Edit Category'
-    : dialogMode === 'add-sub' ? `Add Subcategory to "${selectedParent?.name}"`
-    : 'Add New Category';
+    : dialogMode === 'add-sub' ? `Add Subcategory to "${selectedParent?.name}"` : 'Add New Category';
 
-  /* ── Category row ── */
   const CategoryRow = ({ category, isSubcat = false }: { category: Category; isSubcat?: boolean }) => {
     const subs        = getSubcategories(category.id);
     const isExpanded  = expandedIds.has(category.id);
     const visibleSubs = subs.filter(matchesSearch);
     const usage       = getCategoryUsage(category.id);
     if (searchQuery && !matchesSearch(category) && visibleSubs.length === 0) return null;
-
     return (
       <div>
-        <div className={`flex items-center justify-between px-3 py-2.5 rounded-lg border border-border transition-colors hover:bg-muted/40 ${
-          isSubcat ? 'bg-muted/20 ml-6' : 'bg-muted/30'
-        }`}>
+        <div className={`flex items-center justify-between px-3 py-2.5 rounded-lg border border-border transition-colors hover:bg-muted/40 ${isSubcat ? 'bg-muted/20 ml-6' : 'bg-muted/30'}`}>
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
             {!isSubcat && subs.length > 0 ? (
               <button onClick={() => toggleExpand(category.id)} className="text-muted-foreground hover:text-foreground flex-shrink-0">
@@ -179,34 +200,30 @@ export function Categories() {
               {subs.length > 0 && !isSubcat && <span className="text-xs text-muted-foreground flex-shrink-0">({subs.length})</span>}
               {!isSubcat && category.type === 'transaction' && category.subtype && (
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-                  category.subtype === 'income'
-                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                  category.subtype === 'income' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                  : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                 }`}>{category.subtype === 'income' ? 'Income' : 'Expense'}</span>
               )}
             </div>
           </div>
-
-          {/* Usage count badge */}
           <div className="flex-shrink-0 mr-2">
             {usage > 0
               ? <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{usage} item{usage !== 1 ? 's' : ''}</span>
               : <span className="text-xs text-muted-foreground/40">unused</span>
             }
           </div>
-
-          {/* Actions */}
           <div className="flex items-center gap-0 flex-shrink-0">
             {!isSubcat && (
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary"
-                title="Add subcategory" onClick={() => openAddSub(category)}>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => openAddSub(category)}>
                 <Plus size={13} />
               </Button>
             )}
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              onClick={() => openEdit(category)}><Edit size={13} /></Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-red-500 hover:text-white"
-              onClick={() => handleDelete(category)}><Trash2 size={13} /></Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(category)}>
+              <Edit size={13} />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-red-500 hover:text-white" onClick={() => handleDelete(category)}>
+              <Trash2 size={13} />
+            </Button>
           </div>
         </div>
         {(isExpanded || searchQuery) && visibleSubs.length > 0 && (
@@ -216,9 +233,12 @@ export function Categories() {
     );
   };
 
-  /* ── Category list ── */
   const CategoryList = ({ type }: { type: TabType }) => {
-    if (loading) return <div className="flex items-center justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+    if (loading) return (
+      <div className="flex items-center justify-center py-10">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    );
     const parents = getCategoriesByType(type);
     const visible = parents.filter(p => {
       if (type === 'transaction' && subtypeFilter !== 'all' && p.subtype !== subtypeFilter) return false;
@@ -234,6 +254,14 @@ export function Categories() {
       </div>
     );
   };
+
+  if (loading) return (
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex-1 overflow-y-auto no-scrollbar">
+        <ListPageSkeleton rows={4} />
+      </div>
+    </div>
+  );
 
   if (error) return (
     <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -252,7 +280,6 @@ export function Categories() {
       <div className="flex-1 overflow-y-auto no-scrollbar">
         <div className="space-y-4 pb-6">
 
-          {/* ── Header ── */}
           <div className="flex items-center justify-between gap-2">
             <button type="button" onClick={() => navigate('/settings')}
               className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -263,14 +290,12 @@ export function Categories() {
             </Button>
           </div>
 
-          {/* ── Search ── */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
             <Input placeholder="Search categories..." value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 border border-border shadow-sm" />
           </div>
 
-          {/* ── Tab pills ── */}
           <div className="flex gap-1.5">
             {TABS.map(tab => {
               const active = activeTab === tab.key;
@@ -289,7 +314,6 @@ export function Categories() {
             })}
           </div>
 
-          {/* ── Subtype filter ── */}
           {activeTab === 'transaction' && (
             <div className="flex gap-1.5">
               {([{ value: 'all', label: 'All' }, { value: 'income', label: 'Income' }, { value: 'expense', label: 'Expense' }] as const).map(opt => (
@@ -305,15 +329,13 @@ export function Categories() {
             </div>
           )}
 
-          {/* ── List card ── */}
           <Card className="bg-white dark:bg-card border-2 border-blue-200 dark:border-blue-900/50 shadow-sm rounded-xl">
             <CardContent className="p-3"><CategoryList type={activeTab} /></CardContent>
           </Card>
-
         </div>
       </div>
 
-      {/* ── Dialog ── */}
+      {/* Form Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="bg-card border border-border max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -322,17 +344,12 @@ export function Categories() {
               <p className="text-xs text-muted-foreground mt-1">Under <span className="font-medium text-foreground">{selectedParent.name}</span></p>
             )}
           </DialogHeader>
-
           <form onSubmit={handleSubmit} className="space-y-4 mt-1">
-
-            {/* Name */}
             <div className="space-y-1.5">
               <Label htmlFor="name">{dialogMode === 'add-sub' ? 'Subcategory Name' : 'Category Name'}</Label>
               <Input id="name" placeholder={dialogMode === 'add-sub' ? 'e.g. Restaurant, Coffee' : 'e.g. Food, Transport'}
                 value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
             </div>
-
-            {/* Type */}
             {dialogMode === 'add-parent' && (
               <div className="space-y-1.5">
                 <Label>Type</Label>
@@ -346,8 +363,6 @@ export function Categories() {
                 </div>
               </div>
             )}
-
-            {/* Subtype */}
             {showSubtypeSelector && (
               <div className="space-y-1.5">
                 <Label>Subtype</Label>
@@ -368,8 +383,6 @@ export function Categories() {
                 </p>
               </div>
             )}
-
-            {/* Parent badge */}
             {dialogMode === 'add-sub' && selectedParent && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border">
                 <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: selectedParent.color }} />
@@ -377,56 +390,40 @@ export function Categories() {
                 <span className="text-xs font-medium text-foreground">{selectedParent.name}</span>
                 {selectedParent.subtype && (
                   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                    selectedParent.subtype === 'income'
-                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                    selectedParent.subtype === 'income' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                   }`}>{selectedParent.subtype}</span>
                 )}
               </div>
             )}
-
-            {/* Color — preset swatches + custom input */}
             <div className="space-y-2">
               <Label>Color</Label>
               <div className="grid grid-cols-8 gap-1.5">
                 {PRESET_COLORS.map(c => (
-                  <button key={c} type="button" onClick={() => {
-                    setFormData({ ...formData, color: c });
-                    setHexInput(c.replace(/^#/, '').toUpperCase());
-                  }}
-                    className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${
-                      formData.color.toLowerCase() === c.toLowerCase() ? 'border-foreground scale-110' : 'border-transparent'
-                    }`}
+                  <button key={c} type="button"
+                    onClick={() => { setFormData({ ...formData, color: c }); setHexInput(c.replace(/^#/, '').toUpperCase()); }}
+                    className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${formData.color.toLowerCase() === c.toLowerCase() ? 'border-foreground scale-110' : 'border-transparent'}`}
                     style={{ backgroundColor: c }} />
                 ))}
               </div>
               <div className="flex gap-2 items-center">
                 <input type="color" value={formData.color}
-                  onChange={(e) => {
-                    setFormData({ ...formData, color: e.target.value });
-                    setHexInput(e.target.value.replace(/^#/, '').toUpperCase());
-                  }}
+                  onChange={(e) => { setFormData({ ...formData, color: e.target.value }); setHexInput(e.target.value.replace(/^#/, '').toUpperCase()); }}
                   className="w-9 h-9 rounded-md border border-border cursor-pointer bg-transparent p-0.5 flex-shrink-0" />
                 <div className="relative flex-1">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-mono select-none pointer-events-none">#</span>
-                  <Input
-                    value={hexInput}
+                  <Input value={hexInput}
                     onChange={(e) => {
                       const raw = e.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6).toUpperCase();
                       setHexInput(raw);
                       setFormData({ ...formData, color: `#${raw.padEnd(6, '0')}` });
                     }}
-                    onFocus={(e) => e.target.select()}
-                    placeholder="3B82F6"
-                    maxLength={6}
-                    className="pl-7 font-mono text-sm uppercase"
-                  />
+                    onFocus={(e) => e.target.select()} placeholder="3B82F6" maxLength={6}
+                    className="pl-7 font-mono text-sm uppercase" />
                 </div>
                 <div className="w-8 h-8 rounded-full border border-border flex-shrink-0" style={{ backgroundColor: formData.color }} />
               </div>
             </div>
-
-            {/* Usage warning in edit mode */}
             {dialogMode === 'edit' && editingCategory && (() => {
               const usage = getCategoryUsage(editingCategory.id);
               if (usage === 0) return null;
@@ -439,14 +436,24 @@ export function Categories() {
                 </div>
               );
             })()}
-
             <Button type="submit" className="w-full gap-2" disabled={submitting}>
-              {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
-                : <><Save size={14} /> {dialogMode === 'edit' ? 'Update' : 'Save'}</>}
+              {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : <><Save size={14} /> {dialogMode === 'edit' ? 'Update' : 'Save'}</>}
             </Button>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        description={confirmState.description}
+        confirmLabel="Delete"
+        variant="danger"
+        icon={<Trash2 size={20} />}
+        onConfirm={confirmState.onConfirm}
+        onCancel={closeConfirm}
+      />
     </div>
   );
 }

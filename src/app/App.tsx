@@ -28,6 +28,7 @@ import { Settings } from './pages/Settings';
 import { Categories } from './pages/Categories';
 import { Trash } from './pages/Trash';
 import { Loader2 } from 'lucide-react';
+import { Toaster } from 'sonner';
 
 function DataProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -101,8 +102,8 @@ function AppRoutes() {
     <DataProviders>
       <Routes>
         {/* Public routes */}
-        <Route path="/login"          element={<PublicRoute><Login /></PublicRoute>} />
-        <Route path="/register"       element={<PublicRoute><Register /></PublicRoute>} />
+        <Route path="/login"           element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/register"        element={<PublicRoute><Register /></PublicRoute>} />
         <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
 
         {/* PIN routes */}
@@ -138,6 +139,16 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
+          {/* Toaster harus di dalam App agar selalu tersedia di semua halaman */}
+          <Toaster
+            position="top-center"
+            richColors
+            closeButton
+            duration={3000}
+            toastOptions={{
+              style: { fontSize: '14px' },
+            }}
+          />
           <AppRoutes />
         </BrowserRouter>
       </AuthProvider>

@@ -6,16 +6,17 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Eye, EyeOff, Loader2, Check, X } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Check, X, UserPlus } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface PasswordRule { label: string; test: (pw: string) => boolean; }
 
 const PASSWORD_RULES: PasswordRule[] = [
-  { label: 'At least 8 characters',             test: pw => pw.length >= 8 },
-  { label: 'Contains uppercase letter (A–Z)',    test: pw => /[A-Z]/.test(pw) },
-  { label: 'Contains lowercase letter (a–z)',    test: pw => /[a-z]/.test(pw) },
-  { label: 'Contains number (0–9)',              test: pw => /[0-9]/.test(pw) },
-  { label: 'Contains special character (!@#$…)', test: pw => /[^A-Za-z0-9]/.test(pw) },
+  { label: 'At least 8 characters',              test: pw => pw.length >= 8 },
+  { label: 'Contains uppercase letter (A–Z)',     test: pw => /[A-Z]/.test(pw) },
+  { label: 'Contains lowercase letter (a–z)',     test: pw => /[a-z]/.test(pw) },
+  { label: 'Contains number (0–9)',               test: pw => /[0-9]/.test(pw) },
+  { label: 'Contains special character (!@#$…)',  test: pw => /[^A-Za-z0-9]/.test(pw) },
 ];
 
 function getStrength(password: string) {
@@ -31,17 +32,17 @@ export function Register() {
   const navigate = useNavigate();
   const { signUp } = useAuth();
 
-  const [name, setName]                           = useState('');
-  const [email, setEmail]                         = useState('');
-  const [password, setPassword]                   = useState('');
-  const [confirmPassword, setConfirmPassword]     = useState('');
-  const [showPassword, setShowPassword]           = useState(false);
+  const [name, setName]                               = useState('');
+  const [email, setEmail]                             = useState('');
+  const [password, setPassword]                       = useState('');
+  const [confirmPassword, setConfirmPassword]         = useState('');
+  const [showPassword, setShowPassword]               = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [loading, setLoading]                     = useState(false);
-  const [error, setError]                         = useState<string | null>(null);
-  const [passwordTouched, setPasswordTouched]     = useState(false);
+  const [loading, setLoading]                         = useState(false);
+  const [error, setError]                             = useState<string | null>(null);
+  const [passwordTouched, setPasswordTouched]         = useState(false);
 
-  const strength      = useMemo(() => getStrength(password), [password]);
+  const strength       = useMemo(() => getStrength(password), [password]);
   const allRulesPassed = PASSWORD_RULES.every(r => r.test(password));
   const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
 
@@ -57,9 +58,12 @@ export function Register() {
     setLoading(true);
     const { success, error: signUpError } = await signUp(email, password, name);
     if (success) {
+      toast.success('Account created! Set up your PIN to continue.');
       navigate('/pin-setup');
     } else {
-      setError(signUpError || 'Registration failed. Please try again.');
+      const message = signUpError || 'Registration failed. Please try again.';
+      setError(message);
+      toast.error(message);
     }
     setLoading(false);
   };
@@ -69,14 +73,14 @@ export function Register() {
       <div className="w-full max-w-sm">
         <Card className="border-2 border-blue-200 dark:border-blue-900/50 bg-white dark:bg-card shadow-lg rounded-2xl">
           <CardContent className="pt-8 pb-7 px-7">
-            {/* Logo inside card */}
-            <div className="flex justify-center mb-6">
-              <img src="/logo.png" alt="MyDaily" className="w-40 h-auto object-contain dark:invert" />
-            </div>
 
-            <div className="mb-5">
-              <h1 className="text-xl font-semibold text-foreground">Create account</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">Sign up to get started</p>
+            {/* Header */}
+            <div className="flex flex-col items-center mb-6">
+              <div className="w-11 h-11 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-3">
+                <UserPlus size={20} className="text-blue-600 dark:text-blue-400" />
+              </div>
+              <h1 className="text-2xl font-bold text-foreground">Create account</h1>
+              <p className="text-sm text-muted-foreground mt-1">Sign up to get started</p>
             </div>
 
             <form onSubmit={handleRegister} className="space-y-4">
@@ -202,7 +206,6 @@ export function Register() {
                 }
               </Button>
 
-              {/* Helper text when button is disabled */}
               {(!allRulesPassed || !passwordsMatch) && !loading && (
                 <p className="text-xs text-center text-muted-foreground">
                   {!allRulesPassed

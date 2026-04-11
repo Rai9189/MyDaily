@@ -10,27 +10,41 @@ import { Input } from '../components/ui/input';
 import {
   Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown,
   ChevronLeft, ChevronRight, Filter, Paperclip,
-  Search, Loader2, X, Edit, Trash2, CalendarX,
+  Search, X, Edit, Trash2, CalendarX,
   LayoutGrid, List,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { ListPageSkeleton } from '../components/Skeletons';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export function Tasks() {
   const navigate = useNavigate();
   const { tasks, loading, error, deleteTask } = useTasks();
-  const { categories, getCategoriesByType, getEffectiveCategoryName, getEffectiveCategoryColor } = useCategories();
+  const { categories, getEffectiveCategoryName, getEffectiveCategoryColor } = useCategories();
 
   const [searchQuery, setSearchQuery]         = useState('');
   const [filterStatus, setFilterStatus]       = useState('all');
   const [filterCategory, setFilterCategory]   = useState('all');
-  const [filterCompleted, setFilterCompleted] = useState('active'); // default: hide completed
+  const [filterCompleted, setFilterCompleted] = useState('active');
   const [sortBy, setSortBy]                   = useState<'deadline' | 'status'>('deadline');
   const [sortOrder, setSortOrder]             = useState<'asc' | 'desc'>('asc');
   const [itemsPerPage, setItemsPerPage]       = useState<number | 'all'>(10);
   const [currentPage, setCurrentPage]         = useState(1);
   const [filterOpen, setFilterOpen]           = useState(false);
-  const [deletingId, setDeletingId]           = useState<string | null>(null);
   const [viewMode, setViewMode]               = useState<'list' | 'card'>('list');
+
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting]         = useState(false);
+
   const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const handler = (e: MediaQueryListEvent) => { if (!e.matches) setViewMode('card'); };
+    if (!mq.matches) setViewMode('card');
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   const taskCategories = categories.filter(c => c.type === 'task');
 
@@ -38,13 +52,7 @@ export function Tasks() {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Element;
       if (filterRef.current && filterRef.current.contains(target)) return;
-      if (
-        target.closest('[data-radix-popper-content-wrapper]') ||
-        target.closest('[data-radix-select-viewport]') ||
-        target.closest('[data-radix-select-content]') ||
-        target.closest('[role="option"]') ||
-        target.closest('[role="listbox"]')
-      ) return;
+      if (target.closest('[data-radix-popper-content-wrapper]') || target.closest('[role="option"]')) return;
       setFilterOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -60,7 +68,7 @@ export function Tasks() {
       case 'urgent':   return { label: 'Urgent',   icon: <AlertCircle size={12} />,  className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border-orange-200 dark:border-orange-800' };
       case 'upcoming': return { label: 'Upcoming', icon: <Clock size={12} />,        className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800' };
       case 'on_track': return { label: 'On Track', icon: <CheckCircle2 size={12} />, className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800' };
-      default:         return { label: status,     icon: null,                        className: 'bg-muted text-muted-foreground border-border' };
+      default:         return { label: status, icon: null, className: 'bg-muted text-muted-foreground border-border' };
     }
   };
 
@@ -101,8 +109,8 @@ export function Tasks() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const due   = new Date(deadline); due.setHours(0, 0, 0, 0);
     const days  = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    if (days < 0)  return { label: `${Math.abs(days)}d overdue`, color: 'text-red-600 dark:text-red-400 font-semibold' };
-    if (days === 0) return { label: 'Due today',   color: 'text-orange-600 dark:text-orange-400 font-semibold' };
+    if (days < 0)   return { label: `${Math.abs(days)}d overdue`, color: 'text-red-600 dark:text-red-400 font-semibold' };
+    if (days === 0) return { label: 'Due today',    color: 'text-orange-600 dark:text-orange-400 font-semibold' };
     if (days === 1) return { label: 'Due tomorrow', color: 'text-amber-600 dark:text-amber-400' };
     if (days <= 7)  return { label: `${days}d left`, color: 'text-amber-500 dark:text-amber-400' };
     return { label: `${days}d left`, color: 'text-muted-foreground' };
@@ -165,13 +173,19 @@ export function Tasks() {
     setSortBy('deadline'); setSortOrder('asc'); setCurrentPage(1);
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const handleDeleteRequest = (e: React.MouseEvent, task: any) => {
     e.stopPropagation();
-    if (!confirm('Delete this task?')) return;
-    setDeletingId(id);
-    const { success, error } = await deleteTask(id);
-    if (!success) alert(error || 'Failed to delete task');
-    setDeletingId(null);
+    setDeleteTarget({ id: task.id, name: task.title });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { success, error } = await deleteTask(deleteTarget.id);
+    if (success) toast.success('Task deleted');
+    else toast.error(error || 'Failed to delete task');
+    setDeleting(false);
+    setDeleteTarget(null);
   };
 
   const handleEdit = (e: React.MouseEvent, id: string) => {
@@ -180,8 +194,10 @@ export function Tasks() {
   };
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex-1 overflow-y-auto no-scrollbar">
+        <ListPageSkeleton rows={6} />
+      </div>
     </div>
   );
 
@@ -194,9 +210,19 @@ export function Tasks() {
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-2">
 
-      {/* ── HEADER ── */}
-      <div className="flex-shrink-0 space-y-2">
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Task"
+        description={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        icon={<Trash2 size={20} />}
+        loading={deleting}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
+      <div className="flex-shrink-0 space-y-2">
         <div className="flex justify-between items-center">
           <p className="text-sm font-medium text-foreground/65">Manage All Your Tasks</p>
           <Button onClick={() => navigate('/tasks/new')} className="gap-2">
@@ -204,51 +230,42 @@ export function Tasks() {
           </Button>
         </div>
 
-        {/* Active filter chips */}
         {activeFilterCount > 0 && (
           <div className="flex flex-wrap gap-2 text-xs items-center">
             {filterStatus !== 'all' && (
               <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium shadow-sm">
                 Status: {getStatusConfig(filterStatus).label}
-                <button onClick={() => { setFilterStatus('all'); setCurrentPage(1); }}
-                  className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={11} /></button>
+                <button onClick={() => { setFilterStatus('all'); setCurrentPage(1); }} className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={11} /></button>
               </span>
             )}
             {filterCategory !== 'all' && (
               <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium shadow-sm">
                 Category: {categories.find(c => c.id === filterCategory)?.name}
-                <button onClick={() => { setFilterCategory('all'); setCurrentPage(1); }}
-                  className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={11} /></button>
+                <button onClick={() => { setFilterCategory('all'); setCurrentPage(1); }} className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={11} /></button>
               </span>
             )}
             {filterCompleted !== 'active' && (
               <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium shadow-sm">
                 {filterCompleted === 'completed' ? 'Completed only' : 'All (incl. completed)'}
-                <button onClick={() => { setFilterCompleted('active'); setCurrentPage(1); }}
-                  className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={11} /></button>
+                <button onClick={() => { setFilterCompleted('active'); setCurrentPage(1); }} className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={11} /></button>
               </span>
             )}
-            <button onClick={resetFilters} className="text-foreground/60 hover:text-foreground underline text-xs font-medium">
-              Clear All
-            </button>
+            <button onClick={resetFilters} className="text-foreground/60 hover:text-foreground underline text-xs font-medium">Clear All</button>
           </div>
         )}
 
-        {/* Search + Filter & Sort */}
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-            <Input
-              placeholder="Search by title, description, or category..."
-              value={searchQuery}
+            <Input placeholder="Search tasks..." value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              className="pl-10 border border-border shadow-sm"
-            />
+              className="pl-10 border border-border shadow-sm" />
           </div>
 
           <div className="relative" ref={filterRef}>
             <Button variant="outline" className="gap-2 relative" onClick={() => setFilterOpen(prev => !prev)}>
-              <Filter size={18} /> Filter & Sort
+              <Filter size={18} />
+              <span className="hidden sm:inline">Filter & Sort</span>
               {activeFilterCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
                   {activeFilterCount}
@@ -261,16 +278,11 @@ export function Tasks() {
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                   <span className="font-semibold text-foreground">Filter & Sort</span>
                   <div className="flex items-center gap-2">
-                    {activeFilterCount > 0 && (
-                      <button onClick={resetFilters} className="text-xs text-primary hover:underline">Reset All</button>
-                    )}
-                    <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground">
-                      <X size={18} />
-                    </button>
+                    {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-primary hover:underline">Reset All</button>}
+                    <button onClick={() => setFilterOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
                   </div>
                 </div>
                 <div className="p-4 space-y-4">
-                  {/* Status */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</label>
                     <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setCurrentPage(1); }}>
@@ -284,7 +296,6 @@ export function Tasks() {
                       </SelectContent>
                     </Select>
                   </div>
-                  {/* Category */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</label>
                     <Select value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setCurrentPage(1); }}>
@@ -313,29 +324,19 @@ export function Tasks() {
                       </SelectContent>
                     </Select>
                   </div>
-                  {/* Completion */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Completion</label>
                     <div className="flex gap-2">
-                      {([
-                        { value: 'active',    label: 'Active'     },
-                        { value: 'all',       label: 'All'        },
-                        { value: 'completed', label: 'Completed'  },
-                      ] as const).map(opt => (
+                      {([{ value: 'active', label: 'Active' }, { value: 'all', label: 'All' }, { value: 'completed', label: 'Completed' }] as const).map(opt => (
                         <button key={opt.value} type="button"
                           onClick={() => { setFilterCompleted(opt.value); setCurrentPage(1); }}
-                          className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                            filterCompleted === opt.value
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
-                          }`}>
+                          className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${filterCompleted === opt.value ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'}`}>
                           {opt.label}
                         </button>
                       ))}
                     </div>
                     <p className="text-xs text-muted-foreground">Default: Active only</p>
                   </div>
-                  {/* Sort */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sort By</label>
                     <div className="flex gap-2">
@@ -346,9 +347,7 @@ export function Tasks() {
                           <SelectItem value="status">Status</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Button variant="outline" size="icon"
-                        onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                        title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}>
+                      <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
                         <ArrowUpDown size={15} />
                       </Button>
                     </div>
@@ -359,23 +358,17 @@ export function Tasks() {
           </div>
         </div>
 
-        {/* Show + View toggle + count */}
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-foreground/65">Show:</span>
           <div className="inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             {([5, 10, 20, 'all'] as (number | 'all')[]).map((num) => (
               <button key={num} onClick={() => { setItemsPerPage(num); setCurrentPage(1); }}
-                className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-150 ${
-                  itemsPerPage === num
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-foreground/60 hover:text-foreground hover:bg-background'
-                }`}>
+                className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-150 ${itemsPerPage === num ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
                 {num === 'all' ? 'All' : num}
               </button>
             ))}
           </div>
-
-          <div className="inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
+          <div className="hidden md:inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             <button onClick={() => setViewMode('list')}
               className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}
               title="List View"><List size={16} /></button>
@@ -383,17 +376,12 @@ export function Tasks() {
               className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'card' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}
               title="Card View"><LayoutGrid size={16} /></button>
           </div>
-
           <span className="text-sm font-medium text-foreground/65 ml-auto">
-            {itemsPerPage === 'all'
-              ? `Showing All ${filteredTasks.length} Tasks`
-              : `Page ${currentPage} Of ${totalPages} (${filteredTasks.length} Total)`
-            }
+            {itemsPerPage === 'all' ? `Showing All ${filteredTasks.length} Tasks` : `Page ${currentPage} Of ${totalPages} (${filteredTasks.length} Total)`}
           </span>
         </div>
       </div>
 
-      {/* ── SCROLLABLE CONTENT ── */}
       <div className="flex-1 overflow-y-auto min-h-0 no-scrollbar">
         {filteredTasks.length === 0 ? (
           <Card className="border-2 border-slate-200 dark:border-border bg-white dark:bg-card shadow-sm">
@@ -402,7 +390,6 @@ export function Tasks() {
               <p className="text-sm text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
             </CardContent>
           </Card>
-
         ) : viewMode === 'list' ? (
           /* ── LIST VIEW ── */
           <div className="rounded-xl overflow-hidden w-full bg-white dark:bg-card border-2 border-slate-200 dark:border-border shadow-sm">
@@ -411,135 +398,143 @@ export function Tasks() {
                 <thead className="bg-slate-100 dark:bg-muted/60">
                   <tr>
                     <th className="pl-4 pr-2 py-3 w-8" />
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Title</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Category</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Deadline</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider pr-5">Actions</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Title</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Category</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Deadline</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-border/50">
                   {paginatedTasks.map((task) => {
                     const daysInfo = getDaysInfo(task.deadline, task.completed);
                     return (
-                    <tr key={task.id}
-                      className={`hover:bg-slate-50 dark:hover:bg-muted/40 cursor-pointer transition-colors ${task.completed ? 'opacity-60' : ''}`}
-                      onClick={() => navigate(`/tasks/${task.id}`)}>
-                      <td className={`pl-4 pr-2 ${itemsPerPage === 5 ? "py-2" : "py-4"}`}>
-                        <div className={`w-2.5 h-2.5 rounded-full ${getDotColor(task)}`} />
-                      </td>
-                      <td className={`px-4 ${itemsPerPage === 5 ? "py-2" : "py-4"}`}>
-                        <p className={`text-sm font-semibold leading-tight ${task.completed ? 'line-through text-slate-400' : 'text-foreground'}`}>
-                          {task.title}
-                        </p>
-                        {task.description && (
-                          <p className="text-xs text-slate-400 truncate max-w-[200px] mt-0.5">{task.description}</p>
-                        )}
-                      </td>
-                      <td className={`px-4 whitespace-nowrap ${itemsPerPage === 5 ? "py-2" : "py-4"}`}>
-                        <span className="text-xs font-medium px-2.5 py-1 rounded-full border"
-                          style={{ borderColor: getCategoryColor(task.categoryId, task.subcategoryId), color: getCategoryColor(task.categoryId, task.subcategoryId) }}>
-                          {getCategoryName(task.categoryId, task.subcategoryId)}
-                        </span>
-                      </td>
-                      <td className={`px-4 whitespace-nowrap ${itemsPerPage === 5 ? "py-2" : "py-4"}`}>
-                        <p className="text-sm text-slate-500 dark:text-foreground/65">
-                          {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </p>
-                        <p className={`text-xs mt-0.5 ${daysInfo.color}`}>{daysInfo.label}</p>
-                      </td>
-                      <td className={`px-4 whitespace-nowrap ${itemsPerPage === 5 ? "py-2" : "py-4"}`}>
-                        <StatusBadge task={task} />
-                      </td>
-                      <td className={`px-4 whitespace-nowrap text-right pr-5 ${itemsPerPage === 5 ? "py-2" : "py-4"}`} onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-foreground"
-                            onClick={(e) => handleEdit(e, task.id)}><Edit size={14} /></Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:bg-red-500 hover:text-white"
-                            onClick={(e) => handleDelete(e, task.id)} disabled={deletingId === task.id}>
-                            {deletingId === task.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
+                      <tr key={task.id}
+                        className={`group hover:bg-slate-50 dark:hover:bg-muted/40 cursor-pointer transition-colors ${task.completed ? 'opacity-60' : ''}`}
+                        onClick={() => navigate(`/tasks/${task.id}`)}>
+
+                        {/* Dot indicator */}
+                        <td className={`pl-4 pr-2 ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                          <div className={`w-2.5 h-2.5 rounded-full ${getDotColor(task)}`} />
+                        </td>
+
+                        {/* Title — center, description as tooltip on row hover */}
+                        <td className={`px-4 text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                          <div className="relative inline-block">
+                            <p className={`text-sm font-semibold leading-tight ${task.completed ? 'line-through text-slate-400' : 'text-foreground'}`}>
+                              {task.title}
+                            </p>
+                            {task.description && (
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover:block pointer-events-none">
+                                <div className="bg-foreground text-background text-xs rounded-lg px-3 py-1.5 whitespace-nowrap max-w-[220px] truncate shadow-lg">
+                                  {task.description}
+                                </div>
+                                <div className="w-2 h-2 bg-foreground rotate-45 mx-auto -mt-1" />
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Category — center */}
+                        <td className={`px-4 text-center whitespace-nowrap ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                          <span className="text-xs font-medium px-2.5 py-1 rounded-full border inline-block"
+                            style={{ borderColor: getCategoryColor(task.categoryId, task.subcategoryId), color: getCategoryColor(task.categoryId, task.subcategoryId) }}>
+                            {getCategoryName(task.categoryId, task.subcategoryId)}
+                          </span>
+                        </td>
+
+                        {/* Deadline — date center, days info center */}
+                        <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                          <p className="text-sm text-slate-500 dark:text-foreground/65">
+                            {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </p>
+                          <p className={`text-xs mt-0.5 ${daysInfo.color}`}>{daysInfo.label}</p>
+                        </td>
+
+                        {/* Status — center */}
+                        <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                          <StatusBadge task={task} />
+                        </td>
+
+                        {/* Actions — center */}
+                        <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`} onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-foreground"
+                              onClick={(e) => handleEdit(e, task.id)}><Edit size={14} /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:bg-red-500 hover:text-white"
+                              onClick={(e) => handleDeleteRequest(e, task)}>
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
           </div>
-
         ) : (
           /* ── CARD VIEW ── */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {paginatedTasks.map((task) => {
               const daysInfo = getDaysInfo(task.deadline, task.completed);
               return (
-              <Card key={task.id}
-                className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer border-2 ${getCardBorder(task)}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className={`mt-1.5 flex-shrink-0 w-2.5 h-2.5 rounded-full ${getDotColor(task)}`} />
-                    <div className="flex-1 min-w-0" onClick={() => navigate(`/tasks/${task.id}`)}>
-                      <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                          style={{ borderColor: getCategoryColor(task.categoryId, task.subcategoryId), color: getCategoryColor(task.categoryId, task.subcategoryId) }}>
-                          {getCategoryName(task.categoryId, task.subcategoryId)}
-                        </span>
-                        <StatusBadge task={task} />
-                      </div>
-                      <p className={`text-sm font-semibold leading-tight ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                        {task.title}
-                      </p>
-                      {task.description && (
-                        <p className="text-xs text-slate-400 mt-1 line-clamp-2">{task.description}</p>
-                      )}
-                      <div className="flex items-center justify-between mt-3">
-                        <div>
-                          <p className="text-xs text-slate-500 flex items-center gap-1">
-                            <Clock size={11} className="opacity-70" />
-                            {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-                          </p>
-                          <p className={`text-xs mt-0.5 ${daysInfo.color}`}>{daysInfo.label}</p>
-                        </div>
-                        {task.attachments && task.attachments.length > 0 && (
-                          <span className="flex items-center gap-1 text-xs text-slate-400">
-                            <Paperclip size={11} /> {task.attachments.length}
+                <Card key={task.id} className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer border-2 ${getCardBorder(task)}`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-1.5 flex-shrink-0 w-2.5 h-2.5 rounded-full ${getDotColor(task)}`} />
+                      <div className="flex-1 min-w-0" onClick={() => navigate(`/tasks/${task.id}`)}>
+                        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
+                            style={{ borderColor: getCategoryColor(task.categoryId, task.subcategoryId), color: getCategoryColor(task.categoryId, task.subcategoryId) }}>
+                            {getCategoryName(task.categoryId, task.subcategoryId)}
                           </span>
-                        )}
+                          <StatusBadge task={task} />
+                        </div>
+                        <p className={`text-sm font-semibold leading-tight ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{task.title}</p>
+                        {task.description && <p className="text-xs text-slate-400 mt-1 line-clamp-2">{task.description}</p>}
+                        <div className="flex items-center justify-between mt-3">
+                          <div>
+                            <p className="text-xs text-slate-500 flex items-center gap-1">
+                              <Clock size={11} className="opacity-70" />
+                              {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </p>
+                            <p className={`text-xs mt-0.5 ${daysInfo.color}`}>{daysInfo.label}</p>
+                          </div>
+                          {task.completionAttachments && task.completionAttachments.length > 0 && (
+                            <span className="flex items-center gap-1 text-xs text-slate-400">
+                              <Paperclip size={11} /> {task.completionAttachments.length}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-0 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-foreground"
+                          onClick={(e) => handleEdit(e, task.id)}><Edit size={13} /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:bg-red-500 hover:text-white"
+                          onClick={(e) => handleDeleteRequest(e, task)}>
+                          <Trash2 size={13} />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-0 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-foreground"
-                        onClick={(e) => handleEdit(e, task.id)}><Edit size={13} /></Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:bg-red-500 hover:text-white"
-                        onClick={(e) => handleDelete(e, task.id)} disabled={deletingId === task.id}>
-                        {deletingId === task.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
         )}
       </div>
 
-      {/* ── FIXED BOTTOM PAGINATION ── */}
       {itemsPerPage !== 'all' && totalPages > 1 && (
-        <div className="fixed bottom-0 left-0 right-0 z-30
-                        bg-white dark:bg-card
-                        border-t-2 border-slate-200 dark:border-border
-                        shadow-[0_-4px_16px_rgba(0,0,0,0.08)]
-                        py-3 px-6">
+        <div className="fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-card border-t-2 border-slate-200 dark:border-border shadow-[0_-4px_16px_rgba(0,0,0,0.08)] py-3 px-6">
           <div className="flex items-center justify-between w-full">
             <p className="text-sm font-medium text-foreground/65">
               Showing {startIndex + 1}–{Math.min(startIndex + (itemsPerPage as number), filteredTasks.length)} of {filteredTasks.length}
             </p>
             <div className="flex items-center gap-1.5">
               <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="gap-1">
-                <ChevronLeft size={16} /> Previous
+                <ChevronLeft size={16} /> <span className="hidden sm:inline">Previous</span>
               </Button>
               <div className="flex gap-1">
                 {getPageNumbers().map((page, index) =>
@@ -547,14 +542,14 @@ export function Tasks() {
                     <span key={`e-${index}`} className="px-2 py-1.5 text-sm text-foreground/50">...</span>
                   ) : (
                     <button key={page} onClick={() => setCurrentPage(page as number)}
-                      className={`min-w-[36px] px-2 py-1.5 text-sm rounded-md transition-colors font-medium ${
-                        currentPage === page ? 'bg-primary text-primary-foreground' : 'border border-border text-foreground/70 hover:bg-muted'
-                      }`}>{page}</button>
+                      className={`min-w-[36px] px-2 py-1.5 text-sm rounded-md transition-colors font-medium ${currentPage === page ? 'bg-primary text-primary-foreground' : 'border border-border text-foreground/70 hover:bg-muted'}`}>
+                      {page}
+                    </button>
                   )
                 )}
               </div>
               <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="gap-1">
-                Next <ChevronRight size={16} />
+                <span className="hidden sm:inline">Next</span> <ChevronRight size={16} />
               </Button>
             </div>
           </div>
