@@ -31,9 +31,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const initialized = useRef(false);
   const isSigningUp = useRef(false);
-  // ✅ FIX: Track userId terakhir yang sudah di-fetch profilenya
-  // Mencegah re-fetch & re-render cascade saat Supabase mengirim
-  // SIGNED_IN ulang karena token refresh atau tab refocus
   const lastFetchedUserId = useRef<string | null>(null);
 
   const fetchUserProfile = async (userId: string, retries = 3): Promise<User | null> => {
@@ -108,9 +105,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!isMounted) return;
         if (!initialized.current) return;
 
-        // ✅ FIX: TOKEN_REFRESHED — hanya update token, jangan ubah state user
-        // Sebelumnya ini menyebabkan semua context provider (Task, Note, Transaction, dll)
-        // re-fetch data mereka karena user state berubah → penyebab save task lambat
         if (_event === 'TOKEN_REFRESHED') {
           setSession(prev =>
             prev?.access_token === session?.access_token ? prev : session
@@ -131,8 +125,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
           }
 
-          // ✅ FIX: Skip re-fetch jika user SAMA — cegah re-render cascade
-          // Supabase kadang emit SIGNED_IN ulang saat tab refocus atau setelah operasi DB
           if (lastFetchedUserId.current === session.user.id) {
             setSession(prev =>
               prev?.access_token === session?.access_token ? prev : session
@@ -140,7 +132,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
           }
 
-          // User benar-benar baru (ganti akun) → fetch profile
           setSession(session);
           setProfileLoading(true);
           const profile = await fetchUserProfile(session.user.id);
@@ -242,8 +233,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resetPassword = async (email: string) => {
     try {
       setError(null);
+
+      // FIX: Gunakan VITE_APP_URL agar link email selalu mengarah ke URL yang benar
+      // Di localhost: VITE_APP_URL=http://localhost:5173
+      // Di Vercel:    VITE_APP_URL=https://my-daily-five.vercel.app
+      const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+      const redirectTo = `${appUrl}/reset-password`;
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo,
       });
 
       if (error) throw error;

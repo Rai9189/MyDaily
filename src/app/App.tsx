@@ -13,6 +13,7 @@ import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { ForgotPassword } from './pages/ForgotPassword';
+import { ResetPassword } from './pages/ResetPassword';
 import { PINSetup } from './pages/PINSetup';
 import { PINLock } from './pages/PINLock';
 import { Dashboard } from './pages/Dashboard';
@@ -63,12 +64,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
-
-  // FIX: Tunggu sampai profile benar-benar selesai di-load sebelum cek PIN
-  // Sebelumnya: (profileLoading && !user) — bisa lolos saat profileLoading=false tapi user masih null
-  // karena ada jeda kecil antara profileLoading selesai dan user ter-set (race condition di Vercel)
   if (profileLoading || !user) return <LoadingScreen />;
-
   if (!hasPin()) return <Navigate to="/pin-setup" replace />;
 
   const pinUnlocked = sessionStorage.getItem('pinUnlocked');
@@ -83,9 +79,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   if (loading) return <LoadingScreen />;
 
   if (session) {
-    // FIX: Sama seperti ProtectedRoute — tunggu user benar-benar ada
     if (profileLoading || !user) return <LoadingScreen />;
-
     if (!hasPin()) return <Navigate to="/pin-setup" replace />;
 
     const pinUnlocked = sessionStorage.getItem('pinUnlocked');
@@ -105,8 +99,6 @@ function PINRoute({ children, requireNotUnlocked = false }: {
 
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
-
-  // FIX: Tunggu user selesai di-load sebelum evaluasi kondisi PIN
   if (profileLoading || !user) return <LoadingScreen />;
 
   if (requireNotUnlocked) {
@@ -125,6 +117,9 @@ function AppRoutes() {
         <Route path="/login"           element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register"        element={<PublicRoute><Register /></PublicRoute>} />
         <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+
+        {/* Reset password — tidak pakai PublicRoute agar bisa diakses via link email */}
+        <Route path="/reset-password"  element={<ResetPassword />} />
 
         {/* PIN routes */}
         <Route path="/pin-setup" element={<PINRoute><PINSetup /></PINRoute>} />
