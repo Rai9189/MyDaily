@@ -16,21 +16,36 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<{ success: boolean; error: string | null }>;
   updateProfile: (updates: Partial<User>) => Promise<{ success: boolean; error: string | null }>;
   savePin: (pin: string, pinType: 'pin4' | 'pin6' | 'password') => Promise<{ success: boolean; error: string | null }>;
-  verifyPin: (pin: string) => Promise<{ success: boolean; error: string | null }>;
+  verifyPin: (pin: string) => Promise<{ success: boolean; locked?: boolean; lockedUntil?: string; error: string | null }>;
   hasPin: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// ✅ SECURITY FIX: Hash PIN pakai SHA-256 via Web Crypto API
-// Menggantikan btoa() yang hanya encoding base64 (bisa di-decode siapapun)
-// SHA-256 adalah one-way hash — tidak bisa di-reverse
+// ✅ SHA-256 hash — one-way, tidak bisa di-reverse
 async function hashPin(pin: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(pin);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ✅ Catat activity log ke database
+async function logActivity(
+  userId: string,
+  action: string,
+  metadata?: Record<string, unknown>
+) {
+  try {
+    await supabase.from('activity_logs').insert({
+      user_id: userId,
+      action,
+      metadata: metadata ?? null,
+    });
+  } catch {
+    // Log gagal tidak boleh break flow utama
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -190,8 +205,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       setError(null);
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+
+      // ✅ Log activity login berhasil
+      if (data.user) {
+        await logActivity(data.user.id, 'login', {
+          email: data.user.email,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -203,6 +227,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       setError(null);
+
+      // ✅ Log activity logout sebelum session dihapus
+      if (user) {
+        await logActivity(user.id, 'logout', {
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       await supabase.auth.signOut();
 
       sessionStorage.removeItem('pinUnlocked');
@@ -261,19 +293,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       if (!user) throw new Error('No user logged in');
 
-      // ✅ SECURITY FIX: Ganti btoa() dengan SHA-256
       const pinHash = await hashPin(pin);
       const dbPinType = pinType === 'password' ? 'password' : 'numeric';
 
       const { error } = await supabase
         .from('users')
-        .update({ pin_hash: pinHash, pin_type: dbPinType })
+        .update({
+          pin_hash: pinHash,
+          pin_type: dbPinType,
+          // ✅ Reset lockout saat PIN baru disimpan
+          pin_attempts: 0,
+          pin_locked_until: null,
+        })
         .eq('id', user.id);
 
       if (error) throw error;
 
-      setUser(prev => prev ? { ...prev, pin_hash: pinHash, pin_type: dbPinType } : prev);
+      setUser(prev => prev ? {
+        ...prev,
+        pin_hash: pinHash,
+        pin_type: dbPinType,
+        pin_attempts: 0,
+        pin_locked_until: null,
+      } : prev);
+
       sessionStorage.setItem('pinUnlocked', 'true');
+
+      await logActivity(user.id, 'pin_updated', {
+        pin_type: pinType,
+        timestamp: new Date().toISOString(),
+      });
 
       return { success: true, error: null };
     } catch (err) {
@@ -287,35 +336,105 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
 
-      // ✅ SECURITY FIX: Hash dulu sebelum dibandingkan
-      const pinHash = await hashPin(pin);
+      const MAX_ATTEMPTS  = 5;
+      const LOCK_DURATION = 30; // detik
 
-      if (user?.pin_hash) {
-        if (pinHash !== user.pin_hash) {
-          return { success: false, error: 'Wrong PIN' };
-        }
-        sessionStorage.setItem('pinUnlocked', 'true');
-        return { success: true, error: null };
-      }
-
+      // Ambil data user terbaru dari DB (bukan dari state)
+      // agar pin_attempts & pin_locked_until selalu akurat
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       if (!currentSession?.user) throw new Error('No active session');
 
-      const { data, error: fetchError } = await supabase
+      const { data: userData, error: fetchError } = await supabase
         .from('users')
-        .select('pin_hash')
+        .select('pin_hash, pin_attempts, pin_locked_until')
         .eq('id', currentSession.user.id)
         .single();
 
       if (fetchError) throw fetchError;
-      if (!data?.pin_hash) return { success: false, error: 'PIN not set up yet' };
+      if (!userData?.pin_hash) return { success: false, error: 'PIN not set up yet' };
 
-      if (pinHash !== data.pin_hash) {
-        return { success: false, error: 'Wrong PIN' };
+      // ✅ Cek apakah masih dalam masa lockout
+      if (userData.pin_locked_until) {
+        const lockedUntil = new Date(userData.pin_locked_until);
+        if (lockedUntil > new Date()) {
+          return {
+            success: false,
+            locked: true,
+            lockedUntil: userData.pin_locked_until,
+            error: 'Too many failed attempts.',
+          };
+        } else {
+          // Lockout sudah habis, reset
+          await supabase
+            .from('users')
+            .update({ pin_attempts: 0, pin_locked_until: null })
+            .eq('id', currentSession.user.id);
+        }
       }
 
-      sessionStorage.setItem('pinUnlocked', 'true');
-      return { success: true, error: null };
+      const pinHash = await hashPin(pin);
+      const isCorrect = pinHash === userData.pin_hash;
+
+      if (isCorrect) {
+        // ✅ PIN benar — reset attempts di DB
+        await supabase
+          .from('users')
+          .update({ pin_attempts: 0, pin_locked_until: null })
+          .eq('id', currentSession.user.id);
+
+        // Update user state
+        setUser(prev => prev ? { ...prev, pin_attempts: 0, pin_locked_until: null } : prev);
+
+        sessionStorage.setItem('pinUnlocked', 'true');
+
+        await logActivity(currentSession.user.id, 'pin_unlocked', {
+          timestamp: new Date().toISOString(),
+        });
+
+        return { success: true, error: null };
+      } else {
+        // ✅ PIN salah — increment attempts di DB
+        const newAttempts = (userData.pin_attempts ?? 0) + 1;
+        const shouldLock  = newAttempts >= MAX_ATTEMPTS;
+        const lockedUntil = shouldLock
+          ? new Date(Date.now() + LOCK_DURATION * 1000).toISOString()
+          : null;
+
+        await supabase
+          .from('users')
+          .update({
+            pin_attempts: newAttempts,
+            pin_locked_until: lockedUntil,
+          })
+          .eq('id', currentSession.user.id);
+
+        // Update user state
+        setUser(prev => prev ? {
+          ...prev,
+          pin_attempts: newAttempts,
+          pin_locked_until: lockedUntil,
+        } : prev);
+
+        await logActivity(currentSession.user.id, shouldLock ? 'pin_locked' : 'pin_failed', {
+          attempts: newAttempts,
+          locked_until: lockedUntil,
+          timestamp: new Date().toISOString(),
+        });
+
+        if (shouldLock) {
+          return {
+            success: false,
+            locked: true,
+            lockedUntil: lockedUntil!,
+            error: 'Too many failed attempts.',
+          };
+        }
+
+        return {
+          success: false,
+          error: `Wrong PIN! ${MAX_ATTEMPTS - newAttempts} attempts remaining before lockout.`,
+        };
+      }
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
       return { success: false, error: errorMessage };

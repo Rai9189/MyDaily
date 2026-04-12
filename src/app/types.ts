@@ -72,6 +72,10 @@ export interface User {
   avatar?: string;
   pin_type?: 'numeric' | 'password';
   pin_hash?: string;
+  // ✅ PIN security fields — stored in DB
+  pin_length?: number | null;        // 4 atau 6 untuk numeric PIN, null untuk password
+  pin_attempts?: number;             // jumlah percobaan PIN yang gagal
+  pin_locked_until?: string | null;  // ISO timestamp lockout berakhir, null jika tidak terkunci
   created_at?: string;
   updated_at?: string;
 }
