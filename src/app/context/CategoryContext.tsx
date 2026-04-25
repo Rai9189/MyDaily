@@ -9,19 +9,18 @@ interface CategoryContextType {
   categories: Category[];
   loading: boolean;
   error: string | null;
-  // Returns only parent categories (no subcategories) — used for display grouping
   getCategoriesByType: (type: 'transaction' | 'task' | 'note') => Category[];
-  // Returns parent + their subcategories for a given subtype — used in dropdowns
   getCategoriesBySubtype: (subtype: 'income' | 'expense') => Category[];
   getSubcategories: (parentId: string) => Category[];
   hasSubcategories: (parentId: string) => boolean;
-  // Returns the best display name: subcategory name if subcategoryId exists, else category name
   getEffectiveCategoryName: (categoryId: string, subcategoryId?: string | null) => string;
-  // Returns the best display color
   getEffectiveCategoryColor: (categoryId: string, subcategoryId?: string | null) => string;
   createCategory: (category: Omit<Category, 'id'>) => Promise<{ success: boolean; data?: Category; error: string | null }>;
   updateCategory: (id: string, updates: Partial<Category>) => Promise<{ success: boolean; error: string | null }>;
   deleteCategory: (id: string) => Promise<{ success: boolean; error: string | null }>;
+  reorderCategories: (orderedIds: string[]) => Promise<void>;
+  // ✅ Reset urutan kategori ke default (created_at asc) per type atau per parent
+  resetCategoryOrder: (type: 'transaction' | 'task' | 'note', parentId?: string) => Promise<{ success: boolean; error: string | null }>;
   refreshCategories: () => Promise<void>;
 }
 
@@ -35,6 +34,7 @@ function mapToCategory(row: any): Category {
     color: row.color,
     subtype: row.subtype,
     parentId: row.parent_id ?? null,
+    sortOrder: row.sort_order ?? 0,
   };
 }
 
@@ -54,7 +54,8 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
         .select('*')
         .eq('user_id', user.id)
         .is('deleted_at', null)
-        .order('created_at', { ascending: true });
+        .neq('is_system', true)
+        .order('sort_order', { ascending: true });
       if (fetchError) throw fetchError;
       setCategories((data || []).map(mapToCategory));
     } catch (err) {
@@ -72,14 +73,9 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     return unsub;
   }, [user]);
 
-  // ── Only parent categories (for display/grouping) ──
   const getCategoriesByType = (type: 'transaction' | 'task' | 'note') =>
     categories.filter(cat => cat.type === type && !cat.parentId);
 
-  // ── Fix #3: Parent + subcategories for a given subtype ──
-  // Subcategories inherit subtype from their parent, so we:
-  // 1. Find all parents matching the subtype
-  // 2. Also include their subcategories
   const getCategoriesBySubtype = (subtype: 'income' | 'expense') => {
     const parents = categories.filter(cat =>
       cat.type === 'transaction' && !cat.parentId && cat.subtype === subtype
@@ -97,9 +93,6 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
   const hasSubcategories = (parentId: string) =>
     categories.some(cat => cat.parentId === parentId);
 
-  // ── Fix #2: Effective category name for list/card display ──
-  // If subcategoryId exists → show "ParentName / SubName"
-  // Otherwise → show parent category name
   const getEffectiveCategoryName = (categoryId: string, subcategoryId?: string | null): string => {
     if (subcategoryId) {
       const sub = categories.find(c => c.id === subcategoryId);
@@ -111,12 +104,10 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     return categories.find(c => c.id === categoryId)?.name ?? 'Other';
   };
 
-  // ── Effective color: prefer subcategory color, fallback to parent ──
   const getEffectiveCategoryColor = (categoryId: string, subcategoryId?: string | null): string => {
     if (subcategoryId) {
       const sub = categories.find(c => c.id === subcategoryId);
       if (sub?.color) return sub.color;
-      // fallback to parent color
       const parent = categories.find(c => c.id === sub?.parentId);
       if (parent?.color) return parent.color;
     }
@@ -127,6 +118,11 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       if (!user) throw new Error('User not authenticated');
+      const siblings = categories.filter(c =>
+        c.type === category.type &&
+        (category.parentId ? c.parentId === category.parentId : !c.parentId)
+      );
+      const maxOrder = siblings.reduce((max, c) => Math.max(max, c.sortOrder ?? 0), 0);
       const { data, error: insertError } = await supabase
         .from('categories')
         .insert({
@@ -136,6 +132,7 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
           color: category.color,
           subtype: category.subtype ?? null,
           parent_id: category.parentId ?? null,
+          sort_order: maxOrder + 1,
         })
         .select()
         .single();
@@ -154,11 +151,16 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       const dbUpdates: any = {};
-      if (updates.name     !== undefined) dbUpdates.name      = updates.name;
-      if (updates.color    !== undefined) dbUpdates.color     = updates.color;
-      if (updates.subtype  !== undefined) dbUpdates.subtype   = updates.subtype;
-      if (updates.parentId !== undefined) dbUpdates.parent_id = updates.parentId;
-      const { error: updateError } = await supabase.from('categories').update(dbUpdates).eq('id', id);
+      if (updates.name      !== undefined) dbUpdates.name       = updates.name;
+      if (updates.color     !== undefined) dbUpdates.color      = updates.color;
+      if (updates.subtype   !== undefined) dbUpdates.subtype    = updates.subtype;
+      if (updates.parentId  !== undefined) dbUpdates.parent_id  = updates.parentId;
+      if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
+      const { error: updateError } = await supabase
+        .from('categories')
+        .update(dbUpdates)
+        .eq('id', id)
+        .eq('user_id', user!.id);
       if (updateError) throw updateError;
       setCategories(prev => prev.map(cat => (cat.id === id ? { ...cat, ...updates } : cat)));
       return { success: true, error: null };
@@ -176,15 +178,52 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
       const { error: deleteError } = await supabase
         .from('categories')
         .update({ deleted_at: now })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', user!.id);
       if (deleteError) throw deleteError;
-      await supabase.from('categories').update({ deleted_at: now }).eq('parent_id', id);
+      await supabase.from('categories').update({ deleted_at: now }).eq('parent_id', id).eq('user_id', user!.id);
       setCategories(prev => prev.filter(cat => cat.id !== id && cat.parentId !== id));
       trashEvents.emit();
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
       setError(errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  const reorderCategories = async (orderedIds: string[]) => {
+    if (!user) return;
+    setCategories(prev => {
+      const orderMap = new Map(orderedIds.map((id, i) => [id, i + 1]));
+      return prev
+        .map(cat => orderMap.has(cat.id) ? { ...cat, sortOrder: orderMap.get(cat.id)! } : cat)
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    });
+    for (let i = 0; i < orderedIds.length; i++) {
+      await supabase
+        .from('categories')
+        .update({ sort_order: i + 1 })
+        .eq('id', orderedIds[i])
+        .eq('user_id', user.id);
+    }
+  };
+
+  // ✅ Reset urutan ke default (created_at asc) via RPC
+  const resetCategoryOrder = async (type: 'transaction' | 'task' | 'note', parentId?: string) => {
+    if (!user) return { success: false, error: 'Not authenticated' };
+    try {
+      const { error: rpcError } = await supabase.rpc('reset_category_order', {
+        p_user_id: user.id,
+        p_type: type,
+        p_parent_id: parentId ?? null,
+      });
+      if (rpcError) throw rpcError;
+      // Refresh dari DB agar state sinkron
+      await fetchCategories();
+      return { success: true, error: null };
+    } catch (err) {
+      const errorMessage = handleSupabaseError(err);
       return { success: false, error: errorMessage };
     }
   };
@@ -196,7 +235,8 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     getCategoriesByType, getCategoriesBySubtype,
     getSubcategories, hasSubcategories,
     getEffectiveCategoryName, getEffectiveCategoryColor,
-    createCategory, updateCategory, deleteCategory, refreshCategories,
+    createCategory, updateCategory, deleteCategory,
+    reorderCategories, resetCategoryOrder, refreshCategories,
   };
   return <CategoryContext.Provider value={value}>{children}</CategoryContext.Provider>;
 }
