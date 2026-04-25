@@ -9,7 +9,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { Plus, Edit, Trash2, Loader2, Wallet, Smartphone, Banknote, CreditCard } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, Wallet, Smartphone, Banknote, CreditCard, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { Account, AccountType } from '../types';
 import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
@@ -25,8 +25,6 @@ interface ConfirmState {
 
 const DEFAULT_CONFIRM: ConfirmState = { open: false, accountName: '', onConfirm: () => {} };
 
-// ✅ Format balance untuk tampilan: titik = ribuan, koma = desimal
-// Contoh: 300010.5 → "300.010,5"  |  300000 → "300.000"
 function formatBalanceDisplay(value: number): string {
   if (!value || value === 0) return '';
   const [intPart, decPart] = value.toString().split('.');
@@ -34,38 +32,30 @@ function formatBalanceDisplay(value: number): string {
   return decPart ? `${formattedInt},${decPart}` : formattedInt;
 }
 
-// ✅ Parse display string → number
 function parseBalanceInput(display: string): number {
   const normalized = display.replace(/\./g, '').replace(',', '.');
   const parsed = parseFloat(normalized);
   return isNaN(parsed) ? 0 : parsed;
 }
 
-// ✅ Handler saat user mengetik balance — support desimal opsional
 function handleBalanceKeyInput(raw: string): string {
   const cleaned = raw.replace(/[^\d.,]/g, '');
-
   const hasComma   = cleaned.includes(',');
   const commaIndex = cleaned.indexOf(',');
   const afterComma = hasComma ? cleaned.slice(commaIndex + 1) : '';
-
   if ((cleaned.match(/,/g) || []).length > 1) return raw.slice(0, -1);
   if (hasComma && afterComma.length > 2) return raw.slice(0, -1);
-
   const intRaw = hasComma
     ? cleaned.slice(0, commaIndex).replace(/\./g, '')
     : cleaned.replace(/\./g, '');
-
   if (!intRaw && !hasComma) return '';
-
   const formattedInt = intRaw ? Number(intRaw).toLocaleString('id-ID') : '0';
-
   if (hasComma) return `${formattedInt},${afterComma}`;
   return formattedInt;
 }
 
 export function Accounts() {
-  const { accounts, loading, error, createAccount, updateAccount, deleteAccount } = useAccounts();
+  const { accounts, loading, error, createAccount, updateAccount, updateAccountWithAdjustment, deleteAccount } = useAccounts();
   const navigate = useNavigate();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -75,9 +65,14 @@ export function Accounts() {
   const [balanceError, setBalanceError] = useState('');
   const [confirmState, setConfirmState] = useState<ConfirmState>(DEFAULT_CONFIRM);
 
+  const [adjustConfirm, setAdjustConfirm] = useState<{
+    open: boolean;
+    diff: number;
+    pendingSubmit: (() => Promise<void>) | null;
+  }>({ open: false, diff: 0, pendingSubmit: null });
+
   const closeConfirm = () => setConfirmState(DEFAULT_CONFIRM);
 
-  // ✅ fmt: tampilkan desimal hanya jika ada
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -109,18 +104,15 @@ export function Accounts() {
     setIsDialogOpen(true);
   };
 
-  // ✅ Handler balance — support desimal opsional
   const handleBalanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = handleBalanceKeyInput(e.target.value);
     const numeric   = parseBalanceInput(formatted);
-
     if (numeric > MAX_BALANCE) {
       setBalanceError('Maximum balance is Rp 1.000.000.000');
       setFormData({ ...formData, balance: MAX_BALANCE });
       setBalanceDisplay(formatBalanceDisplay(MAX_BALANCE));
       return;
     }
-
     setBalanceError('');
     setFormData({ ...formData, balance: numeric });
     setBalanceDisplay(formatted);
@@ -129,6 +121,37 @@ export function Accounts() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (balanceError) return;
+
+    // ✅ Jika edit dan balance berubah — tutup edit dialog dulu, lalu buka confirm setelah animasi selesai
+    if (editingAccount && formData.balance !== editingAccount.balance) {
+      const diff = formData.balance - editingAccount.balance;
+      const snapshotAccount = editingAccount;
+      const snapshotForm = { ...formData };
+
+      const doSubmit = async () => {
+        setSubmitting(true);
+        try {
+          const { success, error } = await updateAccountWithAdjustment(
+            snapshotAccount.id,
+            snapshotForm,
+            snapshotAccount.balance
+          );
+          if (success) toast.success('Account updated & adjustment recorded!');
+          else toast.error(error || 'Failed to update account');
+        } finally {
+          setSubmitting(false);
+        }
+      };
+
+      // ✅ Tutup edit dialog dulu, tunggu 150ms baru buka confirm — mencegah overlap overlay
+      setIsDialogOpen(false);
+      setTimeout(() => {
+        setAdjustConfirm({ open: true, diff, pendingSubmit: doSubmit });
+      }, 150);
+      return;
+    }
+
+    // Tidak ada perubahan balance — update biasa
     setSubmitting(true);
     try {
       if (editingAccount) {
@@ -217,12 +240,32 @@ export function Accounts() {
                   </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="balance">Initial Balance</Label>
-                      {/* ✅ Hint desimal opsional */}
+                      <Label htmlFor="balance">
+                        {editingAccount ? 'Balance' : 'Initial Balance'}
+                      </Label>
                       <span className="text-[11px] text-muted-foreground">
                         Gunakan <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono border border-border">,</kbd> untuk desimal
                       </span>
                     </div>
+
+                    {/* ✅ Preview selisih saldo saat edit */}
+                    {editingAccount && formData.balance !== editingAccount.balance && (
+                      <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-md border ${
+                        formData.balance > editingAccount.balance
+                          ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
+                          : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400'
+                      }`}>
+                        {formData.balance > editingAccount.balance
+                          ? <ArrowUpCircle size={14} />
+                          : <ArrowDownCircle size={14} />
+                        }
+                        <span>
+                          Selisih <strong>{formatCurrency(Math.abs(formData.balance - editingAccount.balance))}</strong>
+                          {' '}akan dicatat sebagai transaksi penyesuaian
+                        </span>
+                      </div>
+                    )}
+
                     <div className={`flex rounded-md border overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${balanceError ? 'border-destructive' : 'border-input'}`}>
                       <span className="flex items-center px-3 bg-muted text-muted-foreground text-sm font-medium border-r border-input select-none">Rp</span>
                       <Input
@@ -332,7 +375,7 @@ export function Accounts() {
         </div>
       </div>
 
-      {/* Confirm Dialog */}
+      {/* Confirm Delete Dialog */}
       <ConfirmDialog
         open={confirmState.open}
         title="Delete Account?"
@@ -342,6 +385,25 @@ export function Accounts() {
         icon={<Trash2 size={20} />}
         onConfirm={confirmState.onConfirm}
         onCancel={closeConfirm}
+      />
+
+      {/* ✅ Confirm Balance Adjustment Dialog */}
+      <ConfirmDialog
+        open={adjustConfirm.open}
+        title="Catat Penyesuaian Saldo?"
+        description={
+          adjustConfirm.diff > 0
+            ? `Saldo bertambah ${formatCurrency(adjustConfirm.diff)}. Perubahan ini akan dicatat sebagai transaksi income (penyesuaian) secara otomatis.`
+            : `Saldo berkurang ${formatCurrency(Math.abs(adjustConfirm.diff))}. Perubahan ini akan dicatat sebagai transaksi expense (penyesuaian) secara otomatis.`
+        }
+        confirmLabel="Ya, Simpan & Catat"
+        variant="default"
+        icon={adjustConfirm.diff > 0 ? <ArrowUpCircle size={20} /> : <ArrowDownCircle size={20} />}
+        onConfirm={async () => {
+          setAdjustConfirm(prev => ({ ...prev, open: false }));
+          if (adjustConfirm.pendingSubmit) await adjustConfirm.pendingSubmit();
+        }}
+        onCancel={() => setAdjustConfirm({ open: false, diff: 0, pendingSubmit: null })}
       />
     </div>
   );

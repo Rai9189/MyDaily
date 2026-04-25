@@ -11,7 +11,23 @@ interface TransactionContextType {
   loading: boolean;
   error: string | null;
   createTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<{ success: boolean; data?: Transaction; error: string | null }>;
+  createTransfer: (params: {
+    fromAccountId: string;
+    toAccountId: string;
+    amount: number;
+    date: string;
+    description?: string;
+    categoryId: string;
+  }) => Promise<{ success: boolean; error: string | null }>;
   updateTransaction: (id: string, updates: Partial<Transaction>) => Promise<{ success: boolean; error: string | null }>;
+  updateTransfer: (id: string, updates: {
+    fromAccountId: string;
+    toAccountId: string;
+    amount: number;
+    date: string;
+    description?: string;
+    categoryId: string;
+  }) => Promise<{ success: boolean; error: string | null }>;
   deleteTransaction: (id: string) => Promise<{ success: boolean; error: string | null }>;
   getTransactionById: (id: string) => Transaction | undefined;
   refreshTransactions: () => Promise<void>;
@@ -30,6 +46,8 @@ function mapToTransaction(row: any): Transaction {
     date: row.date,
     description: row.description || '',
     attachments: row.attachments || [],
+    transferPairId: row.transfer_pair_id ?? null,
+    toAccountId: row.to_account_id ?? null,
   };
 }
 
@@ -62,10 +80,16 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchTransactions();
-    const unsub = trashEvents.subscribeRestore((table) => {
+    const unsubRestore = trashEvents.subscribeRestore((table) => {
       if (table === 'transactions') fetchTransactions();
     });
-    return unsub;
+    const unsubCreated = trashEvents.subscribeTransactionCreated(() => {
+      fetchTransactions();
+    });
+    return () => {
+      unsubRestore();
+      unsubCreated();
+    };
   }, [user]);
 
   const getTransactionById = (id: string) => transactions.find(t => t.id === id);
@@ -101,6 +125,75 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ✅ Buat 2 transaksi transfer sekaligus dengan transfer_pair_id yang sama
+  const createTransfer = async ({
+    fromAccountId, toAccountId, amount, date, description, categoryId,
+  }: {
+    fromAccountId: string;
+    toAccountId: string;
+    amount: number;
+    date: string;
+    description?: string;
+    categoryId: string;
+  }) => {
+    try {
+      setError(null);
+      if (!user) throw new Error('User not authenticated');
+
+      const pairId = crypto.randomUUID();
+
+      // Transaksi keluar (expense dari akun asal)
+      const { data: outData, error: outError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: user.id,
+          account_id: fromAccountId,
+          category_id: categoryId,
+          amount,
+          type: 'transfer',
+          date,
+          description: description || '',
+          transfer_pair_id: pairId,
+          to_account_id: toAccountId,
+        })
+        .select()
+        .single();
+      if (outError) throw outError;
+
+      // Transaksi masuk (income ke akun tujuan)
+      const { data: inData, error: inError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: user.id,
+          account_id: toAccountId,
+          category_id: categoryId,
+          amount,
+          type: 'transfer',
+          date,
+          description: description || '',
+          transfer_pair_id: pairId,
+          to_account_id: null,
+        })
+        .select()
+        .single();
+      if (inError) throw inError;
+
+      const mappedOut = mapToTransaction(outData);
+      const mappedIn  = mapToTransaction(inData);
+      setTransactions(prev => [mappedOut, mappedIn, ...prev]);
+
+      // Update saldo lokal
+      updateBalanceLocally(fromAccountId, -amount);
+      updateBalanceLocally(toAccountId, amount);
+
+      return { success: true, error: null };
+    } catch (err) {
+      const errorMessage = handleSupabaseError(err);
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  };
+
   const updateTransaction = async (id: string, updates: Partial<Transaction>) => {
     try {
       setError(null);
@@ -117,7 +210,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       const { error: updateError } = await supabase.from('transactions').update(dbUpdates).eq('id', id);
       if (updateError) throw updateError;
       setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
-      if (oldTransaction) {
+      if (oldTransaction && oldTransaction.type !== 'transfer') {
         const oldDelta = oldTransaction.type === 'income' ? -oldTransaction.amount : oldTransaction.amount;
         updateBalanceLocally(oldTransaction.accountId, oldDelta);
         const newAccountId = updates.accountId ?? oldTransaction.accountId;
@@ -134,20 +227,120 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ✅ Update kedua transaksi transfer sekaligus
+  const updateTransfer = async (id: string, updates: {
+    fromAccountId: string;
+    toAccountId: string;
+    amount: number;
+    date: string;
+    description?: string;
+    categoryId: string;
+  }) => {
+    try {
+      setError(null);
+      const outTx = transactions.find(t => t.id === id);
+      if (!outTx || !outTx.transferPairId) throw new Error('Transfer not found');
+
+      // Cari pasangan transaksi (yang to_account_id null = sisi masuk)
+      const inTx = transactions.find(t =>
+        t.transferPairId === outTx.transferPairId && t.id !== id
+      );
+
+      // Revert saldo lama
+      updateBalanceLocally(outTx.accountId, outTx.amount);
+      if (inTx) updateBalanceLocally(inTx.accountId, -inTx.amount);
+
+      // Update sisi keluar
+      const { error: outError } = await supabase
+        .from('transactions')
+        .update({
+          account_id: updates.fromAccountId,
+          to_account_id: updates.toAccountId,
+          amount: updates.amount,
+          date: updates.date,
+          description: updates.description || '',
+          category_id: updates.categoryId,
+        })
+        .eq('id', id);
+      if (outError) throw outError;
+
+      // Update sisi masuk
+      if (inTx) {
+        const { error: inError } = await supabase
+          .from('transactions')
+          .update({
+            account_id: updates.toAccountId,
+            amount: updates.amount,
+            date: updates.date,
+            description: updates.description || '',
+            category_id: updates.categoryId,
+          })
+          .eq('id', inTx.id);
+        if (inError) throw inError;
+      }
+
+      // Update state lokal
+      setTransactions(prev => prev.map(t => {
+        if (t.id === id) return { ...t, accountId: updates.fromAccountId, toAccountId: updates.toAccountId, amount: updates.amount, date: updates.date, description: updates.description || '', categoryId: updates.categoryId };
+        if (inTx && t.id === inTx.id) return { ...t, accountId: updates.toAccountId, amount: updates.amount, date: updates.date, description: updates.description || '', categoryId: updates.categoryId };
+        return t;
+      }));
+
+      // Apply saldo baru
+      updateBalanceLocally(updates.fromAccountId, -updates.amount);
+      updateBalanceLocally(updates.toAccountId, updates.amount);
+
+      return { success: true, error: null };
+    } catch (err) {
+      const errorMessage = handleSupabaseError(err);
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  };
+
   const deleteTransaction = async (id: string) => {
     try {
       setError(null);
       const transaction = transactions.find(t => t.id === id);
-      const { error: deleteError } = await supabase
-        .from('transactions')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id);
-      if (deleteError) throw deleteError;
-      setTransactions(prev => prev.filter(t => t.id !== id));
-      if (transaction) {
-        const delta = transaction.type === 'income' ? -transaction.amount : transaction.amount;
-        updateBalanceLocally(transaction.accountId, delta);
+
+      // ✅ Jika transfer, hapus pasangannya juga
+      if (transaction?.type === 'transfer' && transaction.transferPairId) {
+        const pairTx = transactions.find(t =>
+          t.transferPairId === transaction.transferPairId && t.id !== id
+        );
+
+        const now = new Date().toISOString();
+        const { error: deleteError } = await supabase
+          .from('transactions')
+          .update({ deleted_at: now })
+          .eq('transfer_pair_id', transaction.transferPairId);
+        if (deleteError) throw deleteError;
+
+        setTransactions(prev => prev.filter(t => t.transferPairId !== transaction.transferPairId));
+
+        // Revert kedua saldo
+        if (transaction.toAccountId) {
+          // Ini sisi keluar
+          updateBalanceLocally(transaction.accountId, transaction.amount);
+          if (pairTx) updateBalanceLocally(pairTx.accountId, -pairTx.amount);
+        } else {
+          // Ini sisi masuk
+          updateBalanceLocally(transaction.accountId, -transaction.amount);
+          if (pairTx) updateBalanceLocally(pairTx.accountId, pairTx.amount);
+        }
+      } else {
+        const { error: deleteError } = await supabase
+          .from('transactions')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', id);
+        if (deleteError) throw deleteError;
+        setTransactions(prev => prev.filter(t => t.id !== id));
+        if (transaction) {
+          const delta = transaction.type === 'income' ? -transaction.amount : transaction.amount;
+          updateBalanceLocally(transaction.accountId, delta);
+        }
       }
+
       trashEvents.emit();
       return { success: true, error: null };
     } catch (err) {
@@ -159,7 +352,12 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
   const refreshTransactions = async () => { await fetchTransactions(); };
 
-  const value = { transactions, loading, error, createTransaction, updateTransaction, deleteTransaction, getTransactionById, refreshTransactions };
+  const value = {
+    transactions, loading, error,
+    createTransaction, createTransfer,
+    updateTransaction, updateTransfer,
+    deleteTransaction, getTransactionById, refreshTransactions,
+  };
   return <TransactionContext.Provider value={value}>{children}</TransactionContext.Provider>;
 }
 
