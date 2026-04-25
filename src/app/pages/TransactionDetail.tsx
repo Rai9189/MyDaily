@@ -7,11 +7,11 @@ import { useCategories } from '../context/CategoryContext';
 import { useAttachments } from '../context/AttachmentContext';
 import { usePendingAttachments } from '../hooks/usePendingAttachments';
 import { PendingAttachmentPicker } from '../components/PendingAttachmentPicker';
+import { RichTextEditor, stripHtml } from '../components/RichTextEditor';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
 import {
@@ -60,7 +60,7 @@ export function TransactionDetail() {
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
   const { pendingFiles, addFiles, removeFile: removePendingFile, uploadAllPending, isUploading: isUploadingPending } = usePendingAttachments();
 
-  const transaction        = isNew ? null : getTransactionById(id!);
+  const transaction         = isNew ? null : getTransactionById(id!);
   const originalAcctDeleted = !isNew && transaction && transaction.accountId === null;
 
   const [amountDisplay, setAmountDisplay] = useState('');
@@ -68,11 +68,11 @@ export function TransactionDetail() {
     accountId: '', amount: 0, type: '' as 'income' | 'expense' | '',
     date: new Date().toISOString().split('T')[0], categoryId: '', subcategoryId: null as string | null, description: '',
   });
-  const [attachments, setAttachments]     = useState<any[]>([]);
+  const [attachments, setAttachments]       = useState<any[]>([]);
   const [attachsLoading, setAttachsLoading] = useState(false);
-  const [uploading, setUploading]         = useState(false);
-  const [submitting, setSubmitting]       = useState(false);
-  const [amountError, setAmountError]     = useState('');
+  const [uploading, setUploading]           = useState(false);
+  const [submitting, setSubmitting]         = useState(false);
+  const [amountError, setAmountError]       = useState('');
 
   const allCategoriesForType = useMemo(() => {
     if (!formData.type) return [];
@@ -88,6 +88,7 @@ export function TransactionDetail() {
 
   const isBusy       = submitting || isUploadingPending;
   const typeSelected = formData.type !== '';
+  const descLength   = stripHtml(formData.description).length;
 
   useEffect(() => {
     if (!isNew && transaction) {
@@ -194,7 +195,6 @@ export function TransactionDetail() {
     }
   };
 
-  // Loading skeleton
   if (!isNew && txLoading) {
     return (
       <div className="flex flex-col flex-1 min-h-0">
@@ -314,17 +314,25 @@ export function TransactionDetail() {
                   </div>
                 </div>
 
-                {/* Description */}
+                {/* ✅ Rich Text Description */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
-                    <Label htmlFor="description">Description <span className="text-muted-foreground font-normal text-xs">(Optional)</span></Label>
-                    <span className={`text-xs ${formData.description.length >= MAX_DESC ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
-                      {formData.description.length.toLocaleString('id-ID')}/{MAX_DESC.toLocaleString('id-ID')}
+                    <Label>Description <span className="text-muted-foreground font-normal text-xs">(Optional)</span></Label>
+                    <span className={`text-xs ${descLength >= MAX_DESC ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                      {descLength.toLocaleString('id-ID')}/{MAX_DESC.toLocaleString('id-ID')}
                     </span>
                   </div>
-                  <Textarea id="description" placeholder="Add a note about this transaction..." value={formData.description}
-                    onChange={(e) => { if (e.target.value.length <= MAX_DESC) setFormData({ ...formData, description: e.target.value }); }}
-                    maxLength={MAX_DESC} rows={3} />
+                  <RichTextEditor
+                    value={formData.description}
+                    onChange={(html) => {
+                      if (stripHtml(html).length <= MAX_DESC) {
+                        setFormData(prev => ({ ...prev, description: html }));
+                      }
+                    }}
+                    placeholder="Add a note about this transaction..."
+                    maxLength={MAX_DESC}
+                    minHeight={100}
+                  />
                 </div>
 
                 {isNew && (

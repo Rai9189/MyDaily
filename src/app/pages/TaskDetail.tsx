@@ -6,6 +6,7 @@ import { useCategories } from '../context/CategoryContext';
 import { useAttachments } from '../context/AttachmentContext';
 import { usePendingAttachments } from '../hooks/usePendingAttachments';
 import { PendingAttachmentPicker } from '../components/PendingAttachmentPicker';
+import { RichTextEditor, stripHtml } from '../components/RichTextEditor';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -92,7 +93,8 @@ export function TaskDetail() {
   const [showNoAttachPopup, setShowNoAttachPopup] = useState(false);
   const [showUnsubmitPopup, setShowUnsubmitPopup] = useState(false);
 
-  const isBusy = submitting || isUploadingPending;
+  const isBusy       = submitting || isUploadingPending;
+  const descLength   = stripHtml(formData.description).length;
 
   const getDaysInfo = (deadline: string) => {
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -220,7 +222,6 @@ export function TaskDetail() {
     setUncompleting(false);
   };
 
-  // Loading skeleton
   if (!isNew && tasksLoading) {
     return (
       <div className="flex flex-col flex-1 min-h-0">
@@ -302,6 +303,7 @@ export function TaskDetail() {
               : 'border-blue-200 dark:border-blue-900/50'
             }`}>
               <CardContent className="pt-4 pb-4 px-4 space-y-4">
+
                 {/* Title */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
@@ -342,17 +344,26 @@ export function TaskDetail() {
                   </div>
                 </div>
 
-                {/* Description */}
+                {/* ✅ Rich Text Description */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
-                    <Label htmlFor="description">Description <span className="text-muted-foreground font-normal text-xs">(Optional)</span></Label>
-                    <span className={`text-xs ${formData.description.length >= MAX_DESC ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
-                      {formData.description.length.toLocaleString('id-ID')}/{MAX_DESC.toLocaleString('id-ID')}
+                    <Label>Description <span className="text-muted-foreground font-normal text-xs">(Optional)</span></Label>
+                    <span className={`text-xs ${descLength >= MAX_DESC ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                      {descLength.toLocaleString('id-ID')}/{MAX_DESC.toLocaleString('id-ID')}
                     </span>
                   </div>
-                  <Textarea id="description" placeholder="Add details about this task..." value={formData.description}
-                    onChange={(e) => { if (e.target.value.length <= MAX_DESC) setFormData({ ...formData, description: e.target.value }); }}
-                    maxLength={MAX_DESC} rows={3} disabled={task?.completed} />
+                  <RichTextEditor
+                    value={formData.description}
+                    onChange={(html) => {
+                      if (stripHtml(html).length <= MAX_DESC) {
+                        setFormData(prev => ({ ...prev, description: html }));
+                      }
+                    }}
+                    placeholder="Add details about this task..."
+                    disabled={!!task?.completed}
+                    maxLength={MAX_DESC}
+                    minHeight={120}
+                  />
                 </div>
 
                 {isNew && (

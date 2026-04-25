@@ -1,11 +1,12 @@
 // src/app/pages/NoteDetail.tsx
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useNotes } from '../context/NoteContext';
 import { useCategories } from '../context/CategoryContext';
 import { useAttachments } from '../context/AttachmentContext';
 import { usePendingAttachments } from '../hooks/usePendingAttachments';
 import { PendingAttachmentPicker } from '../components/PendingAttachmentPicker';
+import { RichTextEditor, stripHtml } from '../components/RichTextEditor';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -25,15 +26,11 @@ const MAX_CONTENT = 10_000;
 function NoteDetailSkeleton() {
   return (
     <div className="space-y-4 pb-6 animate-pulse">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="h-4 w-28 bg-muted rounded-full" />
         <div className="h-6 w-16 bg-muted rounded-full" />
       </div>
-
-      {/* Main card */}
       <div className="rounded-xl border-2 border-muted bg-white dark:bg-card p-4 space-y-4">
-        {/* Title + Category row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <div className="h-3.5 w-16 bg-muted rounded-full" />
@@ -44,28 +41,20 @@ function NoteDetailSkeleton() {
             <div className="h-10 bg-muted rounded-md" />
           </div>
         </div>
-
-        {/* Content textarea */}
         <div className="space-y-1.5">
           <div className="h-3.5 w-16 bg-muted rounded-full" />
           <div className="h-40 bg-muted rounded-md" />
         </div>
-
-        {/* Timestamps */}
         <div className="flex justify-between">
           <div className="h-3 w-36 bg-muted rounded-full" />
           <div className="h-3 w-40 bg-muted rounded-full" />
         </div>
       </div>
-
-      {/* Attachments card */}
       <div className="rounded-xl border-2 border-muted bg-white dark:bg-card p-4 space-y-3">
         <div className="h-4 w-24 bg-muted rounded-full" />
         <div className="h-10 bg-muted rounded-md" />
         <div className="h-3 w-48 bg-muted rounded-full" />
       </div>
-
-      {/* Save button */}
       <div className="h-10 bg-muted rounded-md" />
     </div>
   );
@@ -109,12 +98,11 @@ export function NoteDetail() {
   const [initialFormData, setInitialFormData] = useState({
     title: '', content: '', categoryId: '', subcategoryId: null as string | null, pinned: false,
   });
-  const [attachments, setAttachments]   = useState<any[]>([]);
-  const [uploading, setUploading]       = useState(false);
-  const [submitting, setSubmitting]     = useState(false);
-  const [togglingPin, setTogglingPin]   = useState(false);
+  const [attachments, setAttachments]       = useState<any[]>([]);
+  const [uploading, setUploading]           = useState(false);
+  const [submitting, setSubmitting]         = useState(false);
+  const [togglingPin, setTogglingPin]       = useState(false);
   const [attachsLoading, setAttachsLoading] = useState(false);
-  const textareaRef                     = useRef<HTMLTextAreaElement>(null);
 
   const isBusy = submitting || isUploadingPending;
 
@@ -125,12 +113,8 @@ export function NoteDetail() {
     formData.subcategoryId !== initialFormData.subcategoryId
   );
 
-  const autoResize = useCallback(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.max(160, el.scrollHeight)}px`;
-  }, []);
+  // ✅ Char count dari plain text (strip HTML tags)
+  const contentLength = stripHtml(formData.content).length;
 
   useEffect(() => {
     if (!isNew && note) {
@@ -143,7 +127,6 @@ export function NoteDetail() {
       };
       setFormData(data);
       setInitialFormData(data);
-      setTimeout(autoResize, 50);
     }
   }, [isNew, note?.id]);
 
@@ -203,9 +186,9 @@ export function NoteDetail() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim())   { toast.warning('Please enter a note title.'); return; }
-    if (!formData.content.trim()) { toast.warning('Please enter note content.'); return; }
-    if (!formData.categoryId)     { toast.warning('Please select a category.'); return; }
+    if (!formData.title.trim())          { toast.warning('Please enter a note title.');   return; }
+    if (!stripHtml(formData.content))    { toast.warning('Please enter note content.');   return; }
+    if (!formData.categoryId)            { toast.warning('Please select a category.');    return; }
 
     setSubmitting(true);
     try {
@@ -222,7 +205,6 @@ export function NoteDetail() {
         if (!id || id === 'new') { toast.error('Invalid note ID'); return; }
         const { success, error } = await updateNote(id, formData);
         if (success) {
-          // Update initialFormData agar tombol Save kembali disabled
           setInitialFormData({ ...formData });
           toast.success('Note updated!');
         } else {
@@ -234,7 +216,6 @@ export function NoteDetail() {
     }
   };
 
-  /* ── Show skeleton while notes are loading for existing note ── */
   if (!isNew && notesLoading) {
     return (
       <div className="flex flex-col flex-1 min-h-0">
@@ -325,30 +306,25 @@ export function NoteDetail() {
                   </div>
                 </div>
 
-                {/* Content */}
+                {/* ✅ Rich Text Content */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
-                    <Label htmlFor="content">Content <span className="text-destructive">*</span></Label>
-                    <span className={`text-xs ${formData.content.length >= MAX_CONTENT ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
-                      {formData.content.length.toLocaleString('id-ID')}/{MAX_CONTENT.toLocaleString('id-ID')}
+                    <Label>Content <span className="text-destructive">*</span></Label>
+                    <span className={`text-xs ${contentLength >= MAX_CONTENT ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                      {contentLength.toLocaleString('id-ID')}/{MAX_CONTENT.toLocaleString('id-ID')}
                     </span>
                   </div>
-                  <textarea
-                    ref={textareaRef}
-                    id="content"
-                    placeholder="Write your note here..."
+                  <RichTextEditor
                     value={formData.content}
-                    onChange={(e) => {
-                      if (e.target.value.length <= MAX_CONTENT) {
-                        setFormData({ ...formData, content: e.target.value });
-                        autoResize();
+                    onChange={(html) => {
+                      if (stripHtml(html).length <= MAX_CONTENT) {
+                        setFormData(prev => ({ ...prev, content: html }));
                       }
                     }}
-                    onInput={autoResize}
+                    placeholder="Write your note here..."
+                    disabled={isBusy}
                     maxLength={MAX_CONTENT}
-                    required
-                    className="w-full min-h-[160px] px-3 py-2 text-sm rounded-md border border-input bg-input-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 resize-none overflow-hidden transition-colors"
-                    style={{ height: 'auto' }}
+                    minHeight={200}
                   />
                 </div>
 
@@ -369,7 +345,6 @@ export function NoteDetail() {
                   </div>
                 )}
 
-                {/* Pending attachments — new note only */}
                 {isNew && (
                   <PendingAttachmentPicker
                     pendingFiles={pendingFiles}
@@ -382,7 +357,7 @@ export function NoteDetail() {
               </CardContent>
             </Card>
 
-            {/* ── Attachments — existing note ── */}
+            {/* ── Attachments ── */}
             {!isNew && (
               <Card className="bg-white dark:bg-card border-2 border-slate-200 dark:border-border shadow-sm rounded-xl">
                 <CardContent className="pt-4 pb-4 px-4 space-y-3">
@@ -392,8 +367,6 @@ export function NoteDetail() {
                       onChange={handleFileUpload} disabled={uploading} />
                     <p className="text-xs text-muted-foreground">JPEG, PNG, GIF, WebP, PDF — max 10MB per file</p>
                   </div>
-
-                  {/* Skeleton saat load attachment */}
                   {attachsLoading ? (
                     <div className="space-y-2 animate-pulse">
                       {[1, 2].map(i => (
