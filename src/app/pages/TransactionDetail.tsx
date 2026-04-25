@@ -26,23 +26,70 @@ import { DetailPageSkeleton } from '../components/Skeletons';
 const MAX_AMOUNT = 1_000_000_000;
 const MAX_DESC   = 10_000;
 
+// ✅ Format angka untuk tampilan: pisahkan ribuan pakai titik, desimal pakai koma
+// Contoh: 300010.5 → "300.010,5"  |  300000 → "300.000"
 function formatAmountDisplay(value: number): string {
   if (!value || value === 0) return '';
-  return value.toLocaleString('id-ID');
+  // Pisahkan integer dan desimal
+  const [intPart, decPart] = value.toString().split('.');
+  const formattedInt = Number(intPart).toLocaleString('id-ID');
+  return decPart ? `${formattedInt},${decPart}` : formattedInt;
 }
 
+// ✅ Parse input display (dengan titik ribuan & koma desimal) → number
+// Contoh: "300.010,50" → 300010.50  |  "300.000" → 300000
 function parseAmountInput(display: string): number {
-  return Number(display.replace(/\./g, '').replace(/,/g, '')) || 0;
+  // Hapus titik (pemisah ribuan), ganti koma (desimal) dengan titik
+  const normalized = display.replace(/\./g, '').replace(',', '.');
+  const parsed = parseFloat(normalized);
+  return isNaN(parsed) ? 0 : parsed;
 }
 
+// ✅ Handler saat user mengetik — support desimal opsional
+// Aturan:
+//   - Hanya boleh digit, titik (.), dan koma (,)
+//   - Titik = pemisah ribuan (otomatis diformat ulang)
+//   - Koma = pemisah desimal (max 2 digit setelah koma)
+//   - Jika user sedang mengetik desimal (diakhiri koma / koma+digit), jangan reformat dulu
 function handleAmountKeyInput(raw: string): string {
-  const digits = raw.replace(/\D/g, '');
-  if (!digits) return '';
-  return Number(digits).toLocaleString('id-ID');
+  // Izinkan karakter valid saja: digit, koma, titik
+  const cleaned = raw.replace(/[^\d.,]/g, '');
+
+  // Deteksi apakah user sedang mengetik bagian desimal
+  const hasComma    = cleaned.includes(',');
+  const commaIndex  = cleaned.indexOf(',');
+  const afterComma  = hasComma ? cleaned.slice(commaIndex + 1) : '';
+
+  // Jika ada lebih dari satu koma, tolak karakter terakhir
+  if ((cleaned.match(/,/g) || []).length > 1) return raw.slice(0, -1);
+
+  // Batasi desimal maksimal 2 digit
+  if (hasComma && afterComma.length > 2) return raw.slice(0, -1);
+
+  // Ambil bagian integer (sebelum koma) — hapus semua titik dulu
+  const intRaw = hasComma ? cleaned.slice(0, commaIndex).replace(/\./g, '') : cleaned.replace(/\./g, '');
+
+  if (!intRaw && !hasComma) return '';
+
+  // Format ulang bagian integer dengan titik ribuan
+  const formattedInt = intRaw ? Number(intRaw).toLocaleString('id-ID') : '0';
+
+  // Jika user masih mengetik desimal (koma di akhir, atau koma + digit belum lengkap)
+  if (hasComma) {
+    return `${formattedInt},${afterComma}`;
+  }
+
+  return formattedInt;
 }
 
+// ✅ fmt: tampilkan desimal hanya jika ada
 const fmt = (n: number) =>
-  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(n);
 
 export function TransactionDetail() {
   const navigate  = useNavigate();
@@ -118,15 +165,19 @@ export function TransactionDetail() {
     return accounts.find(a => a.id === accountId)?.name ?? 'Deleted Account';
   };
 
+  // ✅ Handler input amount — support desimal opsional
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = handleAmountKeyInput(e.target.value);
     const numeric   = parseAmountInput(formatted);
+
     if (numeric > MAX_AMOUNT) {
-      setAmountError('Maximum amount is Rp 1,000,000,000');
-      setAmountDisplay(MAX_AMOUNT.toLocaleString('id-ID'));
+      setAmountError('Maximum amount is Rp 1.000.000.000');
+      const maxDisplay = formatAmountDisplay(MAX_AMOUNT);
+      setAmountDisplay(maxDisplay);
       setFormData(prev => ({ ...prev, amount: MAX_AMOUNT }));
       return;
     }
+
     setAmountError('');
     setAmountDisplay(formatted);
     setFormData(prev => ({ ...prev, amount: numeric }));
@@ -271,12 +322,28 @@ export function TransactionDetail() {
 
                 {/* Amount */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="amount">Amount <span className="text-destructive">*</span></Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="amount">
+                      Amount <span className="text-destructive">*</span>
+                    </Label>
+                    {/* ✅ Hint desimal opsional */}
+                    <span className="text-[11px] text-muted-foreground">
+                      Gunakan <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono border border-border">,</kbd> untuk desimal&nbsp;
+                      <span className="opacity-60">(contoh: 300.010,50)</span>
+                    </span>
+                  </div>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium pointer-events-none select-none">Rp</span>
-                    <Input id="amount" type="text" inputMode="numeric" value={amountDisplay}
+                    <Input
+                      id="amount"
+                      type="text"
+                      inputMode="decimal"
+                      value={amountDisplay}
                       onChange={handleAmountChange}
-                      className={`pl-9 font-semibold ${isOverBalance ? 'border-destructive focus-visible:ring-destructive' : ''}`} required />
+                      placeholder="0"
+                      className={`pl-9 font-semibold ${isOverBalance ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                      required
+                    />
                   </div>
                   {amountError && <p className="text-xs text-destructive">{amountError}</p>}
                   {isOverBalance && (
@@ -314,7 +381,7 @@ export function TransactionDetail() {
                   </div>
                 </div>
 
-                {/* ✅ Rich Text Description */}
+                {/* Rich Text Description */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
                     <Label>Description <span className="text-muted-foreground font-normal text-xs">(Optional)</span></Label>

@@ -68,8 +68,14 @@ export function Transactions() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // ✅ fmt: tampilkan desimal hanya jika ada (300.010 vs 300.010,50)
   const fmt = (n: number) =>
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
+    new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(n);
 
   const getAccountName   = (id: string | null) =>
     !id ? 'Deleted Account' : accounts.find(a => a.id === id)?.name ?? 'Deleted Account';
@@ -521,7 +527,7 @@ export function Transactions() {
                         </div>
                       </td>
 
-                      {/* Category — center, description as tooltip on row hover */}
+                      {/* Category */}
                       <td className={`px-4 text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <div className="relative inline-block">
                           <span className="text-xs font-medium px-2.5 py-1 rounded-full border inline-block cursor-default"
@@ -539,21 +545,21 @@ export function Transactions() {
                         </div>
                       </td>
 
-                      {/* Account — center */}
+                      {/* Account */}
                       <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <span className={`text-sm font-medium ${isDeletedAccount(t.accountId) ? 'text-muted-foreground italic' : 'text-foreground'}`}>
                           {getAccountName(t.accountId)}
                         </span>
                       </td>
 
-                      {/* Date — center */}
+                      {/* Date */}
                       <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <span className="text-sm text-slate-500 dark:text-foreground/65">
                           {new Date(t.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </span>
                       </td>
 
-                      {/* Amount — center */}
+                      {/* Amount */}
                       <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <span className={`text-sm font-bold ${
                           t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
@@ -562,7 +568,7 @@ export function Transactions() {
                         </span>
                       </td>
 
-                      {/* Actions — center */}
+                      {/* Actions */}
                       <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`} onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-foreground"

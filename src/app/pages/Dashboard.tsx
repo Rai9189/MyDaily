@@ -17,7 +17,12 @@ import { DateRangeFilter, defaultDateRange, type DateRangeValue } from '../compo
 import { DashboardSkeleton } from '../components/Skeletons';
 
 const fmt = (n: number) =>
-  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(n);
 
 const inRange = (dateStr: string, start: Date, end: Date) =>
   isWithinInterval(new Date(dateStr), { start, end });

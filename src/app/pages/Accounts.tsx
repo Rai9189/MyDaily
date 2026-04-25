@@ -25,6 +25,45 @@ interface ConfirmState {
 
 const DEFAULT_CONFIRM: ConfirmState = { open: false, accountName: '', onConfirm: () => {} };
 
+// ✅ Format balance untuk tampilan: titik = ribuan, koma = desimal
+// Contoh: 300010.5 → "300.010,5"  |  300000 → "300.000"
+function formatBalanceDisplay(value: number): string {
+  if (!value || value === 0) return '';
+  const [intPart, decPart] = value.toString().split('.');
+  const formattedInt = Number(intPart).toLocaleString('id-ID');
+  return decPart ? `${formattedInt},${decPart}` : formattedInt;
+}
+
+// ✅ Parse display string → number
+function parseBalanceInput(display: string): number {
+  const normalized = display.replace(/\./g, '').replace(',', '.');
+  const parsed = parseFloat(normalized);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+// ✅ Handler saat user mengetik balance — support desimal opsional
+function handleBalanceKeyInput(raw: string): string {
+  const cleaned = raw.replace(/[^\d.,]/g, '');
+
+  const hasComma   = cleaned.includes(',');
+  const commaIndex = cleaned.indexOf(',');
+  const afterComma = hasComma ? cleaned.slice(commaIndex + 1) : '';
+
+  if ((cleaned.match(/,/g) || []).length > 1) return raw.slice(0, -1);
+  if (hasComma && afterComma.length > 2) return raw.slice(0, -1);
+
+  const intRaw = hasComma
+    ? cleaned.slice(0, commaIndex).replace(/\./g, '')
+    : cleaned.replace(/\./g, '');
+
+  if (!intRaw && !hasComma) return '';
+
+  const formattedInt = intRaw ? Number(intRaw).toLocaleString('id-ID') : '0';
+
+  if (hasComma) return `${formattedInt},${afterComma}`;
+  return formattedInt;
+}
+
 export function Accounts() {
   const { accounts, loading, error, createAccount, updateAccount, deleteAccount } = useAccounts();
   const navigate = useNavigate();
@@ -38,8 +77,14 @@ export function Accounts() {
 
   const closeConfirm = () => setConfirmState(DEFAULT_CONFIRM);
 
+  // ✅ fmt: tampilkan desimal hanya jika ada
   const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
+    new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount);
 
   const getTypeConfig = (type: string) => {
     switch (type) {
@@ -54,7 +99,7 @@ export function Accounts() {
     if (account) {
       setEditingAccount(account);
       setFormData({ name: account.name, type: account.type, balance: account.balance });
-      setBalanceDisplay(account.balance > 0 ? account.balance.toLocaleString('id-ID') : '');
+      setBalanceDisplay(account.balance > 0 ? formatBalanceDisplay(account.balance) : '');
     } else {
       setEditingAccount(null);
       setFormData({ name: '', type: 'Bank', balance: 0 });
@@ -64,18 +109,21 @@ export function Accounts() {
     setIsDialogOpen(true);
   };
 
+  // ✅ Handler balance — support desimal opsional
   const handleBalanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/\D/g, '');
-    const numeric = raw === '' ? 0 : parseInt(raw, 10);
+    const formatted = handleBalanceKeyInput(e.target.value);
+    const numeric   = parseBalanceInput(formatted);
+
     if (numeric > MAX_BALANCE) {
-      setBalanceError('Maximum balance is Rp 1,000,000,000');
+      setBalanceError('Maximum balance is Rp 1.000.000.000');
       setFormData({ ...formData, balance: MAX_BALANCE });
-      setBalanceDisplay(MAX_BALANCE.toLocaleString('id-ID'));
+      setBalanceDisplay(formatBalanceDisplay(MAX_BALANCE));
       return;
     }
+
     setBalanceError('');
     setFormData({ ...formData, balance: numeric });
-    setBalanceDisplay(raw === '' ? '' : numeric.toLocaleString('id-ID'));
+    setBalanceDisplay(formatted);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -168,15 +216,30 @@ export function Accounts() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="balance">Initial Balance</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="balance">Initial Balance</Label>
+                      {/* ✅ Hint desimal opsional */}
+                      <span className="text-[11px] text-muted-foreground">
+                        Gunakan <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono border border-border">,</kbd> untuk desimal
+                      </span>
+                    </div>
                     <div className={`flex rounded-md border overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${balanceError ? 'border-destructive' : 'border-input'}`}>
                       <span className="flex items-center px-3 bg-muted text-muted-foreground text-sm font-medium border-r border-input select-none">Rp</span>
-                      <Input id="balance" type="text" inputMode="numeric" value={balanceDisplay}
-                        onChange={handleBalanceChange} placeholder="0" required
-                        className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0" />
+                      <Input
+                        id="balance"
+                        type="text"
+                        inputMode="decimal"
+                        value={balanceDisplay}
+                        onChange={handleBalanceChange}
+                        placeholder="0"
+                        required
+                        className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                      />
                     </div>
                     {balanceError && <p className="text-xs text-destructive">{balanceError}</p>}
-                    <p className="text-xs text-muted-foreground">Maximum: Rp 1,000,000,000</p>
+                    <p className="text-xs text-muted-foreground">
+                      Contoh: <span className="font-mono">300.010,50</span> untuk Rp 300.010,50 · Maks: Rp 1.000.000.000
+                    </p>
                   </div>
                   <Button type="submit" className="w-full gap-2" disabled={submitting}>
                     {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : editingAccount ? 'Update Account' : 'Save Account'}
