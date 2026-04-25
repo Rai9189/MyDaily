@@ -1,4 +1,5 @@
 // src/app/components/ConfirmDialog.tsx
+import { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Loader2, X } from 'lucide-react';
 
@@ -27,7 +28,27 @@ export function ConfirmDialog({
   onCancel,
   icon,
 }: ConfirmDialogProps) {
-  if (!open) return null;
+  // ✅ visible = apakah DOM masih dirender (untuk animasi keluar)
+  const [visible, setVisible] = useState(open);
+  // ✅ show = apakah opacity 100 (untuk animasi masuk/keluar)
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setVisible(true);
+      // Delay sedikit agar browser sempat render sebelum trigger transition
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setShow(true));
+      });
+    } else {
+      setShow(false);
+      // Tunggu animasi fade-out selesai (200ms) baru unmount
+      const timer = setTimeout(() => setVisible(false), 200);
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
+
+  if (!visible) return null;
 
   const confirmClass =
     variant === 'danger'  ? 'bg-red-600 hover:bg-red-700 text-white' :
@@ -45,8 +66,16 @@ export function ConfirmDialog({
     'text-foreground';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="relative w-full max-w-[420px] bg-white dark:bg-card rounded-2xl shadow-2xl border border-border overflow-hidden">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-200 ${
+        show ? 'bg-black/40 backdrop-blur-sm' : 'bg-black/0 backdrop-blur-none'
+      }`}
+    >
+      <div
+        className={`relative w-full max-w-[420px] bg-white dark:bg-card rounded-2xl shadow-2xl border border-border overflow-hidden transition-all duration-200 ${
+          show ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+        }`}
+      >
         <button
           type="button"
           onClick={onCancel}

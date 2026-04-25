@@ -9,7 +9,7 @@ export interface Account {
   balance: number;
 }
 
-export type TransactionType = 'income' | 'expense';
+export type TransactionType = 'income' | 'expense' | 'transfer';
 
 export interface Category {
   id: string;
@@ -18,6 +18,7 @@ export interface Category {
   color?: string;
   subtype?: string;
   parentId?: string | null;
+  sortOrder?: number;
 }
 
 export interface Attachment {
@@ -37,6 +38,9 @@ export interface Transaction {
   subcategoryId?: string | null;
   description?: string;
   attachments?: Attachment[];
+  // ✅ Transfer fields
+  transferPairId?: string | null;  // ID pasangan transaksi transfer
+  toAccountId?: string | null;     // Akun tujuan (hanya di sisi "out")
 }
 
 export type TaskStatus = 'on_track' | 'upcoming' | 'urgent' | 'overdue';
@@ -72,10 +76,9 @@ export interface User {
   avatar?: string;
   pin_type?: 'numeric' | 'password';
   pin_hash?: string;
-  // ✅ PIN security fields — stored in DB
-  pin_length?: number | null;        // 4 atau 6 untuk numeric PIN, null untuk password
-  pin_attempts?: number;             // jumlah percobaan PIN yang gagal
-  pin_locked_until?: string | null;  // ISO timestamp lockout berakhir, null jika tidak terkunci
+  pin_length?: number | null;
+  pin_attempts?: number;
+  pin_locked_until?: string | null;
   created_at?: string;
   updated_at?: string;
 }
