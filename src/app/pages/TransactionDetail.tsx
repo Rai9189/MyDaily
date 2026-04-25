@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../components/ui/badge';
 import {
   ChevronLeft, X, Loader2, FileText, Image as ImageIcon,
-  Save, AlertCircle, AlertTriangle, TrendingUp, TrendingDown,
+  Save, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ArrowLeftRight,
 } from 'lucide-react';
 import { CategorySelect } from '../components/CategorySelect';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
@@ -26,63 +26,33 @@ import { DetailPageSkeleton } from '../components/Skeletons';
 const MAX_AMOUNT = 1_000_000_000;
 const MAX_DESC   = 10_000;
 
-// ✅ Format angka untuk tampilan: pisahkan ribuan pakai titik, desimal pakai koma
-// Contoh: 300010.5 → "300.010,5"  |  300000 → "300.000"
 function formatAmountDisplay(value: number): string {
   if (!value || value === 0) return '';
-  // Pisahkan integer dan desimal
   const [intPart, decPart] = value.toString().split('.');
   const formattedInt = Number(intPart).toLocaleString('id-ID');
   return decPart ? `${formattedInt},${decPart}` : formattedInt;
 }
 
-// ✅ Parse input display (dengan titik ribuan & koma desimal) → number
-// Contoh: "300.010,50" → 300010.50  |  "300.000" → 300000
 function parseAmountInput(display: string): number {
-  // Hapus titik (pemisah ribuan), ganti koma (desimal) dengan titik
   const normalized = display.replace(/\./g, '').replace(',', '.');
   const parsed = parseFloat(normalized);
   return isNaN(parsed) ? 0 : parsed;
 }
 
-// ✅ Handler saat user mengetik — support desimal opsional
-// Aturan:
-//   - Hanya boleh digit, titik (.), dan koma (,)
-//   - Titik = pemisah ribuan (otomatis diformat ulang)
-//   - Koma = pemisah desimal (max 2 digit setelah koma)
-//   - Jika user sedang mengetik desimal (diakhiri koma / koma+digit), jangan reformat dulu
 function handleAmountKeyInput(raw: string): string {
-  // Izinkan karakter valid saja: digit, koma, titik
   const cleaned = raw.replace(/[^\d.,]/g, '');
-
-  // Deteksi apakah user sedang mengetik bagian desimal
   const hasComma    = cleaned.includes(',');
   const commaIndex  = cleaned.indexOf(',');
   const afterComma  = hasComma ? cleaned.slice(commaIndex + 1) : '';
-
-  // Jika ada lebih dari satu koma, tolak karakter terakhir
   if ((cleaned.match(/,/g) || []).length > 1) return raw.slice(0, -1);
-
-  // Batasi desimal maksimal 2 digit
   if (hasComma && afterComma.length > 2) return raw.slice(0, -1);
-
-  // Ambil bagian integer (sebelum koma) — hapus semua titik dulu
   const intRaw = hasComma ? cleaned.slice(0, commaIndex).replace(/\./g, '') : cleaned.replace(/\./g, '');
-
   if (!intRaw && !hasComma) return '';
-
-  // Format ulang bagian integer dengan titik ribuan
   const formattedInt = intRaw ? Number(intRaw).toLocaleString('id-ID') : '0';
-
-  // Jika user masih mengetik desimal (koma di akhir, atau koma + digit belum lengkap)
-  if (hasComma) {
-    return `${formattedInt},${afterComma}`;
-  }
-
+  if (hasComma) return `${formattedInt},${afterComma}`;
   return formattedInt;
 }
 
-// ✅ fmt: tampilkan desimal hanya jika ada
 const fmt = (n: number) =>
   new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -101,19 +71,26 @@ export function TransactionDetail() {
   const id           = idFromParams || idFromUrl;
   const isNew        = id === 'new' || !id;
 
-  const { transactions, loading: txLoading, getTransactionById, createTransaction, updateTransaction } = useTransactions();
+  const { transactions, loading: txLoading, getTransactionById, createTransaction, createTransfer, updateTransaction, updateTransfer } = useTransactions();
   const { accounts }   = useAccounts();
   const { categories } = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
   const { pendingFiles, addFiles, removeFile: removePendingFile, uploadAllPending, isUploading: isUploadingPending } = usePendingAttachments();
 
   const transaction         = isNew ? null : getTransactionById(id!);
+  const isTransfer          = transaction?.type === 'transfer';
   const originalAcctDeleted = !isNew && transaction && transaction.accountId === null;
 
   const [amountDisplay, setAmountDisplay] = useState('');
   const [formData, setFormData] = useState({
-    accountId: '', amount: 0, type: '' as 'income' | 'expense' | '',
-    date: new Date().toISOString().split('T')[0], categoryId: '', subcategoryId: null as string | null, description: '',
+    accountId: '',
+    toAccountId: '',  // ✅ untuk transfer
+    amount: 0,
+    type: '' as 'income' | 'expense' | 'transfer' | '',
+    date: new Date().toISOString().split('T')[0],
+    categoryId: '',
+    subcategoryId: null as string | null,
+    description: '',
   });
   const [attachments, setAttachments]       = useState<any[]>([]);
   const [attachsLoading, setAttachsLoading] = useState(false);
@@ -122,27 +99,59 @@ export function TransactionDetail() {
   const [amountError, setAmountError]       = useState('');
 
   const allCategoriesForType = useMemo(() => {
-    if (!formData.type) return [];
+    if (!formData.type || formData.type === 'transfer') return [];
     const parents = categories.filter(c => c.type === 'transaction' && !c.parentId && c.subtype === formData.type);
     const parentIds = new Set(parents.map(p => p.id));
     const subs = categories.filter(c => c.type === 'transaction' && c.parentId != null && parentIds.has(c.parentId));
     return [...parents, ...subs];
   }, [formData.type, categories]);
 
-  const selectedAccount = accounts.find(a => a.id === formData.accountId);
-  const isOverBalance   = formData.type === 'expense' && formData.accountId !== '' && formData.amount > 0
+  // ✅ Akun tujuan tidak boleh sama dengan akun asal
+  const toAccountOptions = accounts.filter(a => a.id !== formData.accountId);
+  const fromAccountOptions = accounts.filter(a => a.id !== formData.toAccountId);
+
+  const selectedAccount   = accounts.find(a => a.id === formData.accountId);
+  const selectedToAccount = accounts.find(a => a.id === formData.toAccountId);
+
+  const isOverBalance = formData.type === 'expense' && formData.accountId !== '' && formData.amount > 0
+    && selectedAccount !== undefined && formData.amount > selectedAccount.balance;
+
+  const isTransferOverBalance = formData.type === 'transfer' && formData.accountId !== '' && formData.amount > 0
     && selectedAccount !== undefined && formData.amount > selectedAccount.balance;
 
   const isBusy       = submitting || isUploadingPending;
   const typeSelected = formData.type !== '';
   const descLength   = stripHtml(formData.description).length;
 
+  // ✅ Untuk transfer, cari kategori Other Expense/Income sebagai fallback category
+  const transferCategoryId = useMemo(() => {
+    const other = categories.find(c =>
+      c.type === 'transaction' && !c.parentId &&
+      (c.name.toLowerCase().includes('other') || c.name.toLowerCase().includes('lain'))
+    );
+    return other?.id ?? categories.find(c => c.type === 'transaction' && !c.parentId)?.id ?? '';
+  }, [categories]);
+
   useEffect(() => {
     if (!isNew && transaction) {
+      // Cari pasangan transfer untuk dapatkan toAccountId
+      let toAccId = transaction.toAccountId || '';
+      if (isTransfer && !toAccId) {
+        const pair = transactions.find(t =>
+          t.transferPairId === transaction.transferPairId && t.id !== transaction.id
+        );
+        if (pair) toAccId = pair.accountId;
+      }
+
       setFormData({
-        accountId: transaction.accountId || '', amount: transaction.amount, type: transaction.type,
-        date: transaction.date, categoryId: transaction.categoryId,
-        subcategoryId: transaction.subcategoryId ?? null, description: transaction.description || '',
+        accountId: transaction.accountId || '',
+        toAccountId: toAccId,
+        amount: transaction.amount,
+        type: transaction.type,
+        date: transaction.date,
+        categoryId: transaction.categoryId,
+        subcategoryId: transaction.subcategoryId ?? null,
+        description: transaction.description || '',
       });
       setAmountDisplay(formatAmountDisplay(transaction.amount));
     }
@@ -165,11 +174,9 @@ export function TransactionDetail() {
     return accounts.find(a => a.id === accountId)?.name ?? 'Deleted Account';
   };
 
-  // ✅ Handler input amount — support desimal opsional
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = handleAmountKeyInput(e.target.value);
     const numeric   = parseAmountInput(formatted);
-
     if (numeric > MAX_AMOUNT) {
       setAmountError('Maximum amount is Rp 1.000.000.000');
       const maxDisplay = formatAmountDisplay(MAX_AMOUNT);
@@ -177,14 +184,13 @@ export function TransactionDetail() {
       setFormData(prev => ({ ...prev, amount: MAX_AMOUNT }));
       return;
     }
-
     setAmountError('');
     setAmountDisplay(formatted);
     setFormData(prev => ({ ...prev, amount: numeric }));
   };
 
-  const handleTypeChange = (v: 'income' | 'expense') => {
-    setFormData(prev => ({ ...prev, type: v, categoryId: '', subcategoryId: null }));
+  const handleTypeChange = (v: 'income' | 'expense' | 'transfer') => {
+    setFormData(prev => ({ ...prev, type: v, categoryId: '', subcategoryId: null, toAccountId: '' }));
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,30 +222,70 @@ export function TransactionDetail() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.accountId)                        { toast.warning('Please select an account.'); return; }
-    if (!formData.amount || formData.amount <= 0)   { toast.warning('Please enter a valid amount.'); return; }
-    if (!formData.type)                             { toast.warning('Please select a transaction type.'); return; }
-    if (!formData.categoryId)                       { toast.warning('Please select a category.'); return; }
-    if (formData.type === 'expense' && selectedAccount && formData.amount > selectedAccount.balance) {
-      toast.error(`Insufficient balance! Account: ${selectedAccount.name} · Balance: ${fmt(selectedAccount.balance)} · Expense: ${fmt(formData.amount)}`);
-      return;
+    if (!formData.accountId) { toast.warning('Please select an account.'); return; }
+    if (!formData.amount || formData.amount <= 0) { toast.warning('Please enter a valid amount.'); return; }
+    if (!formData.type) { toast.warning('Please select a transaction type.'); return; }
+
+    // ✅ Validasi transfer
+    if (formData.type === 'transfer') {
+      if (!formData.toAccountId) { toast.warning('Please select a destination account.'); return; }
+      if (formData.toAccountId === formData.accountId) { toast.warning('Source and destination accounts must be different.'); return; }
+      if (accounts.length < 2) { toast.warning('You need at least 2 accounts to make a transfer.'); return; }
+      if (selectedAccount && formData.amount > selectedAccount.balance) {
+        toast.error(`Insufficient balance! ${selectedAccount.name}: ${fmt(selectedAccount.balance)}`);
+        return;
+      }
+    } else {
+      if (!formData.categoryId) { toast.warning('Please select a category.'); return; }
+      if (formData.type === 'expense' && selectedAccount && formData.amount > selectedAccount.balance) {
+        toast.error(`Insufficient balance! Account: ${selectedAccount.name} · Balance: ${fmt(selectedAccount.balance)} · Expense: ${fmt(formData.amount)}`);
+        return;
+      }
     }
+
     setSubmitting(true);
     try {
       if (isNew) {
-        const { success, data, error } = await createTransaction(formData as any);
-        if (!success || !data) { toast.error(error || 'Failed to create transaction'); return; }
-        if (pendingFiles.length > 0) {
-          const { error: uploadError } = await uploadAllPending('transaction', data.id);
-          if (uploadError) toast.warning('Transaction saved, but some attachments failed.');
+        if (formData.type === 'transfer') {
+          const { success, error } = await createTransfer({
+            fromAccountId: formData.accountId,
+            toAccountId: formData.toAccountId,
+            amount: formData.amount,
+            date: formData.date,
+            description: formData.description,
+            categoryId: transferCategoryId,
+          });
+          if (!success) { toast.error(error || 'Failed to create transfer'); return; }
+          toast.success('Transfer recorded!');
+          navigate('/transactions');
+        } else {
+          const { success, data, error } = await createTransaction(formData as any);
+          if (!success || !data) { toast.error(error || 'Failed to create transaction'); return; }
+          if (pendingFiles.length > 0) {
+            const { error: uploadError } = await uploadAllPending('transaction', data.id);
+            if (uploadError) toast.warning('Transaction saved, but some attachments failed.');
+          }
+          toast.success('Transaction saved!');
+          navigate('/transactions');
         }
-        toast.success('Transaction saved!');
-        navigate('/transactions');
       } else {
         if (!id || id === 'new') { toast.error('Invalid transaction ID'); return; }
-        const { success, error } = await updateTransaction(id, formData as any);
-        if (success) toast.success('Transaction updated!');
-        else toast.error(error || 'Failed to update transaction');
+        if (formData.type === 'transfer') {
+          const { success, error } = await updateTransfer(id, {
+            fromAccountId: formData.accountId,
+            toAccountId: formData.toAccountId,
+            amount: formData.amount,
+            date: formData.date,
+            description: formData.description,
+            categoryId: formData.categoryId || transferCategoryId,
+          });
+          if (success) toast.success('Transfer updated!');
+          else toast.error(error || 'Failed to update transfer');
+        } else {
+          const { success, error } = await updateTransaction(id, formData as any);
+          if (success) toast.success('Transaction updated!');
+          else toast.error(error || 'Failed to update transaction');
+        }
       }
     } finally {
       setSubmitting(false);
@@ -279,10 +325,21 @@ export function TransactionDetail() {
             </div>
           )}
 
+          {/* ✅ Info transfer — hanya untuk sisi masuk (toAccountId null = sisi masuk) */}
+          {!isNew && isTransfer && !transaction?.toAccountId && (
+            <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800">
+              <ArrowLeftRight size={15} className="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                This is the <strong>incoming</strong> side of a transfer. To edit or delete, open the outgoing transaction.
+              </p>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <Card className={`bg-white dark:bg-card shadow-sm rounded-xl border-2 ${
-              formData.type === 'income'  ? 'border-green-300 dark:border-green-800' :
-              formData.type === 'expense' ? 'border-red-300 dark:border-red-800' :
+              formData.type === 'income'   ? 'border-green-300 dark:border-green-800' :
+              formData.type === 'expense'  ? 'border-red-300 dark:border-red-800' :
+              formData.type === 'transfer' ? 'border-blue-300 dark:border-blue-800' :
               'border-slate-200 dark:border-border'
             }`}>
               <CardContent className="pt-4 pb-4 px-4 space-y-4">
@@ -290,26 +347,30 @@ export function TransactionDetail() {
                 {/* Account + Date */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="account">Account <span className="text-destructive">*</span></Label>
+                    <Label htmlFor="account">
+                      {formData.type === 'transfer' ? 'From Account' : 'Account'} <span className="text-destructive">*</span>
+                    </Label>
                     {originalAcctDeleted && (
                       <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border border-border text-xs text-muted-foreground italic mb-1">
                         <AlertTriangle size={12} className="text-amber-500 flex-shrink-0" />
                         Previously linked to deleted account
                       </div>
                     )}
-                    <Select value={formData.accountId} onValueChange={(v) => setFormData({ ...formData, accountId: v })}>
+                    <Select value={formData.accountId} onValueChange={(v) => setFormData({ ...formData, accountId: v, toAccountId: formData.toAccountId === v ? '' : formData.toAccountId })}>
                       <SelectTrigger id="account">
                         {selectedAccount ? (
                           <div className="flex items-center justify-between w-full pr-1">
                             <span>{selectedAccount.name}</span>
-                            <span className={`text-xs font-medium ml-2 ${isOverBalance ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
+                            <span className={`text-xs font-medium ml-2 ${isOverBalance || isTransferOverBalance ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
                               {fmt(selectedAccount.balance)}
                             </span>
                           </div>
                         ) : <SelectValue placeholder="Select account" />}
                       </SelectTrigger>
                       <SelectContent>
-                        {accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>)}
+                        {(formData.type === 'transfer' ? fromAccountOptions : accounts).map(acc =>
+                          <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -323,10 +384,7 @@ export function TransactionDetail() {
                 {/* Amount */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="amount">
-                      Amount <span className="text-destructive">*</span>
-                    </Label>
-                    {/* ✅ Hint desimal opsional */}
+                    <Label htmlFor="amount">Amount <span className="text-destructive">*</span></Label>
                     <span className="text-[11px] text-muted-foreground">
                       Gunakan <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono border border-border">,</kbd> untuk desimal&nbsp;
                       <span className="opacity-60">(contoh: 300.010,50)</span>
@@ -341,12 +399,12 @@ export function TransactionDetail() {
                       value={amountDisplay}
                       onChange={handleAmountChange}
                       placeholder="0"
-                      className={`pl-9 font-semibold ${isOverBalance ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                      className={`pl-9 font-semibold ${isOverBalance || isTransferOverBalance ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                       required
                     />
                   </div>
                   {amountError && <p className="text-xs text-destructive">{amountError}</p>}
-                  {isOverBalance && (
+                  {(isOverBalance || isTransferOverBalance) && (
                     <div className="flex items-center gap-1.5 text-xs text-destructive">
                       <AlertCircle size={12} />
                       <span>Exceeds balance. Shortfall: {fmt(formData.amount - selectedAccount!.balance)}</span>
@@ -354,34 +412,85 @@ export function TransactionDetail() {
                   )}
                 </div>
 
-                {/* Type + Category */}
-                <div className="grid grid-cols-2 gap-4">
+                {/* Type */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="type">Type <span className="text-destructive">*</span></Label>
+                  <Select
+                    value={formData.type}
+                    onValueChange={(v) => handleTypeChange(v as 'income' | 'expense' | 'transfer')}
+                    disabled={!isNew && isTransfer} // sisi masuk tidak bisa diubah tipenya
+                  >
+                    <SelectTrigger id="type"><SelectValue placeholder="Select type" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="income">
+                        <div className="flex items-center gap-2"><TrendingUp size={14} className="text-green-600" /><span>Income</span></div>
+                      </SelectItem>
+                      <SelectItem value="expense">
+                        <div className="flex items-center gap-2"><TrendingDown size={14} className="text-red-600" /><span>Expense</span></div>
+                      </SelectItem>
+                      <SelectItem value="transfer" disabled={accounts.length < 2}>
+                        <div className="flex items-center gap-2">
+                          <ArrowLeftRight size={14} className="text-blue-600" />
+                          <span>Transfer</span>
+                          {accounts.length < 2 && <span className="text-xs text-muted-foreground">(need 2+ accounts)</span>}
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* ✅ To Account — hanya muncul saat transfer */}
+                {formData.type === 'transfer' && (
                   <div className="space-y-1.5">
-                    <Label htmlFor="type">Type <span className="text-destructive">*</span></Label>
-                    <Select value={formData.type} onValueChange={(v) => handleTypeChange(v as 'income' | 'expense')}>
-                      <SelectTrigger id="type"><SelectValue placeholder="Select type" /></SelectTrigger>
+                    <Label htmlFor="toAccount">To Account <span className="text-destructive">*</span></Label>
+                    <Select value={formData.toAccountId} onValueChange={(v) => setFormData({ ...formData, toAccountId: v })}>
+                      <SelectTrigger id="toAccount">
+                        {selectedToAccount ? (
+                          <div className="flex items-center justify-between w-full pr-1">
+                            <span>{selectedToAccount.name}</span>
+                            <span className="text-xs font-medium ml-2 text-muted-foreground">
+                              {fmt(selectedToAccount.balance)}
+                            </span>
+                          </div>
+                        ) : <SelectValue placeholder="Select destination account" />}
+                      </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="income">
-                          <div className="flex items-center gap-2"><TrendingUp size={14} className="text-green-600" /><span>Income</span></div>
-                        </SelectItem>
-                        <SelectItem value="expense">
-                          <div className="flex items-center gap-2"><TrendingDown size={14} className="text-red-600" /><span>Expense</span></div>
-                        </SelectItem>
+                        {toAccountOptions.map(acc =>
+                          <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
+                    {formData.accountId && formData.toAccountId && (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+                        <ArrowLeftRight size={12} />
+                        <span>
+                          <strong>{getAccountName(formData.accountId)}</strong>
+                          {' → '}
+                          <strong>{getAccountName(formData.toAccountId)}</strong>
+                          {formData.amount > 0 && <span className="ml-1">· {fmt(formData.amount)}</span>}
+                        </span>
+                      </div>
+                    )}
                   </div>
+                )}
+
+                {/* Category — hanya untuk income/expense */}
+                {formData.type !== 'transfer' && (
                   <div className="space-y-1.5">
                     <Label htmlFor="category">Category <span className="text-destructive">*</span></Label>
-                    <CategorySelect id="category" categories={allCategoriesForType}
+                    <CategorySelect
+                      id="category"
+                      categories={allCategoriesForType}
                       value={formData.subcategoryId || formData.categoryId}
                       onChange={(categoryId, subcategoryId) => setFormData(prev => ({ ...prev, categoryId, subcategoryId }))}
                       placeholder={typeSelected ? 'Select category' : 'Select type first'}
                       disabled={!typeSelected}
-                      className={!typeSelected ? 'opacity-50 cursor-not-allowed' : ''} />
+                      className={!typeSelected ? 'opacity-50 cursor-not-allowed' : ''}
+                    />
                   </div>
-                </div>
+                )}
 
-                {/* Rich Text Description */}
+                {/* Description */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
                     <Label>Description <span className="text-muted-foreground font-normal text-xs">(Optional)</span></Label>
@@ -396,21 +505,21 @@ export function TransactionDetail() {
                         setFormData(prev => ({ ...prev, description: html }));
                       }
                     }}
-                    placeholder="Add a note about this transaction..."
+                    placeholder={formData.type === 'transfer' ? 'Add a note about this transfer...' : 'Add a note about this transaction...'}
                     maxLength={MAX_DESC}
                     minHeight={100}
                   />
                 </div>
 
-                {isNew && (
+                {isNew && formData.type !== 'transfer' && (
                   <PendingAttachmentPicker pendingFiles={pendingFiles} onAddFiles={addFiles}
                     onRemoveFile={removePendingFile} isUploading={isUploadingPending} disabled={isBusy} />
                 )}
               </CardContent>
             </Card>
 
-            {/* Attachments */}
-            {!isNew && (
+            {/* Attachments — hanya untuk non-transfer */}
+            {!isNew && formData.type !== 'transfer' && (
               <Card className="bg-white dark:bg-card border-2 border-slate-200 dark:border-border shadow-sm rounded-xl">
                 <CardContent className="pt-4 pb-4 px-4 space-y-3">
                   <p className="text-sm font-semibold text-foreground">Attachments</p>
@@ -452,11 +561,19 @@ export function TransactionDetail() {
                 <CardContent className="pt-4 pb-4 px-4 space-y-2.5">
                   <p className="text-sm font-semibold text-foreground mb-1">Summary</p>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Account</span>
+                    <span className="text-muted-foreground">
+                      {isTransfer ? 'From Account' : 'Account'}
+                    </span>
                     <span className={`font-medium ${!transaction.accountId ? 'text-muted-foreground italic' : 'text-foreground'}`}>
                       {getAccountName(transaction.accountId)}
                     </span>
                   </div>
+                  {isTransfer && transaction.toAccountId && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">To Account</span>
+                      <span className="font-medium text-foreground">{getAccountName(transaction.toAccountId)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Date</span>
                     <span className="text-foreground font-medium">
@@ -465,24 +582,33 @@ export function TransactionDetail() {
                   </div>
                   <div className="flex justify-between text-sm items-center">
                     <span className="text-muted-foreground">Type</span>
-                    <Badge variant={transaction.type === 'income' ? 'default' : 'destructive'}>
-                      {transaction.type === 'income' ? 'Income' : 'Expense'}
+                    <Badge variant={transaction.type === 'income' ? 'default' : transaction.type === 'transfer' ? 'secondary' : 'destructive'}>
+                      {transaction.type === 'income' ? 'Income' : transaction.type === 'transfer' ? 'Transfer' : 'Expense'}
                     </Badge>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Amount</span>
-                    <span className={`font-semibold ${transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {transaction.type === 'income' ? '+' : '-'}{fmt(transaction.amount)}
+                    <span className={`font-semibold ${
+                      transaction.type === 'income' ? 'text-green-600 dark:text-green-400' :
+                      transaction.type === 'transfer' ? 'text-blue-600 dark:text-blue-400' :
+                      'text-red-600 dark:text-red-400'
+                    }`}>
+                      {transaction.type === 'income' ? '+' : transaction.type === 'transfer' ? '↔' : '-'}{fmt(transaction.amount)}
                     </span>
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            <Button type="submit" className="w-full gap-2" disabled={isBusy || isOverBalance}>
+            {/* ✅ Disable submit untuk sisi masuk transfer */}
+            <Button
+              type="submit"
+              className="w-full gap-2"
+              disabled={isBusy || isOverBalance || isTransferOverBalance || (!isNew && isTransfer && !transaction?.toAccountId)}
+            >
               {isBusy
                 ? <><Loader2 className="w-4 h-4 animate-spin" /> {isUploadingPending ? 'Uploading...' : 'Saving...'}</>
-                : <><Save size={15} /> {isNew ? 'Save Transaction' : 'Update Transaction'}</>
+                : <><Save size={15} /> {isNew ? (formData.type === 'transfer' ? 'Save Transfer' : 'Save Transaction') : (formData.type === 'transfer' ? 'Update Transfer' : 'Update Transaction')}</>
               }
             </Button>
           </form>

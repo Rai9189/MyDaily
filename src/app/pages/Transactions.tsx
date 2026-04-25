@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import {
   Plus, TrendingUp, TrendingDown, Paperclip, ArrowUpDown,
   ChevronLeft, ChevronRight, Filter, CalendarDays,
-  Search, X, Edit, Trash2, Wallet,
+  Search, X, Edit, Trash2, Wallet, ArrowLeftRight,
   LayoutGrid, List,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -35,17 +35,14 @@ export function Transactions() {
   const [itemsPerPage, setItemsPerPage]     = useState<number | 'all'>(10);
   const [currentPage, setCurrentPage]       = useState(1);
   const [filterOpen, setFilterOpen]         = useState(false);
-  const [deleteTarget, setDeleteTarget]     = useState<{ id: string; amount: number; type: string } | null>(null);
+  const [deleteTarget, setDeleteTarget]     = useState<{ id: string; amount: number; type: string; isTransfer?: boolean } | null>(null);
   const [deleting, setDeleting]             = useState(false);
   const [viewMode, setViewMode]             = useState<'list' | 'card'>('list');
   const filterRef = useRef<HTMLDivElement>(null);
 
-  // On mobile always use card view
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
-    const handler = (e: MediaQueryListEvent) => {
-      if (!e.matches) setViewMode('card');
-    };
+    const handler = (e: MediaQueryListEvent) => { if (!e.matches) setViewMode('card'); };
     if (!mq.matches) setViewMode('card');
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
@@ -68,7 +65,6 @@ export function Transactions() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ✅ fmt: tampilkan desimal hanya jika ada (300.010 vs 300.010,50)
   const fmt = (n: number) =>
     new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -83,6 +79,18 @@ export function Transactions() {
   const getCategoryName  = (id: string, subId?: string | null) => getEffectiveCategoryName(id, subId);
   const getCategoryColor = (id: string, subId?: string | null) => getEffectiveCategoryColor(id, subId);
 
+  // ✅ Untuk transfer, tampilkan label yang informatif
+  const getTransferLabel = (t: any) => {
+    if (t.toAccountId) {
+      // Sisi keluar
+      return `Transfer → ${getAccountName(t.toAccountId)}`;
+    } else {
+      // Sisi masuk — cari pasangan untuk tahu dari mana
+      const pair = transactions.find(tx => tx.transferPairId === t.transferPairId && tx.id !== t.id);
+      return `Transfer ← ${pair ? getAccountName(pair.accountId) : 'Unknown'}`;
+    }
+  };
+
   const filteredTransactions = useMemo(() => {
     let result = [...transactions];
     if (searchQuery) {
@@ -90,14 +98,14 @@ export function Transactions() {
       result = result.filter(t =>
         t.description?.toLowerCase().includes(q) ||
         getAccountName(t.accountId).toLowerCase().includes(q) ||
-        getCategoryName(t.categoryId, t.subcategoryId).toLowerCase().includes(q) ||
+        (t.type === 'transfer' ? getTransferLabel(t).toLowerCase().includes(q) : getCategoryName(t.categoryId, t.subcategoryId).toLowerCase().includes(q)) ||
         t.amount.toString().includes(q)
       );
     }
     if (filterAccount  !== 'all') result = result.filter(t => t.accountId  === filterAccount);
     if (filterType     !== 'all') result = result.filter(t => t.type       === filterType);
     if (filterCategory !== 'all') result = result.filter(t =>
-      t.categoryId === filterCategory || t.subcategoryId === filterCategory
+      t.type !== 'transfer' && (t.categoryId === filterCategory || t.subcategoryId === filterCategory)
     );
     if (dateFrom) result = result.filter(t => t.date >= dateFrom);
     if (dateTo)   result = result.filter(t => t.date <= dateTo);
@@ -112,8 +120,9 @@ export function Transactions() {
 
   useMemo(() => { setCurrentPage(1); }, [searchQuery, filterAccount, filterType, filterCategory, dateFrom, dateTo, itemsPerPage]);
 
-  const summaryIncome  = useMemo(() => filteredTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),  [filteredTransactions]);
-  const summaryExpense = useMemo(() => filteredTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0), [filteredTransactions]);
+  const summaryIncome   = useMemo(() => filteredTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),   [filteredTransactions]);
+  const summaryExpense  = useMemo(() => filteredTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),  [filteredTransactions]);
+  const summaryTransfer = useMemo(() => filteredTransactions.filter(t => t.type === 'transfer' && t.toAccountId).reduce((s, t) => s + t.amount, 0), [filteredTransactions]);
 
   const totalPages = useMemo(() => {
     if (itemsPerPage === 'all') return 1;
@@ -151,22 +160,32 @@ export function Transactions() {
 
   const handleDeleteRequest = (e: React.MouseEvent, t: any) => {
     e.stopPropagation();
-    setDeleteTarget({ id: t.id, amount: t.amount, type: t.type });
+    setDeleteTarget({
+      id: t.id,
+      amount: t.amount,
+      type: t.type,
+      isTransfer: t.type === 'transfer',
+    });
   };
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
     const { success, error } = await deleteTransaction(deleteTarget.id);
-    if (success) toast.success('Transaction deleted');
-    else toast.error(error || 'Failed to delete transaction');
+    if (success) toast.success(deleteTarget.isTransfer ? 'Transfer deleted (both sides)' : 'Transaction deleted');
+    else toast.error(error || 'Failed to delete');
     setDeleting(false);
     setDeleteTarget(null);
   };
 
-  const handleEdit = (e: React.MouseEvent, id: string) => {
+  const handleEdit = (e: React.MouseEvent, t: any) => {
     e.stopPropagation();
-    navigate(`/transactions/${id}`);
+    // ✅ Untuk transfer sisi masuk, arahkan ke sisi keluar (yang punya toAccountId)
+    if (t.type === 'transfer' && !t.toAccountId) {
+      const outTx = transactions.find(tx => tx.transferPairId === t.transferPairId && tx.toAccountId);
+      if (outTx) { navigate(`/transactions/${outTx.id}`); return; }
+    }
+    navigate(`/transactions/${t.id}`);
   };
 
   if (loading) return (
@@ -205,14 +224,49 @@ export function Transactions() {
     </div>
   );
 
+  // ✅ Helper untuk render icon dan warna berdasarkan tipe + arah transfer
+  const getTypeIcon = (t: any) => {
+    if (t.type === 'transfer') {
+      return t.toAccountId
+        ? <ArrowLeftRight size={15} className="text-blue-600 dark:text-blue-400" />
+        : <ArrowLeftRight size={15} className="text-blue-400 dark:text-blue-300" />;
+    }
+    return t.type === 'income'
+      ? <TrendingUp size={15} className="text-green-600 dark:text-green-400" />
+      : <TrendingDown size={15} className="text-red-600 dark:text-red-400" />;
+  };
+
+  const getTypeBg = (t: any) => {
+    if (t.type === 'transfer') return 'bg-blue-100 dark:bg-blue-900/30';
+    return t.type === 'income' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30';
+  };
+
+  const getAmountColor = (t: any) => {
+    if (t.type === 'transfer') return t.toAccountId ? 'text-blue-600 dark:text-blue-400' : 'text-blue-400 dark:text-blue-300';
+    return t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+  };
+
+  const getAmountPrefix = (t: any) => {
+    if (t.type === 'transfer') return t.toAccountId ? '↔' : '+';
+    return t.type === 'income' ? '+' : '-';
+  };
+
+  const getCardBorder = (t: any) => {
+    if (t.type === 'transfer') return 'border-blue-200 dark:border-blue-900/50';
+    return t.type === 'income' ? 'border-green-200 dark:border-green-900/50' : 'border-red-200 dark:border-red-900/50';
+  };
+
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-2">
 
-      {/* ── CONFIRM DIALOG ── */}
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete Transaction"
-        description={`Delete this ${deleteTarget?.type} transaction of ${deleteTarget ? fmt(deleteTarget.amount) : ''}?`}
+        title={deleteTarget?.isTransfer ? 'Delete Transfer?' : 'Delete Transaction'}
+        description={
+          deleteTarget?.isTransfer
+            ? `Delete this transfer of ${deleteTarget ? fmt(deleteTarget.amount) : ''}? Both the outgoing and incoming records will be deleted.`
+            : `Delete this ${deleteTarget?.type} transaction of ${deleteTarget ? fmt(deleteTarget.amount) : ''}?`
+        }
         confirmLabel="Delete"
         variant="danger"
         icon={<Trash2 size={20} />}
@@ -318,9 +372,10 @@ export function Transactions() {
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</label>
                     <div className="flex gap-2">
                       {([
-                        { value: 'all',     label: 'All'      },
-                        { value: 'income',  label: '↑ Income'  },
-                        { value: 'expense', label: '↓ Expense' },
+                        { value: 'all',      label: 'All'        },
+                        { value: 'income',   label: '↑ Income'   },
+                        { value: 'expense',  label: '↓ Expense'  },
+                        { value: 'transfer', label: '↔ Transfer' },
                       ] as const).map(opt => (
                         <button key={opt.value} type="button"
                           onClick={() => { setFilterType(opt.value); setFilterCategory('all'); setCurrentPage(1); }}
@@ -334,48 +389,50 @@ export function Transactions() {
                       ))}
                     </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Category{filterType !== 'all' && <span className="ml-1 text-primary normal-case capitalize">({filterType})</span>}
-                    </label>
-                    <Select key={filterType} value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setCurrentPage(1); }}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Categories">
-                          {filterCategory === 'all' ? 'All Categories' : (() => {
-                            const cat = categories.find(c => c.id === filterCategory);
-                            if (!cat) return 'All Categories';
-                            if (cat.parentId) {
-                              const parent = categories.find(c => c.id === cat.parentId);
-                              return parent ? `${parent.name} / ${cat.name}` : cat.name;
-                            }
-                            return cat.name;
-                          })()}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Categories</SelectItem>
-                        {filteredCategoryOptions.filter(cat => !cat.parentId).map(parent => (
-                          <div key={parent.id}>
-                            <SelectItem value={parent.id}>
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: parent.color }} />
-                                <span className="font-medium">{parent.name}</span>
-                              </div>
-                            </SelectItem>
-                            {filteredCategoryOptions.filter(c => c.parentId === parent.id).map(sub => (
-                              <SelectItem key={sub.id} value={sub.id}>
-                                <div className="flex items-center gap-2 pl-4">
-                                  <span className="text-muted-foreground text-xs">└</span>
-                                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || parent.color }} />
-                                  <span className="text-sm">{sub.name}</span>
+                  {filterType !== 'transfer' && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Category{filterType !== 'all' && <span className="ml-1 text-primary normal-case capitalize">({filterType})</span>}
+                      </label>
+                      <Select key={filterType} value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setCurrentPage(1); }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="All Categories">
+                            {filterCategory === 'all' ? 'All Categories' : (() => {
+                              const cat = categories.find(c => c.id === filterCategory);
+                              if (!cat) return 'All Categories';
+                              if (cat.parentId) {
+                                const parent = categories.find(c => c.id === cat.parentId);
+                                return parent ? `${parent.name} / ${cat.name}` : cat.name;
+                              }
+                              return cat.name;
+                            })()}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Categories</SelectItem>
+                          {filteredCategoryOptions.filter(cat => !cat.parentId).map(parent => (
+                            <div key={parent.id}>
+                              <SelectItem value={parent.id}>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: parent.color }} />
+                                  <span className="font-medium">{parent.name}</span>
                                 </div>
                               </SelectItem>
-                            ))}
-                          </div>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                              {filteredCategoryOptions.filter(c => c.parentId === parent.id).map(sub => (
+                                <SelectItem key={sub.id} value={sub.id}>
+                                  <div className="flex items-center gap-2 pl-4">
+                                    <span className="text-muted-foreground text-xs">└</span>
+                                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || parent.color }} />
+                                    <span className="text-sm">{sub.name}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </div>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date Range</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -419,7 +476,6 @@ export function Transactions() {
           </div>
         </div>
 
-        {/* Show + View toggle (desktop only) + count */}
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-foreground/65">Show:</span>
           <div className="inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
@@ -435,7 +491,6 @@ export function Transactions() {
             ))}
           </div>
 
-          {/* View toggle — hidden on mobile */}
           <div className="hidden md:inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             <button onClick={() => setViewMode('list')} title="List view"
               className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
@@ -457,7 +512,7 @@ export function Transactions() {
 
         {/* Summary bar */}
         {filteredTransactions.length > 0 && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className={`grid gap-3 ${summaryTransfer > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/10 border-2 border-green-200 dark:border-green-900/40">
               <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
                 <TrendingUp size={15} className="text-green-600 dark:text-green-400" />
@@ -476,6 +531,17 @@ export function Transactions() {
                 <p className="text-sm font-bold text-red-700 dark:text-red-300">{fmt(summaryExpense)}</p>
               </div>
             </div>
+            {summaryTransfer > 0 && (
+              <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/10 border-2 border-blue-200 dark:border-blue-900/40">
+                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                  <ArrowLeftRight size={15} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-xs text-blue-700 dark:text-blue-400 font-medium">Transferred</p>
+                  <p className="text-sm font-bold text-blue-700 dark:text-blue-300">{fmt(summaryTransfer)}</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -491,14 +557,13 @@ export function Transactions() {
           </Card>
 
         ) : viewMode === 'list' ? (
-          /* ── LIST VIEW (desktop only) ── */
           <div className="rounded-xl overflow-hidden w-full bg-white dark:bg-card border-2 border-slate-200 dark:border-border shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full divide-y divide-slate-100 dark:divide-border">
                 <thead className="bg-slate-100 dark:bg-muted/60">
                   <tr>
                     <th className="pl-4 pr-2 py-3 w-12" />
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Category</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Category / Transfer</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Account</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Date</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-foreground/60 uppercase tracking-wider">Amount</th>
@@ -511,29 +576,31 @@ export function Transactions() {
                       className="group hover:bg-slate-50 dark:hover:bg-muted/40 cursor-pointer transition-colors relative"
                       onClick={() => navigate(`/transactions/${t.id}`)}>
 
-                      {/* Type indicator */}
                       <td className={`pl-0 pr-2 whitespace-nowrap ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <div className="flex items-center gap-0">
                           <div className={`w-1 self-stretch rounded-r-full mr-3 ${
-                            t.type === 'income' ? 'bg-green-400 dark:bg-green-600' : 'bg-red-400 dark:bg-red-600'
+                            t.type === 'income' ? 'bg-green-400 dark:bg-green-600' :
+                            t.type === 'transfer' ? 'bg-blue-400 dark:bg-blue-600' :
+                            'bg-red-400 dark:bg-red-600'
                           }`} />
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                            t.type === 'income' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'
-                          }`}>
-                            {t.type === 'income'
-                              ? <TrendingUp size={15} className="text-green-600 dark:text-green-400" />
-                              : <TrendingDown size={15} className="text-red-600 dark:text-red-400" />}
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getTypeBg(t)}`}>
+                            {getTypeIcon(t)}
                           </div>
                         </div>
                       </td>
 
-                      {/* Category */}
                       <td className={`px-4 text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <div className="relative inline-block">
-                          <span className="text-xs font-medium px-2.5 py-1 rounded-full border inline-block cursor-default"
-                            style={{ borderColor: getCategoryColor(t.categoryId, t.subcategoryId), color: getCategoryColor(t.categoryId, t.subcategoryId) }}>
-                            {getCategoryName(t.categoryId, t.subcategoryId)}
-                          </span>
+                          {t.type === 'transfer' ? (
+                            <span className="text-xs font-medium px-2.5 py-1 rounded-full border border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400 inline-block">
+                              {getTransferLabel(t)}
+                            </span>
+                          ) : (
+                            <span className="text-xs font-medium px-2.5 py-1 rounded-full border inline-block cursor-default"
+                              style={{ borderColor: getCategoryColor(t.categoryId, t.subcategoryId), color: getCategoryColor(t.categoryId, t.subcategoryId) }}>
+                              {getCategoryName(t.categoryId, t.subcategoryId)}
+                            </span>
+                          )}
                           {t.description && (
                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover:block pointer-events-none">
                               <div className="bg-foreground text-background text-xs rounded-lg px-3 py-1.5 whitespace-nowrap max-w-[200px] truncate shadow-lg">
@@ -545,34 +612,28 @@ export function Transactions() {
                         </div>
                       </td>
 
-                      {/* Account */}
                       <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <span className={`text-sm font-medium ${isDeletedAccount(t.accountId) ? 'text-muted-foreground italic' : 'text-foreground'}`}>
                           {getAccountName(t.accountId)}
                         </span>
                       </td>
 
-                      {/* Date */}
                       <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <span className="text-sm text-slate-500 dark:text-foreground/65">
                           {new Date(t.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </span>
                       </td>
 
-                      {/* Amount */}
                       <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
-                        <span className={`text-sm font-bold ${
-                          t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                        }`}>
-                          {t.type === 'income' ? '+' : '-'}{fmt(t.amount)}
+                        <span className={`text-sm font-bold ${getAmountColor(t)}`}>
+                          {getAmountPrefix(t)}{fmt(t.amount)}
                         </span>
                       </td>
 
-                      {/* Actions */}
                       <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`} onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-foreground"
-                            onClick={(e) => handleEdit(e, t.id)}><Edit size={14} /></Button>
+                            onClick={(e) => handleEdit(e, t)}><Edit size={14} /></Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:bg-red-500 hover:text-white"
                             onClick={(e) => handleDeleteRequest(e, t)}>
                             <Trash2 size={14} />
@@ -587,44 +648,39 @@ export function Transactions() {
           </div>
 
         ) : (
-          /* ── CARD VIEW ── */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {paginatedTransactions.map((t) => (
               <Card key={t.id}
-                className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer border-2 ${
-                  t.type === 'income'
-                    ? 'border-green-200 dark:border-green-900/50'
-                    : 'border-red-200 dark:border-red-900/50'
-                }`}
+                className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer border-2 ${getCardBorder(t)}`}
                 onClick={() => navigate(`/transactions/${t.id}`)}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        t.type === 'income' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'
-                      }`}>
-                        {t.type === 'income'
-                          ? <TrendingUp size={15} className="text-green-600 dark:text-green-400" />
-                          : <TrendingDown size={15} className="text-red-600 dark:text-red-400" />}
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${getTypeBg(t)}`}>
+                        {getTypeIcon(t)}
                       </div>
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                        style={{ borderColor: getCategoryColor(t.categoryId, t.subcategoryId), color: getCategoryColor(t.categoryId, t.subcategoryId) }}>
-                        {getCategoryName(t.categoryId, t.subcategoryId)}
-                      </span>
+                      {t.type === 'transfer' ? (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full border border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400">
+                          {getTransferLabel(t)}
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
+                          style={{ borderColor: getCategoryColor(t.categoryId, t.subcategoryId), color: getCategoryColor(t.categoryId, t.subcategoryId) }}>
+                          {getCategoryName(t.categoryId, t.subcategoryId)}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-0" onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-foreground"
-                        onClick={(e) => handleEdit(e, t.id)}><Edit size={13} /></Button>
+                        onClick={(e) => handleEdit(e, t)}><Edit size={13} /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:bg-red-500 hover:text-white"
                         onClick={(e) => handleDeleteRequest(e, t)}>
                         <Trash2 size={13} />
                       </Button>
                     </div>
                   </div>
-                  <p className={`text-xl font-bold mb-3 ${
-                    t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                  }`}>
-                    {t.type === 'income' ? '+' : '-'}{fmt(t.amount)}
+                  <p className={`text-xl font-bold mb-3 ${getAmountColor(t)}`}>
+                    {getAmountPrefix(t)}{fmt(t.amount)}
                   </p>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
@@ -692,7 +748,6 @@ export function Transactions() {
         </div>
       )}
       {itemsPerPage !== 'all' && totalPages > 1 && <div className="h-16 flex-shrink-0" />}
-
     </div>
   );
 }
