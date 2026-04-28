@@ -3,6 +3,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotes } from '../context/NoteContext';
 import { useCategories } from '../context/CategoryContext';
+import { useViewPreferences } from '../hooks/useViewPreferences';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -18,7 +19,6 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 
 type SortOption = 'newest' | 'oldest' | 'az';
 
-// ✅ Strip HTML tags untuk preview plain text
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
@@ -28,28 +28,20 @@ export function Notes() {
   const { notes, loading, error, deleteNote, togglePin } = useNotes();
   const { categories, getEffectiveCategoryName, getEffectiveCategoryColor } = useCategories();
 
+  const { itemsPerPage, setItemsPerPage, viewMode, setViewMode } = useViewPreferences('notes');
+
   const [searchQuery, setSearchQuery]       = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterPinned, setFilterPinned]     = useState<'all' | 'pinned' | 'unpinned'>('all');
   const [sortBy, setSortBy]                 = useState<SortOption>('newest');
-  const [itemsPerPage, setItemsPerPage]     = useState<number | 'all'>(10);
   const [currentPage, setCurrentPage]       = useState(1);
   const [filterOpen, setFilterOpen]         = useState(false);
   const [pinningId, setPinningId]           = useState<string | null>(null);
-  const [viewMode, setViewMode]             = useState<'card' | 'list'>('card');
 
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting]         = useState(false);
 
   const filterRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)');
-    const handler = (e: MediaQueryListEvent) => { if (!e.matches) setViewMode('card'); };
-    if (!mq.matches) setViewMode('card');
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
 
   const noteCategories = categories.filter(c => c.type === 'note');
 
@@ -77,7 +69,6 @@ export function Notes() {
     let result = [...notes];
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      // ✅ Strip HTML sebelum search agar keyword tidak match tag HTML
       result = result.filter(n =>
         n.title.toLowerCase().includes(q) ||
         stripHtml(n.content).toLowerCase().includes(q)
@@ -152,7 +143,7 @@ export function Notes() {
   };
 
   const NoteCardView = ({ note }: { note: any }) => {
-    const plainContent = stripHtml(note.content); // ✅ strip HTML untuk preview
+    const plainContent = stripHtml(note.content);
     return (
       <Card className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer ${note.pinned ? 'border-2 border-amber-400 dark:border-amber-500' : 'border-2 border-blue-200 dark:border-blue-900/50'}`}>
         <CardContent className="p-4">
@@ -166,7 +157,6 @@ export function Notes() {
                 {note.pinned && <Pin size={13} className="text-amber-500" />}
               </div>
               <h3 className="text-sm font-semibold text-foreground line-clamp-1 mt-2">{note.title}</h3>
-              {/* ✅ Tampilkan plain text bukan raw HTML */}
               <p className="text-sm text-slate-500 dark:text-muted-foreground line-clamp-3 mt-1">{plainContent}</p>
               {plainContent.length > 200 && <p className="text-xs text-muted-foreground/50 mt-1 italic">Read more...</p>}
               <div className="flex items-center justify-between mt-3">
@@ -210,7 +200,7 @@ export function Notes() {
   );
 
   const NoteTableRow = ({ note, isPinned }: { note: any; isPinned: boolean }) => {
-    const plainContent = stripHtml(note.content); // ✅ strip HTML untuk tooltip
+    const plainContent = stripHtml(note.content);
     return (
       <tr
         className={`group cursor-pointer transition-colors border-b ${
@@ -219,11 +209,9 @@ export function Notes() {
             : 'bg-white hover:bg-slate-50 dark:bg-card dark:hover:bg-muted/40 border-slate-100 dark:border-border/50'
         }`}
         onClick={() => navigate(`/notes/${note.id}`)}>
-
         <td className="pl-4 pr-2 py-3.5 w-8 text-center">
           <Pin size={14} className={isPinned ? 'text-amber-500 mx-auto' : 'text-slate-200 dark:text-slate-700 mx-auto'} />
         </td>
-
         <td className="px-4 py-3.5 text-center">
           <div className="relative inline-block">
             <div className="flex items-center justify-center gap-2">
@@ -234,7 +222,6 @@ export function Notes() {
                 </span>
               )}
             </div>
-            {/* ✅ Tooltip pakai plain text */}
             {plainContent && (
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover:block pointer-events-none">
                 <div className="bg-foreground text-background text-xs rounded-lg px-3 py-1.5 whitespace-nowrap max-w-[260px] truncate shadow-lg">
@@ -245,20 +232,17 @@ export function Notes() {
             )}
           </div>
         </td>
-
         <td className="px-4 py-3.5 whitespace-nowrap text-center">
           <span className="text-xs font-medium px-2.5 py-1 rounded-full border inline-block"
             style={{ borderColor: getCategoryColor(note.categoryId, note.subcategoryId), color: getCategoryColor(note.categoryId, note.subcategoryId) }}>
             {getCategoryName(note.categoryId, note.subcategoryId)}
           </span>
         </td>
-
         <td className="px-4 py-3.5 whitespace-nowrap text-center">
           <span className="text-sm text-slate-500 dark:text-foreground/65">
             {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
           </span>
         </td>
-
         <td className="px-4 py-3.5 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-center gap-1">
             <Button variant="ghost" size="icon"

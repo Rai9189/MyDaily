@@ -17,6 +17,7 @@ interface AccountContextType {
     oldBalance: number
   ) => Promise<{ success: boolean; error: string | null }>;
   deleteAccount: (id: string) => Promise<{ success: boolean; error: string | null }>;
+  setPrimaryAccount: (id: string) => Promise<{ success: boolean; error: string | null }>;
   refreshAccounts: () => Promise<void>;
   updateBalanceLocally: (accountId: string, delta: number) => void;
 }
@@ -39,6 +40,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         .select('*')
         .eq('user_id', user.id)
         .is('deleted_at', null)
+        .order('is_primary', { ascending: false })
         .order('created_at', { ascending: false });
       if (fetchError) throw fetchError;
       setAccounts(data || []);
@@ -61,13 +63,25 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       if (!user) throw new Error('User not authenticated');
+
+      // Jika ini akun pertama, otomatis jadikan primary
+      const isFirst = accounts.length === 0;
+
       const { data, error: insertError } = await supabase
         .from('accounts')
-        .insert({ user_id: user.id, name: account.name, type: account.type, balance: account.balance })
+        .insert({
+          user_id: user.id,
+          name: account.name,
+          type: account.type,
+          balance: account.balance,
+          is_primary: isFirst,
+        })
         .select()
         .single();
       if (insertError) throw insertError;
-      setAccounts(prev => [data, ...prev]);
+
+      // Primary muncul di atas
+      setAccounts(prev => isFirst ? [data, ...prev] : [...prev, data]);
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -90,11 +104,47 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ✅ Cari kategori "Other Income" atau "Other Expense" milik user secara dinamis
+  // ✅ Set akun sebagai primary — unset yang lain dulu, lalu set yang baru
+  const setPrimaryAccount = async (id: string) => {
+    try {
+      setError(null);
+      if (!user) throw new Error('User not authenticated');
+
+      // Unset semua primary milik user ini
+      const { error: unsetError } = await supabase
+        .from('accounts')
+        .update({ is_primary: false })
+        .eq('user_id', user.id)
+        .eq('is_primary', true);
+      if (unsetError) throw unsetError;
+
+      // Set yang dipilih jadi primary
+      const { error: setPrimaryError } = await supabase
+        .from('accounts')
+        .update({ is_primary: true })
+        .eq('id', id);
+      if (setPrimaryError) throw setPrimaryError;
+
+      // Update local state — primary muncul di atas
+      setAccounts(prev => {
+        const updated = prev.map(acc => ({ ...acc, is_primary: acc.id === id }));
+        return [
+          ...updated.filter(a => a.is_primary),
+          ...updated.filter(a => !a.is_primary),
+        ];
+      });
+
+      return { success: true, error: null };
+    } catch (err) {
+      const errorMessage = handleSupabaseError(err);
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  };
+
   const getAdjustmentCategoryId = async (subtype: 'income' | 'expense'): Promise<string | null> => {
     if (!user) return null;
     try {
-      // Cari yang namanya mengandung "other" dulu (case-insensitive)
       const { data: others } = await supabase
         .from('categories')
         .select('id, name')
@@ -108,7 +158,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
       if (others && others.length > 0) return others[0].id;
 
-      // Fallback: ambil kategori transaction subtype apapun yang ada
       const { data: fallback } = await supabase
         .from('categories')
         .select('id')
@@ -127,7 +176,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ✅ Update akun + catat transaksi penyesuaian otomatis jika balance berubah
   const updateAccountWithAdjustment = async (
     id: string,
     updates: Partial<Account>,
@@ -140,12 +188,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       const newBalance = updates.balance ?? oldBalance;
       const diff = newBalance - oldBalance;
 
-      // Update akun
       const { error: updateError } = await supabase.from('accounts').update(updates).eq('id', id);
       if (updateError) throw updateError;
       setAccounts(prev => prev.map(acc => (acc.id === id ? { ...acc, ...updates } : acc)));
 
-      // Jika balance berubah, catat transaksi penyesuaian
       if (diff !== 0) {
         const type = diff > 0 ? 'income' : 'expense';
         const amount = Math.abs(diff);
@@ -161,8 +207,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             date: new Date().toISOString().split('T')[0],
             description: `Balance adjustment (${diff > 0 ? '+' : '-'}${amount.toLocaleString('id-ID')})`,
           });
-
-          // ✅ Notify TransactionContext untuk refresh
           trashEvents.emitTransactionCreated();
         }
       }
@@ -178,12 +222,21 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const deleteAccount = async (id: string) => {
     try {
       setError(null);
+      const accountToDelete = accounts.find(a => a.id === id);
       const { error: deleteError } = await supabase
         .from('accounts')
-        .update({ deleted_at: new Date().toISOString() })
+        .update({ deleted_at: new Date().toISOString(), is_primary: false })
         .eq('id', id);
       if (deleteError) throw deleteError;
-      setAccounts(prev => prev.filter(acc => acc.id !== id));
+
+      const remaining = accounts.filter(acc => acc.id !== id);
+      setAccounts(remaining);
+
+      // Jika yang dihapus adalah primary, otomatis set akun pertama yang tersisa jadi primary
+      if (accountToDelete?.is_primary && remaining.length > 0) {
+        await setPrimaryAccount(remaining[0].id);
+      }
+
       trashEvents.emit();
       return { success: true, error: null };
     } catch (err) {
@@ -204,7 +257,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const value = {
     accounts, loading, error,
     createAccount, updateAccount, updateAccountWithAdjustment,
-    deleteAccount, refreshAccounts, updateBalanceLocally,
+    deleteAccount, setPrimaryAccount, refreshAccounts, updateBalanceLocally,
   };
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

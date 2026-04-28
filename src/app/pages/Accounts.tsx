@@ -9,7 +9,10 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { Plus, Edit, Trash2, Loader2, Wallet, Smartphone, Banknote, CreditCard, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import {
+  Plus, Edit, Trash2, Loader2, Wallet, Smartphone, Banknote,
+  CreditCard, ArrowUpCircle, ArrowDownCircle, Star,
+} from 'lucide-react';
 import { Account, AccountType } from '../types';
 import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
@@ -55,12 +58,13 @@ function handleBalanceKeyInput(raw: string): string {
 }
 
 export function Accounts() {
-  const { accounts, loading, error, createAccount, updateAccount, updateAccountWithAdjustment, deleteAccount } = useAccounts();
+  const { accounts, loading, error, createAccount, updateAccount, updateAccountWithAdjustment, deleteAccount, setPrimaryAccount } = useAccounts();
   const navigate = useNavigate();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [formData, setFormData] = useState({ name: '', type: 'Bank' as AccountType, balance: 0 });
   const [submitting, setSubmitting] = useState(false);
+  const [settingPrimaryId, setSettingPrimaryId] = useState<string | null>(null);
   const [balanceDisplay, setBalanceDisplay] = useState('');
   const [balanceError, setBalanceError] = useState('');
   const [confirmState, setConfirmState] = useState<ConfirmState>(DEFAULT_CONFIRM);
@@ -122,7 +126,6 @@ export function Accounts() {
     e.preventDefault();
     if (balanceError) return;
 
-    // ✅ Jika edit dan balance berubah — tutup edit dialog dulu, lalu buka confirm setelah animasi selesai
     if (editingAccount && formData.balance !== editingAccount.balance) {
       const diff = formData.balance - editingAccount.balance;
       const snapshotAccount = editingAccount;
@@ -143,7 +146,6 @@ export function Accounts() {
         }
       };
 
-      // ✅ Tutup edit dialog dulu, tunggu 150ms baru buka confirm — mencegah overlap overlay
       setIsDialogOpen(false);
       setTimeout(() => {
         setAdjustConfirm({ open: true, diff, pendingSubmit: doSubmit });
@@ -151,7 +153,6 @@ export function Accounts() {
       return;
     }
 
-    // Tidak ada perubahan balance — update biasa
     setSubmitting(true);
     try {
       if (editingAccount) {
@@ -168,6 +169,16 @@ export function Accounts() {
     }
   };
 
+  const handleSetPrimary = async (e: React.MouseEvent, account: Account) => {
+    e.stopPropagation();
+    if (account.is_primary) return;
+    setSettingPrimaryId(account.id);
+    const { success, error } = await setPrimaryAccount(account.id);
+    if (success) toast.success(`${account.name} set as primary account`);
+    else toast.error(error || 'Failed to set primary account');
+    setSettingPrimaryId(null);
+  };
+
   const handleDelete = (id: string, name: string) => {
     setConfirmState({
       open: true,
@@ -181,6 +192,7 @@ export function Accounts() {
   };
 
   const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+  const primaryAccount = accounts.find(a => a.is_primary);
 
   if (loading) return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -247,8 +259,6 @@ export function Accounts() {
                         Gunakan <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono border border-border">,</kbd> untuk desimal
                       </span>
                     </div>
-
-                    {/* ✅ Preview selisih saldo saat edit */}
                     {editingAccount && formData.balance !== editingAccount.balance && (
                       <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-md border ${
                         formData.balance > editingAccount.balance
@@ -265,7 +275,6 @@ export function Accounts() {
                         </span>
                       </div>
                     )}
-
                     <div className={`flex rounded-md border overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${balanceError ? 'border-destructive' : 'border-input'}`}>
                       <span className="flex items-center px-3 bg-muted text-muted-foreground text-sm font-medium border-r border-input select-none">Rp</span>
                       <Input
@@ -302,7 +311,15 @@ export function Accounts() {
                     <span className="text-xs font-semibold uppercase tracking-widest">Total Balance</span>
                   </div>
                   <p className="text-3xl font-bold tracking-tight">{formatCurrency(totalBalance)}</p>
-                  <p className="text-xs opacity-60 mt-1">{accounts.length} Account{accounts.length !== 1 ? 's' : ''}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-xs opacity-60">{accounts.length} Account{accounts.length !== 1 ? 's' : ''}</p>
+                    {primaryAccount && (
+                      <span className="flex items-center gap-1 text-xs opacity-75">
+                        <Star size={10} className="fill-current" />
+                        {primaryAccount.name}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="opacity-10 hidden md:block"><Wallet size={56} /></div>
               </div>
@@ -340,20 +357,56 @@ export function Accounts() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {accounts.map((account) => {
                 const cfg = getTypeConfig(account.type);
+                const isPrimary = !!account.is_primary;
+                const isSettingThis = settingPrimaryId === account.id;
+
                 return (
-                  <Card key={account.id} className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer ${cfg.cardBorder}`}
+                  <Card
+                    key={account.id}
+                    className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer ${
+                      isPrimary
+                        ? 'border-2 border-amber-400 dark:border-amber-500'
+                        : cfg.cardBorder
+                    }`}
                     onClick={() => navigate(`/transactions?accountId=${account.id}`)}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between mb-3">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-                          {cfg.icon}{account.type}
-                        </span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+                            {cfg.icon}{account.type}
+                          </span>
+                          {/* ✅ Badge Primary */}
+                          {isPrimary && (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700">
+                              <Star size={10} className="fill-current" /> Primary
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-0" onClick={e => e.stopPropagation()}>
+                          {/* ✅ Tombol Set as Primary — hanya muncul jika belum primary */}
+                          {!isPrimary && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-amber-500"
+                              title="Set as primary account"
+                              onClick={(e) => handleSetPrimary(e, account)}
+                              disabled={isSettingThis}>
+                              {isSettingThis
+                                ? <Loader2 size={13} className="animate-spin" />
+                                : <Star size={13} />
+                              }
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleOpenDialog(account)}>
                             <Edit size={14} />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-red-500 hover:text-white"
-                            onClick={() => handleDelete(account.id, account.name)}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:bg-red-500 hover:text-white"
+                            onClick={() => handleDelete(account.id, account.name)}
+                            disabled={isPrimary && accounts.length === 1}>
                             <Trash2 size={14} />
                           </Button>
                         </div>
@@ -372,6 +425,13 @@ export function Accounts() {
               })}
             </div>
           )}
+
+          {/* Info hint */}
+          {accounts.length > 1 && (
+            <p className="text-xs text-muted-foreground/60 text-center">
+              Tap <Star size={10} className="inline" /> on an account to set it as the default for new transactions
+            </p>
+          )}
         </div>
       </div>
 
@@ -387,7 +447,7 @@ export function Accounts() {
         onCancel={closeConfirm}
       />
 
-      {/* ✅ Confirm Balance Adjustment Dialog */}
+      {/* Confirm Balance Adjustment Dialog */}
       <ConfirmDialog
         open={adjustConfirm.open}
         title="Catat Penyesuaian Saldo?"

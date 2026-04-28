@@ -24,6 +24,14 @@ const fmt = (n: number) =>
     maximumFractionDigits: 2,
   }).format(n);
 
+// ✅ Format ringkas untuk mobile
+const fmtShort = (n: number) => {
+  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(1)}M`;
+  if (n >= 1_000_000)     return `Rp ${(n / 1_000_000).toFixed(1)}jt`;
+  if (n >= 1_000)         return `Rp ${(n / 1_000).toFixed(0)}rb`;
+  return `Rp ${n}`;
+};
+
 const inRange = (dateStr: string, start: Date, end: Date) =>
   isWithinInterval(new Date(dateStr), { start, end });
 
@@ -76,12 +84,10 @@ export function Dashboard() {
     return accounts.find(a => a.id === selectedAccountId)?.balance ?? 0;
   }, [accounts, selectedAccountId]);
 
-  // ✅ Exclude transfer dari income/expense calculation
   const income  = useMemo(() => filteredTx.filter(t => t.type === 'income').reduce((s, t)  => s + t.amount, 0), [filteredTx]);
   const expense = useMemo(() => filteredTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0), [filteredTx]);
   const net     = income - expense;
 
-  // ✅ Hitung total transfer (hanya sisi keluar agar tidak double count)
   const transfer = useMemo(() => filteredTx.filter(t => t.type === 'transfer' && t.toAccountId).reduce((s, t) => s + t.amount, 0), [filteredTx]);
 
   const incomeTxCount   = useMemo(() => filteredTx.filter(t => t.type === 'income').length,                    [filteredTx]);
@@ -247,10 +253,11 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* ── Income + Expense + Transfer ── */}
-          <div className={`grid gap-2.5 ${transfer > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          {/* ✅ Income + Expense + Transfer — layout vertikal di mobile */}
+          <div className={`grid gap-2 ${transfer > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            {/* Income */}
             <Card
-              className="bg-white dark:bg-card border-2 border-green-200 dark:border-green-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform"
+              className="bg-white dark:bg-card border-2 border-green-200 dark:border-green-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform overflow-hidden"
               onClick={() => navigate('/transactions?type=income')}
             >
               <CardContent className="pt-3 pb-3 px-3">
@@ -258,20 +265,24 @@ export function Dashboard() {
                   <div className="w-5 h-5 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
                     <TrendingUp size={11} />
                   </div>
-                  <span className="text-xs font-semibold">Income</span>
-                  <span className="ml-auto text-[10px] font-semibold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                  <span className="text-xs font-semibold truncate">Income</span>
+                  <span className="ml-auto text-[10px] font-semibold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-1 py-0.5 rounded-full flex-shrink-0 hidden sm:inline">
                     {income + expense > 0 ? `${((income / (income + expense)) * 100).toFixed(0)}%` : '—'}
                   </span>
                 </div>
-                <p className="text-base font-bold text-foreground leading-tight truncate">{fmt(income)}</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-0.5">
-                  {incomeTxCount} transactions <ChevronRight size={10} className="opacity-50" />
+                {/* Desktop: full, Mobile: short */}
+                <p className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(income)}</p>
+                <p className="text-xs font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(income)}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-0.5 truncate">
+                  <span className="truncate">{incomeTxCount} tx</span>
+                  <ChevronRight size={10} className="opacity-50 flex-shrink-0" />
                 </p>
               </CardContent>
             </Card>
 
+            {/* Expense */}
             <Card
-              className="bg-white dark:bg-card border-2 border-red-200 dark:border-red-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform"
+              className="bg-white dark:bg-card border-2 border-red-200 dark:border-red-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform overflow-hidden"
               onClick={() => navigate('/transactions?type=expense')}
             >
               <CardContent className="pt-3 pb-3 px-3">
@@ -279,22 +290,24 @@ export function Dashboard() {
                   <div className="w-5 h-5 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
                     <TrendingDown size={11} />
                   </div>
-                  <span className="text-xs font-semibold">Expenses</span>
-                  <span className="ml-auto text-[10px] font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                  <span className="text-xs font-semibold truncate">Expense</span>
+                  <span className="ml-auto text-[10px] font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1 py-0.5 rounded-full flex-shrink-0 hidden sm:inline">
                     {income + expense > 0 ? `${((expense / (income + expense)) * 100).toFixed(0)}%` : '—'}
                   </span>
                 </div>
-                <p className="text-base font-bold text-foreground leading-tight truncate">{fmt(expense)}</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-0.5">
-                  {expenseTxCount} transactions <ChevronRight size={10} className="opacity-50" />
+                <p className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(expense)}</p>
+                <p className="text-xs font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(expense)}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-0.5 truncate">
+                  <span className="truncate">{expenseTxCount} tx</span>
+                  <ChevronRight size={10} className="opacity-50 flex-shrink-0" />
                 </p>
               </CardContent>
             </Card>
 
-            {/* ✅ Transfer card — hanya muncul jika ada transfer */}
+            {/* Transfer */}
             {transfer > 0 && (
               <Card
-                className="bg-white dark:bg-card border-2 border-blue-200 dark:border-blue-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform"
+                className="bg-white dark:bg-card border-2 border-blue-200 dark:border-blue-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform overflow-hidden"
                 onClick={() => navigate('/transactions?type=transfer')}
               >
                 <CardContent className="pt-3 pb-3 px-3">
@@ -302,11 +315,13 @@ export function Dashboard() {
                     <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
                       <ArrowLeftRight size={11} />
                     </div>
-                    <span className="text-xs font-semibold">Transfers</span>
+                    <span className="text-xs font-semibold truncate">Transfer</span>
                   </div>
-                  <p className="text-base font-bold text-foreground leading-tight truncate">{fmt(transfer)}</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-0.5">
-                    {transferTxCount} transfers <ChevronRight size={10} className="opacity-50" />
+                  <p className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(transfer)}</p>
+                  <p className="text-xs font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(transfer)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-0.5 truncate">
+                    <span className="truncate">{transferTxCount} tx</span>
+                    <ChevronRight size={10} className="opacity-50 flex-shrink-0" />
                   </p>
                 </CardContent>
               </Card>
@@ -361,7 +376,6 @@ export function Dashboard() {
                     : ''
                   } transactions in ${rangeLabel}.`}
                 />
-
               ) : pieMode === 'both' ? (
                 <>
                   <div className={`rounded-xl px-4 py-3 mb-4 ${net >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
@@ -406,7 +420,6 @@ export function Dashboard() {
                     </div>
                   </div>
                 </>
-
               ) : (
                 <>
                   <div className="w-full" style={{ height: 200 }}>

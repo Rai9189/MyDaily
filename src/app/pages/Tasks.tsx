@@ -3,6 +3,8 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTasks } from '../context/TaskContext';
 import { useCategories } from '../context/CategoryContext';
+import { stripHtml } from '../components/RichTextEditor';
+import { useViewPreferences } from '../hooks/useViewPreferences';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -22,29 +24,21 @@ export function Tasks() {
   const { tasks, loading, error, deleteTask } = useTasks();
   const { categories, getEffectiveCategoryName, getEffectiveCategoryColor } = useCategories();
 
+  const { itemsPerPage, setItemsPerPage, viewMode, setViewMode } = useViewPreferences('tasks');
+
   const [searchQuery, setSearchQuery]         = useState('');
   const [filterStatus, setFilterStatus]       = useState('all');
   const [filterCategory, setFilterCategory]   = useState('all');
   const [filterCompleted, setFilterCompleted] = useState('active');
   const [sortBy, setSortBy]                   = useState<'deadline' | 'status'>('deadline');
   const [sortOrder, setSortOrder]             = useState<'asc' | 'desc'>('asc');
-  const [itemsPerPage, setItemsPerPage]       = useState<number | 'all'>(10);
   const [currentPage, setCurrentPage]         = useState(1);
   const [filterOpen, setFilterOpen]           = useState(false);
-  const [viewMode, setViewMode]               = useState<'list' | 'card'>('list');
 
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting]         = useState(false);
 
   const filterRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)');
-    const handler = (e: MediaQueryListEvent) => { if (!e.matches) setViewMode('card'); };
-    if (!mq.matches) setViewMode('card');
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
 
   const taskCategories = categories.filter(c => c.type === 'task');
 
@@ -391,7 +385,6 @@ export function Tasks() {
             </CardContent>
           </Card>
         ) : viewMode === 'list' ? (
-          /* ── LIST VIEW ── */
           <div className="rounded-xl overflow-hidden w-full bg-white dark:bg-card border-2 border-slate-200 dark:border-border shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full divide-y divide-slate-100 dark:divide-border">
@@ -412,13 +405,9 @@ export function Tasks() {
                       <tr key={task.id}
                         className={`group hover:bg-slate-50 dark:hover:bg-muted/40 cursor-pointer transition-colors ${task.completed ? 'opacity-60' : ''}`}
                         onClick={() => navigate(`/tasks/${task.id}`)}>
-
-                        {/* Dot indicator */}
                         <td className={`pl-4 pr-2 ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                           <div className={`w-2.5 h-2.5 rounded-full ${getDotColor(task)}`} />
                         </td>
-
-                        {/* Title — center, description as tooltip on row hover */}
                         <td className={`px-4 text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                           <div className="relative inline-block">
                             <p className={`text-sm font-semibold leading-tight ${task.completed ? 'line-through text-slate-400' : 'text-foreground'}`}>
@@ -427,36 +416,28 @@ export function Tasks() {
                             {task.description && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover:block pointer-events-none">
                                 <div className="bg-foreground text-background text-xs rounded-lg px-3 py-1.5 whitespace-nowrap max-w-[220px] truncate shadow-lg">
-                                  {task.description}
+                                  {stripHtml(task.description)}
                                 </div>
                                 <div className="w-2 h-2 bg-foreground rotate-45 mx-auto -mt-1" />
                               </div>
                             )}
                           </div>
                         </td>
-
-                        {/* Category — center */}
                         <td className={`px-4 text-center whitespace-nowrap ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                           <span className="text-xs font-medium px-2.5 py-1 rounded-full border inline-block"
                             style={{ borderColor: getCategoryColor(task.categoryId, task.subcategoryId), color: getCategoryColor(task.categoryId, task.subcategoryId) }}>
                             {getCategoryName(task.categoryId, task.subcategoryId)}
                           </span>
                         </td>
-
-                        {/* Deadline — date center, days info center */}
                         <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                           <p className="text-sm text-slate-500 dark:text-foreground/65">
                             {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                           </p>
                           <p className={`text-xs mt-0.5 ${daysInfo.color}`}>{daysInfo.label}</p>
                         </td>
-
-                        {/* Status — center */}
                         <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                           <StatusBadge task={task} />
                         </td>
-
-                        {/* Actions — center */}
                         <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`} onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-foreground"
@@ -475,7 +456,6 @@ export function Tasks() {
             </div>
           </div>
         ) : (
-          /* ── CARD VIEW ── */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {paginatedTasks.map((task) => {
               const daysInfo = getDaysInfo(task.deadline, task.completed);
@@ -493,7 +473,9 @@ export function Tasks() {
                           <StatusBadge task={task} />
                         </div>
                         <p className={`text-sm font-semibold leading-tight ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{task.title}</p>
-                        {task.description && <p className="text-xs text-slate-400 mt-1 line-clamp-2">{task.description}</p>}
+                        {task.description && (
+                          <p className="text-xs text-slate-400 mt-1 line-clamp-2">{stripHtml(task.description)}</p>
+                        )}
                         <div className="flex items-center justify-between mt-3">
                           <div>
                             <p className="text-xs text-slate-500 flex items-center gap-1">

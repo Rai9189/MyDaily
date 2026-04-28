@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../components/ui/badge';
 import {
   ChevronLeft, X, Loader2, FileText, Image as ImageIcon,
-  Save, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ArrowLeftRight,
+  Save, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ArrowLeftRight, Star,
 } from 'lucide-react';
 import { CategorySelect } from '../components/CategorySelect';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
@@ -81,10 +81,13 @@ export function TransactionDetail() {
   const isTransfer          = transaction?.type === 'transfer';
   const originalAcctDeleted = !isNew && transaction && transaction.accountId === null;
 
+  // ✅ Auto-select primary account saat new transaction
+  const primaryAccount = useMemo(() => accounts.find(a => a.is_primary) ?? accounts[0] ?? null, [accounts]);
+
   const [amountDisplay, setAmountDisplay] = useState('');
   const [formData, setFormData] = useState({
     accountId: '',
-    toAccountId: '',  // ✅ untuk transfer
+    toAccountId: '',
     amount: 0,
     type: '' as 'income' | 'expense' | 'transfer' | '',
     date: new Date().toISOString().split('T')[0],
@@ -106,8 +109,7 @@ export function TransactionDetail() {
     return [...parents, ...subs];
   }, [formData.type, categories]);
 
-  // ✅ Akun tujuan tidak boleh sama dengan akun asal
-  const toAccountOptions = accounts.filter(a => a.id !== formData.accountId);
+  const toAccountOptions   = accounts.filter(a => a.id !== formData.accountId);
   const fromAccountOptions = accounts.filter(a => a.id !== formData.toAccountId);
 
   const selectedAccount   = accounts.find(a => a.id === formData.accountId);
@@ -123,7 +125,6 @@ export function TransactionDetail() {
   const typeSelected = formData.type !== '';
   const descLength   = stripHtml(formData.description).length;
 
-  // ✅ Untuk transfer, cari kategori Other Expense/Income sebagai fallback category
   const transferCategoryId = useMemo(() => {
     const other = categories.find(c =>
       c.type === 'transaction' && !c.parentId &&
@@ -133,8 +134,13 @@ export function TransactionDetail() {
   }, [categories]);
 
   useEffect(() => {
-    if (!isNew && transaction) {
-      // Cari pasangan transfer untuk dapatkan toAccountId
+    if (isNew) {
+      if (primaryAccount) {
+        setFormData(prev => ({ ...prev, accountId: primaryAccount.id }));
+      }
+      return;
+    }
+    if (transaction) {
       let toAccId = transaction.toAccountId || '';
       if (isTransfer && !toAccId) {
         const pair = transactions.find(t =>
@@ -142,7 +148,6 @@ export function TransactionDetail() {
         );
         if (pair) toAccId = pair.accountId;
       }
-
       setFormData({
         accountId: transaction.accountId || '',
         toAccountId: toAccId,
@@ -155,7 +160,7 @@ export function TransactionDetail() {
       });
       setAmountDisplay(formatAmountDisplay(transaction.amount));
     }
-  }, [isNew, transaction?.id]);
+  }, [isNew, transaction?.id, primaryAccount?.id]);
 
   useEffect(() => {
     if (!isNew && id) loadAttachments();
@@ -226,7 +231,6 @@ export function TransactionDetail() {
     if (!formData.amount || formData.amount <= 0) { toast.warning('Please enter a valid amount.'); return; }
     if (!formData.type) { toast.warning('Please select a transaction type.'); return; }
 
-    // ✅ Validasi transfer
     if (formData.type === 'transfer') {
       if (!formData.toAccountId) { toast.warning('Please select a destination account.'); return; }
       if (formData.toAccountId === formData.accountId) { toast.warning('Source and destination accounts must be different.'); return; }
@@ -315,7 +319,6 @@ export function TransactionDetail() {
             </button>
           </div>
 
-          {/* Deleted account warning */}
           {originalAcctDeleted && (
             <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800">
               <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
@@ -325,7 +328,6 @@ export function TransactionDetail() {
             </div>
           )}
 
-          {/* ✅ Info transfer — hanya untuk sisi masuk (toAccountId null = sisi masuk) */}
           {!isNew && isTransfer && !transaction?.toAccountId && (
             <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800">
               <ArrowLeftRight size={15} className="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
@@ -344,7 +346,7 @@ export function TransactionDetail() {
             }`}>
               <CardContent className="pt-4 pb-4 px-4 space-y-4">
 
-                {/* Account + Date */}
+                {/* ── Account + Date ── */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="account">
@@ -356,32 +358,54 @@ export function TransactionDetail() {
                         Previously linked to deleted account
                       </div>
                     )}
-                    <Select value={formData.accountId} onValueChange={(v) => setFormData({ ...formData, accountId: v, toAccountId: formData.toAccountId === v ? '' : formData.toAccountId })}>
+                    <Select
+                      value={formData.accountId}
+                      onValueChange={(v) => setFormData({ ...formData, accountId: v, toAccountId: formData.toAccountId === v ? '' : formData.toAccountId })}>
                       <SelectTrigger id="account">
                         {selectedAccount ? (
                           <div className="flex items-center justify-between w-full pr-1">
-                            <span>{selectedAccount.name}</span>
-                            <span className={`text-xs font-medium ml-2 ${isOverBalance || isTransferOverBalance ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="truncate">{selectedAccount.name}</span>
+                              {selectedAccount.is_primary && (
+                                <Star size={11} className="text-amber-500 fill-amber-500 flex-shrink-0" />
+                              )}
+                            </div>
+                            <span className={`text-xs font-medium ml-2 flex-shrink-0 ${isOverBalance || isTransferOverBalance ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
                               {fmt(selectedAccount.balance)}
                             </span>
                           </div>
                         ) : <SelectValue placeholder="Select account" />}
                       </SelectTrigger>
                       <SelectContent>
-                        {(formData.type === 'transfer' ? fromAccountOptions : accounts).map(acc =>
-                          <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
-                        )}
+                        {(formData.type === 'transfer' ? fromAccountOptions : accounts).map(acc => (
+                          <SelectItem key={acc.id} value={acc.id}>
+                            <div className="flex items-center gap-2">
+                              <span>{acc.name}</span>
+                              {acc.is_primary && (
+                                <Star size={11} className="text-amber-500 fill-amber-500 flex-shrink-0" />
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div className="space-y-1.5">
                     <Label htmlFor="date">Date</Label>
-                    <Input id="date" type="date" value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })} required />
+                    {/* ✅ color-scheme fix: ikon kalender native browser rapi di semua mode */}
+                    <Input
+                      id="date"
+                      type="date"
+                      value={formData.date}
+                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                      className="w-full [color-scheme:light] dark:[color-scheme:dark]"
+                      required
+                    />
                   </div>
                 </div>
 
-                {/* Amount */}
+                {/* ── Amount ── */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="amount">Amount <span className="text-destructive">*</span></Label>
@@ -412,34 +436,53 @@ export function TransactionDetail() {
                   )}
                 </div>
 
-                {/* Type */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="type">Type <span className="text-destructive">*</span></Label>
-                  <Select
-                    value={formData.type}
-                    onValueChange={(v) => handleTypeChange(v as 'income' | 'expense' | 'transfer')}
-                    disabled={!isNew && isTransfer} // sisi masuk tidak bisa diubah tipenya
-                  >
-                    <SelectTrigger id="type"><SelectValue placeholder="Select type" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="income">
-                        <div className="flex items-center gap-2"><TrendingUp size={14} className="text-green-600" /><span>Income</span></div>
-                      </SelectItem>
-                      <SelectItem value="expense">
-                        <div className="flex items-center gap-2"><TrendingDown size={14} className="text-red-600" /><span>Expense</span></div>
-                      </SelectItem>
-                      <SelectItem value="transfer" disabled={accounts.length < 2}>
-                        <div className="flex items-center gap-2">
-                          <ArrowLeftRight size={14} className="text-blue-600" />
-                          <span>Transfer</span>
-                          {accounts.length < 2 && <span className="text-xs text-muted-foreground">(need 2+ accounts)</span>}
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                {/* ── Type + Category bersampingan ── */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="type">Type <span className="text-destructive">*</span></Label>
+                    <Select
+                      value={formData.type}
+                      onValueChange={(v) => handleTypeChange(v as 'income' | 'expense' | 'transfer')}
+                      disabled={!isNew && isTransfer}>
+                      <SelectTrigger id="type"><SelectValue placeholder="Select type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="income">
+                          <div className="flex items-center gap-2"><TrendingUp size={14} className="text-green-600" /><span>Income</span></div>
+                        </SelectItem>
+                        <SelectItem value="expense">
+                          <div className="flex items-center gap-2"><TrendingDown size={14} className="text-red-600" /><span>Expense</span></div>
+                        </SelectItem>
+                        <SelectItem value="transfer" disabled={accounts.length < 2}>
+                          <div className="flex items-center gap-2">
+                            <ArrowLeftRight size={14} className="text-blue-600" />
+                            <span>Transfer</span>
+                            {accounts.length < 2 && <span className="text-xs text-muted-foreground">(need 2+ accounts)</span>}
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Category — hanya untuk income/expense, spacer saat transfer */}
+                  {formData.type !== 'transfer' ? (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="category">Category <span className="text-destructive">*</span></Label>
+                      <CategorySelect
+                        id="category"
+                        categories={allCategoriesForType}
+                        value={formData.subcategoryId || formData.categoryId}
+                        onChange={(categoryId, subcategoryId) => setFormData(prev => ({ ...prev, categoryId, subcategoryId }))}
+                        placeholder={typeSelected ? 'Select category' : 'Select type first'}
+                        disabled={!typeSelected}
+                        className={!typeSelected ? 'opacity-50 cursor-not-allowed' : ''}
+                      />
+                    </div>
+                  ) : (
+                    <div className="hidden md:block" />
+                  )}
                 </div>
 
-                {/* ✅ To Account — hanya muncul saat transfer */}
+                {/* ── To Account — hanya saat transfer ── */}
                 {formData.type === 'transfer' && (
                   <div className="space-y-1.5">
                     <Label htmlFor="toAccount">To Account <span className="text-destructive">*</span></Label>
@@ -447,17 +490,29 @@ export function TransactionDetail() {
                       <SelectTrigger id="toAccount">
                         {selectedToAccount ? (
                           <div className="flex items-center justify-between w-full pr-1">
-                            <span>{selectedToAccount.name}</span>
-                            <span className="text-xs font-medium ml-2 text-muted-foreground">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="truncate">{selectedToAccount.name}</span>
+                              {selectedToAccount.is_primary && (
+                                <Star size={11} className="text-amber-500 fill-amber-500 flex-shrink-0" />
+                              )}
+                            </div>
+                            <span className="text-xs font-medium ml-2 text-muted-foreground flex-shrink-0">
                               {fmt(selectedToAccount.balance)}
                             </span>
                           </div>
                         ) : <SelectValue placeholder="Select destination account" />}
                       </SelectTrigger>
                       <SelectContent>
-                        {toAccountOptions.map(acc =>
-                          <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
-                        )}
+                        {toAccountOptions.map(acc => (
+                          <SelectItem key={acc.id} value={acc.id}>
+                            <div className="flex items-center gap-2">
+                              <span>{acc.name}</span>
+                              {acc.is_primary && (
+                                <Star size={11} className="text-amber-500 fill-amber-500 flex-shrink-0" />
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     {formData.accountId && formData.toAccountId && (
@@ -474,23 +529,7 @@ export function TransactionDetail() {
                   </div>
                 )}
 
-                {/* Category — hanya untuk income/expense */}
-                {formData.type !== 'transfer' && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="category">Category <span className="text-destructive">*</span></Label>
-                    <CategorySelect
-                      id="category"
-                      categories={allCategoriesForType}
-                      value={formData.subcategoryId || formData.categoryId}
-                      onChange={(categoryId, subcategoryId) => setFormData(prev => ({ ...prev, categoryId, subcategoryId }))}
-                      placeholder={typeSelected ? 'Select category' : 'Select type first'}
-                      disabled={!typeSelected}
-                      className={!typeSelected ? 'opacity-50 cursor-not-allowed' : ''}
-                    />
-                  </div>
-                )}
-
-                {/* Description */}
+                {/* ── Description ── */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
                     <Label>Description <span className="text-muted-foreground font-normal text-xs">(Optional)</span></Label>
@@ -518,7 +557,7 @@ export function TransactionDetail() {
               </CardContent>
             </Card>
 
-            {/* Attachments — hanya untuk non-transfer */}
+            {/* ── Attachments — hanya untuk non-transfer ── */}
             {!isNew && formData.type !== 'transfer' && (
               <Card className="bg-white dark:bg-card border-2 border-slate-200 dark:border-border shadow-sm rounded-xl">
                 <CardContent className="pt-4 pb-4 px-4 space-y-3">
@@ -555,15 +594,13 @@ export function TransactionDetail() {
               </Card>
             )}
 
-            {/* Summary */}
+            {/* ── Summary ── */}
             {!isNew && transaction && (
               <Card className="bg-white dark:bg-card border-2 border-slate-200 dark:border-border shadow-sm rounded-xl">
                 <CardContent className="pt-4 pb-4 px-4 space-y-2.5">
                   <p className="text-sm font-semibold text-foreground mb-1">Summary</p>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {isTransfer ? 'From Account' : 'Account'}
-                    </span>
+                    <span className="text-muted-foreground">{isTransfer ? 'From Account' : 'Account'}</span>
                     <span className={`font-medium ${!transaction.accountId ? 'text-muted-foreground italic' : 'text-foreground'}`}>
                       {getAccountName(transaction.accountId)}
                     </span>
@@ -600,12 +637,10 @@ export function TransactionDetail() {
               </Card>
             )}
 
-            {/* ✅ Disable submit untuk sisi masuk transfer */}
             <Button
               type="submit"
               className="w-full gap-2"
-              disabled={isBusy || isOverBalance || isTransferOverBalance || (!isNew && isTransfer && !transaction?.toAccountId)}
-            >
+              disabled={isBusy || isOverBalance || isTransferOverBalance || (!isNew && isTransfer && !transaction?.toAccountId)}>
               {isBusy
                 ? <><Loader2 className="w-4 h-4 animate-spin" /> {isUploadingPending ? 'Uploading...' : 'Saving...'}</>
                 : <><Save size={15} /> {isNew ? (formData.type === 'transfer' ? 'Save Transfer' : 'Save Transaction') : (formData.type === 'transfer' ? 'Update Transfer' : 'Update Transaction')}</>

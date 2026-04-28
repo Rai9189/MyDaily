@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTransactions } from '../context/TransactionContext';
 import { useAccounts } from '../context/AccountContext';
 import { useCategories } from '../context/CategoryContext';
+import { stripHtml } from '../components/RichTextEditor';
+import { useViewPreferences } from '../hooks/useViewPreferences';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -24,6 +26,8 @@ export function Transactions() {
   const { accounts }                                        = useAccounts();
   const { categories, getCategoriesByType, getCategoriesBySubtype, getEffectiveCategoryName, getEffectiveCategoryColor } = useCategories();
 
+  const { itemsPerPage, setItemsPerPage, viewMode, setViewMode } = useViewPreferences('transactions');
+
   const [searchQuery, setSearchQuery]       = useState('');
   const [filterAccount, setFilterAccount]   = useState('all');
   const [filterType, setFilterType]         = useState('all');
@@ -32,21 +36,11 @@ export function Transactions() {
   const [dateTo, setDateTo]                 = useState('');
   const [sortBy, setSortBy]                 = useState<'date' | 'amount'>('date');
   const [sortOrder, setSortOrder]           = useState<'asc' | 'desc'>('desc');
-  const [itemsPerPage, setItemsPerPage]     = useState<number | 'all'>(10);
   const [currentPage, setCurrentPage]       = useState(1);
   const [filterOpen, setFilterOpen]         = useState(false);
   const [deleteTarget, setDeleteTarget]     = useState<{ id: string; amount: number; type: string; isTransfer?: boolean } | null>(null);
   const [deleting, setDeleting]             = useState(false);
-  const [viewMode, setViewMode]             = useState<'list' | 'card'>('list');
   const filterRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)');
-    const handler = (e: MediaQueryListEvent) => { if (!e.matches) setViewMode('card'); };
-    if (!mq.matches) setViewMode('card');
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -79,13 +73,10 @@ export function Transactions() {
   const getCategoryName  = (id: string, subId?: string | null) => getEffectiveCategoryName(id, subId);
   const getCategoryColor = (id: string, subId?: string | null) => getEffectiveCategoryColor(id, subId);
 
-  // ✅ Untuk transfer, tampilkan label yang informatif
   const getTransferLabel = (t: any) => {
     if (t.toAccountId) {
-      // Sisi keluar
       return `Transfer → ${getAccountName(t.toAccountId)}`;
     } else {
-      // Sisi masuk — cari pasangan untuk tahu dari mana
       const pair = transactions.find(tx => tx.transferPairId === t.transferPairId && tx.id !== t.id);
       return `Transfer ← ${pair ? getAccountName(pair.accountId) : 'Unknown'}`;
     }
@@ -160,12 +151,7 @@ export function Transactions() {
 
   const handleDeleteRequest = (e: React.MouseEvent, t: any) => {
     e.stopPropagation();
-    setDeleteTarget({
-      id: t.id,
-      amount: t.amount,
-      type: t.type,
-      isTransfer: t.type === 'transfer',
-    });
+    setDeleteTarget({ id: t.id, amount: t.amount, type: t.type, isTransfer: t.type === 'transfer' });
   };
 
   const handleDeleteConfirm = async () => {
@@ -180,7 +166,6 @@ export function Transactions() {
 
   const handleEdit = (e: React.MouseEvent, t: any) => {
     e.stopPropagation();
-    // ✅ Untuk transfer sisi masuk, arahkan ke sisi keluar (yang punya toAccountId)
     if (t.type === 'transfer' && !t.toAccountId) {
       const outTx = transactions.find(tx => tx.transferPairId === t.transferPairId && tx.toAccountId);
       if (outTx) { navigate(`/transactions/${outTx.id}`); return; }
@@ -224,7 +209,6 @@ export function Transactions() {
     </div>
   );
 
-  // ✅ Helper untuk render icon dan warna berdasarkan tipe + arah transfer
   const getTypeIcon = (t: any) => {
     if (t.type === 'transfer') {
       return t.toAccountId
@@ -254,6 +238,14 @@ export function Transactions() {
   const getCardBorder = (t: any) => {
     if (t.type === 'transfer') return 'border-blue-200 dark:border-blue-900/50';
     return t.type === 'income' ? 'border-green-200 dark:border-green-900/50' : 'border-red-200 dark:border-red-900/50';
+  };
+
+  // ✅ Helper format amount ringkas untuk mobile summary
+  const fmtShort = (n: number) => {
+    if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(1)}M`;
+    if (n >= 1_000_000)     return `Rp ${(n / 1_000_000).toFixed(1)}jt`;
+    if (n >= 1_000)         return `Rp ${(n / 1_000).toFixed(0)}rb`;
+    return `Rp ${n}`;
   };
 
   return (
@@ -510,36 +502,45 @@ export function Transactions() {
           </span>
         </div>
 
-        {/* Summary bar */}
+        {/* ✅ Summary bar — compact di mobile, full di desktop */}
         {filteredTransactions.length > 0 && (
-          <div className={`grid gap-3 ${summaryTransfer > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-            <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/10 border-2 border-green-200 dark:border-green-900/40">
-              <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-                <TrendingUp size={15} className="text-green-600 dark:text-green-400" />
+          <div className={`grid gap-2 ${summaryTransfer > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            {/* Income */}
+            <div className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/10 border-2 border-green-200 dark:border-green-900/40 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <div className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                  <TrendingUp size={12} className="text-green-600 dark:text-green-400" />
+                </div>
+                <p className="text-xs text-green-700 dark:text-green-400 font-medium truncate">Income</p>
               </div>
-              <div>
-                <p className="text-xs text-green-700 dark:text-green-400 font-medium">Total Income</p>
-                <p className="text-sm font-bold text-green-700 dark:text-green-300">{fmt(summaryIncome)}</p>
-              </div>
+              {/* Desktop: full format. Mobile: short format */}
+              <p className="text-sm font-bold text-green-700 dark:text-green-300 truncate hidden sm:block">{fmt(summaryIncome)}</p>
+              <p className="text-sm font-bold text-green-700 dark:text-green-300 truncate sm:hidden">{fmtShort(summaryIncome)}</p>
             </div>
-            <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/10 border-2 border-red-200 dark:border-red-900/40">
-              <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
-                <TrendingDown size={15} className="text-red-600 dark:text-red-400" />
+
+            {/* Expense */}
+            <div className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/10 border-2 border-red-200 dark:border-red-900/40 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                  <TrendingDown size={12} className="text-red-600 dark:text-red-400" />
+                </div>
+                <p className="text-xs text-red-700 dark:text-red-400 font-medium truncate">Expense</p>
               </div>
-              <div>
-                <p className="text-xs text-red-700 dark:text-red-400 font-medium">Total Expense</p>
-                <p className="text-sm font-bold text-red-700 dark:text-red-300">{fmt(summaryExpense)}</p>
-              </div>
+              <p className="text-sm font-bold text-red-700 dark:text-red-300 truncate hidden sm:block">{fmt(summaryExpense)}</p>
+              <p className="text-sm font-bold text-red-700 dark:text-red-300 truncate sm:hidden">{fmtShort(summaryExpense)}</p>
             </div>
+
+            {/* Transfer */}
             {summaryTransfer > 0 && (
-              <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/10 border-2 border-blue-200 dark:border-blue-900/40">
-                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                  <ArrowLeftRight size={15} className="text-blue-600 dark:text-blue-400" />
+              <div className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/10 border-2 border-blue-200 dark:border-blue-900/40 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                    <ArrowLeftRight size={12} className="text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <p className="text-xs text-blue-700 dark:text-blue-400 font-medium truncate">Transfer</p>
                 </div>
-                <div>
-                  <p className="text-xs text-blue-700 dark:text-blue-400 font-medium">Transferred</p>
-                  <p className="text-sm font-bold text-blue-700 dark:text-blue-300">{fmt(summaryTransfer)}</p>
-                </div>
+                <p className="text-sm font-bold text-blue-700 dark:text-blue-300 truncate hidden sm:block">{fmt(summaryTransfer)}</p>
+                <p className="text-sm font-bold text-blue-700 dark:text-blue-300 truncate sm:hidden">{fmtShort(summaryTransfer)}</p>
               </div>
             )}
           </div>
@@ -575,7 +576,6 @@ export function Transactions() {
                     <tr key={t.id}
                       className="group hover:bg-slate-50 dark:hover:bg-muted/40 cursor-pointer transition-colors relative"
                       onClick={() => navigate(`/transactions/${t.id}`)}>
-
                       <td className={`pl-0 pr-2 whitespace-nowrap ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <div className="flex items-center gap-0">
                           <div className={`w-1 self-stretch rounded-r-full mr-3 ${
@@ -588,7 +588,6 @@ export function Transactions() {
                           </div>
                         </div>
                       </td>
-
                       <td className={`px-4 text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <div className="relative inline-block">
                           {t.type === 'transfer' ? (
@@ -604,32 +603,28 @@ export function Transactions() {
                           {t.description && (
                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover:block pointer-events-none">
                               <div className="bg-foreground text-background text-xs rounded-lg px-3 py-1.5 whitespace-nowrap max-w-[200px] truncate shadow-lg">
-                                {t.description}
+                                {stripHtml(t.description)}
                               </div>
                               <div className="w-2 h-2 bg-foreground rotate-45 mx-auto -mt-1" />
                             </div>
                           )}
                         </div>
                       </td>
-
                       <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <span className={`text-sm font-medium ${isDeletedAccount(t.accountId) ? 'text-muted-foreground italic' : 'text-foreground'}`}>
                           {getAccountName(t.accountId)}
                         </span>
                       </td>
-
                       <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <span className="text-sm text-slate-500 dark:text-foreground/65">
                           {new Date(t.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </span>
                       </td>
-
                       <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                         <span className={`text-sm font-bold ${getAmountColor(t)}`}>
                           {getAmountPrefix(t)}{fmt(t.amount)}
                         </span>
                       </td>
-
                       <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`} onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-foreground"
@@ -698,7 +693,7 @@ export function Transactions() {
                     {t.description && (
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">Note</span>
-                        <span className="text-foreground/70 truncate max-w-[60%] text-right">{t.description}</span>
+                        <span className="text-foreground/70 truncate max-w-[60%] text-right">{stripHtml(t.description)}</span>
                       </div>
                     )}
                     {t.attachments && t.attachments.length > 0 && (
