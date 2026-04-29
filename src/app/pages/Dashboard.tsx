@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import {
   AlertCircle, Wallet, TrendingUp, TrendingDown,
   CalendarX, CheckCircle2, Clock, CalendarClock, ChevronRight, ChevronDown, BarChart2,
-  Info, ArrowLeftRight,
+  Info, ArrowLeftRight, X,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { isWithinInterval, isAfter, isBefore, addDays, format } from 'date-fns';
@@ -24,18 +24,21 @@ const fmt = (n: number) =>
     maximumFractionDigits: 2,
   }).format(n);
 
-// ✅ Format ringkas untuk mobile
+// ✅ Format ringkas untuk mobile — 2 desimal lebih informatif
 const fmtShort = (n: number) => {
-  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(1)}M`;
-  if (n >= 1_000_000)     return `Rp ${(n / 1_000_000).toFixed(1)}jt`;
-  if (n >= 1_000)         return `Rp ${(n / 1_000).toFixed(0)}rb`;
-  return `Rp ${n}`;
+  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)}M`;
+  if (n >= 1_000_000)     return `Rp ${(n / 1_000_000).toFixed(2)}jt`;
+  if (n >= 1_000)         return `Rp ${(n / 1_000).toFixed(1)}rb`;
+  return `Rp ${n.toLocaleString('id-ID')}`;
 };
 
 const inRange = (dateStr: string, start: Date, end: Date) =>
   isWithinInterval(new Date(dateStr), { start, end });
 
 type PieMode = 'income' | 'expense' | 'both';
+
+// ✅ Tipe popup
+type PopupType = 'income' | 'expense' | 'transfer' | null;
 
 function CustomPieTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
@@ -59,6 +62,110 @@ function EmptyState({ label }: { label: string }) {
   );
 }
 
+// ✅ Komponen Popup Detail
+function SummaryPopup({
+  type,
+  amount,
+  txCount,
+  percentage,
+  onClose,
+  onViewAll,
+}: {
+  type: PopupType;
+  amount: number;
+  txCount: number;
+  percentage?: string;
+  onClose: () => void;
+  onViewAll: () => void;
+}) {
+  if (!type) return null;
+
+  const config = {
+    income: {
+      label: 'Income',
+      icon: <TrendingUp size={18} />,
+      color: 'text-green-600 dark:text-green-400',
+      bg: 'bg-green-50 dark:bg-green-900/20',
+      border: 'border-green-200 dark:border-green-800',
+      iconBg: 'bg-green-100 dark:bg-green-900/40',
+    },
+    expense: {
+      label: 'Expense',
+      icon: <TrendingDown size={18} />,
+      color: 'text-red-600 dark:text-red-400',
+      bg: 'bg-red-50 dark:bg-red-900/20',
+      border: 'border-red-200 dark:border-red-800',
+      iconBg: 'bg-red-100 dark:bg-red-900/40',
+    },
+    transfer: {
+      label: 'Transfer',
+      icon: <ArrowLeftRight size={18} />,
+      color: 'text-blue-600 dark:text-blue-400',
+      bg: 'bg-blue-50 dark:bg-blue-900/20',
+      border: 'border-blue-200 dark:border-blue-800',
+      iconBg: 'bg-blue-100 dark:bg-blue-900/40',
+    },
+  };
+
+  const c = config[type];
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
+        onClick={onClose}
+      />
+      {/* Popup */}
+      <div className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-72 rounded-2xl border-2 ${c.border} ${c.bg} shadow-2xl p-5 animate-in fade-in zoom-in-95 duration-150`}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className={`w-9 h-9 rounded-full ${c.iconBg} flex items-center justify-center ${c.color}`}>
+              {c.icon}
+            </div>
+            <span className={`font-semibold text-base ${c.color}`}>{c.label}</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Amount full */}
+        <div className="mb-3">
+          <p className="text-xs text-muted-foreground mb-1">Total Amount</p>
+          <p className={`text-2xl font-bold tracking-tight ${c.color}`}>{fmt(amount)}</p>
+        </div>
+
+        {/* Info row */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 bg-white/60 dark:bg-black/20 rounded-xl px-3 py-2 text-center">
+            <p className="text-xs text-muted-foreground">Transactions</p>
+            <p className="text-lg font-bold text-foreground">{txCount}</p>
+          </div>
+          {percentage && (
+            <div className="flex-1 bg-white/60 dark:bg-black/20 rounded-xl px-3 py-2 text-center">
+              <p className="text-xs text-muted-foreground">Portion</p>
+              <p className={`text-lg font-bold ${c.color}`}>{percentage}%</p>
+            </div>
+          )}
+        </div>
+
+        {/* View All button */}
+        <button
+          onClick={onViewAll}
+          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] ${c.iconBg} ${c.color} hover:opacity-80 flex items-center justify-center gap-1.5`}
+        >
+          View All {c.label} <ChevronRight size={15} />
+        </button>
+      </div>
+    </>
+  );
+}
+
 export function Dashboard() {
   const navigate = useNavigate();
   const { accounts, loading: aL } = useAccounts();
@@ -70,6 +177,8 @@ export function Dashboard() {
   const [pieMode, setPieMode] = useState<PieMode>('both');
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
+  // ✅ State popup
+  const [activePopup, setActivePopup] = useState<PopupType>(null);
 
   const filteredTx = useMemo(
     () => transactions.filter(t =>
@@ -93,6 +202,9 @@ export function Dashboard() {
   const incomeTxCount   = useMemo(() => filteredTx.filter(t => t.type === 'income').length,                    [filteredTx]);
   const expenseTxCount  = useMemo(() => filteredTx.filter(t => t.type === 'expense').length,                   [filteredTx]);
   const transferTxCount = useMemo(() => filteredTx.filter(t => t.type === 'transfer' && t.toAccountId).length, [filteredTx]);
+
+  const incomePercent  = income + expense > 0 ? ((income  / (income + expense)) * 100).toFixed(0) : undefined;
+  const expensePercent = income + expense > 0 ? ((expense / (income + expense)) * 100).toFixed(0) : undefined;
 
   const pieData = useMemo(() => {
     if (pieMode === 'both') {
@@ -253,12 +365,12 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* ✅ Income + Expense + Transfer — layout vertikal di mobile */}
+          {/* ✅ Income + Expense + Transfer cards */}
           <div className={`grid gap-2 ${transfer > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
             {/* Income */}
             <Card
               className="bg-white dark:bg-card border-2 border-green-200 dark:border-green-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform overflow-hidden"
-              onClick={() => navigate('/transactions?type=income')}
+              onClick={() => setActivePopup('income')}
             >
               <CardContent className="pt-3 pb-3 px-3">
                 <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400 mb-1.5">
@@ -270,9 +382,9 @@ export function Dashboard() {
                     {income + expense > 0 ? `${((income / (income + expense)) * 100).toFixed(0)}%` : '—'}
                   </span>
                 </div>
-                {/* Desktop: full, Mobile: short */}
+                {/* Desktop: full, Mobile: short — font diperbesar */}
                 <p className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(income)}</p>
-                <p className="text-xs font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(income)}</p>
+                <p className="text-base font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(income)}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-0.5 truncate">
                   <span className="truncate">{incomeTxCount} tx</span>
                   <ChevronRight size={10} className="opacity-50 flex-shrink-0" />
@@ -283,7 +395,7 @@ export function Dashboard() {
             {/* Expense */}
             <Card
               className="bg-white dark:bg-card border-2 border-red-200 dark:border-red-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform overflow-hidden"
-              onClick={() => navigate('/transactions?type=expense')}
+              onClick={() => setActivePopup('expense')}
             >
               <CardContent className="pt-3 pb-3 px-3">
                 <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 mb-1.5">
@@ -296,7 +408,7 @@ export function Dashboard() {
                   </span>
                 </div>
                 <p className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(expense)}</p>
-                <p className="text-xs font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(expense)}</p>
+                <p className="text-base font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(expense)}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-0.5 truncate">
                   <span className="truncate">{expenseTxCount} tx</span>
                   <ChevronRight size={10} className="opacity-50 flex-shrink-0" />
@@ -308,7 +420,7 @@ export function Dashboard() {
             {transfer > 0 && (
               <Card
                 className="bg-white dark:bg-card border-2 border-blue-200 dark:border-blue-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform overflow-hidden"
-                onClick={() => navigate('/transactions?type=transfer')}
+                onClick={() => setActivePopup('transfer')}
               >
                 <CardContent className="pt-3 pb-3 px-3">
                   <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 mb-1.5">
@@ -318,7 +430,7 @@ export function Dashboard() {
                     <span className="text-xs font-semibold truncate">Transfer</span>
                   </div>
                   <p className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(transfer)}</p>
-                  <p className="text-xs font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(transfer)}</p>
+                  <p className="text-base font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(transfer)}</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-0.5 truncate">
                     <span className="truncate">{transferTxCount} tx</span>
                     <ChevronRight size={10} className="opacity-50 flex-shrink-0" />
@@ -327,6 +439,37 @@ export function Dashboard() {
               </Card>
             )}
           </div>
+
+          {/* ✅ Popup detail */}
+          {activePopup === 'income' && (
+            <SummaryPopup
+              type="income"
+              amount={income}
+              txCount={incomeTxCount}
+              percentage={incomePercent}
+              onClose={() => setActivePopup(null)}
+              onViewAll={() => { setActivePopup(null); navigate('/transactions?type=income'); }}
+            />
+          )}
+          {activePopup === 'expense' && (
+            <SummaryPopup
+              type="expense"
+              amount={expense}
+              txCount={expenseTxCount}
+              percentage={expensePercent}
+              onClose={() => setActivePopup(null)}
+              onViewAll={() => { setActivePopup(null); navigate('/transactions?type=expense'); }}
+            />
+          )}
+          {activePopup === 'transfer' && (
+            <SummaryPopup
+              type="transfer"
+              amount={transfer}
+              txCount={transferTxCount}
+              onClose={() => setActivePopup(null)}
+              onViewAll={() => { setActivePopup(null); navigate('/transactions?type=transfer'); }}
+            />
+          )}
 
           {/* ── Transaction Chart ── */}
           <Card className="bg-white dark:bg-card border-2 border-blue-200 dark:border-blue-900/50 shadow-sm rounded-xl">

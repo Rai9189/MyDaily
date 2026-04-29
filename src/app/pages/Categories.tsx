@@ -166,7 +166,7 @@ export function Categories() {
     loading, error,
     getCategoriesByType, getSubcategories, hasSubcategories,
     createCategory, updateCategory, deleteCategory,
-    reorderCategories, resetCategoryOrder,
+    reorderCategories, resetCategoryOrder, refreshCategories,
   } = useCategories();
   const { transactions } = useTransactions();
   const { tasks }        = useTasks();
@@ -301,6 +301,7 @@ export function Categories() {
             }
             orderRef.current = {};
             setOrderVersion(v => v + 1);
+            await refreshCategories();
             toast.success('Order reset to default!');
           } finally {
             setResetting(false);

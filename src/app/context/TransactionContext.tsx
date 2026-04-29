@@ -44,6 +44,7 @@ function mapToTransaction(row: any): Transaction {
     amount: row.amount,
     type: row.type,
     date: row.date,
+    createdAt: row.created_at ?? null,   // ✅ map created_at dari DB
     description: row.description || '',
     attachments: row.attachments || [],
     transferPairId: row.transfer_pair_id ?? null,
@@ -68,7 +69,10 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         .select('*')
         .eq('user_id', user.id)
         .is('deleted_at', null)
-        .order('date', { ascending: false });
+        // ✅ Sort by date desc, lalu created_at desc sebagai tiebreaker
+        // Transaksi di hari yang sama tampil berdasarkan urutan dibuat
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false });
       if (fetchError) throw fetchError;
       setTransactions((data || []).map(mapToTransaction));
     } catch (err) {
@@ -114,6 +118,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         .single();
       if (insertError) throw insertError;
       const mapped = mapToTransaction(data);
+      // ✅ Insert di posisi paling atas (paling baru)
       setTransactions(prev => [mapped, ...prev]);
       const delta = transaction.type === 'income' ? transaction.amount : -transaction.amount;
       updateBalanceLocally(transaction.accountId, delta);
@@ -125,7 +130,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ✅ Buat 2 transaksi transfer sekaligus dengan transfer_pair_id yang sama
   const createTransfer = async ({
     fromAccountId, toAccountId, amount, date, description, categoryId,
   }: {
@@ -142,7 +146,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
       const pairId = crypto.randomUUID();
 
-      // Transaksi keluar (expense dari akun asal)
       const { data: outData, error: outError } = await supabase
         .from('transactions')
         .insert({
@@ -160,7 +163,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         .single();
       if (outError) throw outError;
 
-      // Transaksi masuk (income ke akun tujuan)
       const { data: inData, error: inError } = await supabase
         .from('transactions')
         .insert({
@@ -182,7 +184,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       const mappedIn  = mapToTransaction(inData);
       setTransactions(prev => [mappedOut, mappedIn, ...prev]);
 
-      // Update saldo lokal
       updateBalanceLocally(fromAccountId, -amount);
       updateBalanceLocally(toAccountId, amount);
 
@@ -200,13 +201,13 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       if (!id || id === 'new') throw new Error('Invalid transaction ID');
       const oldTransaction = transactions.find(t => t.id === id);
       const dbUpdates: any = {};
-      if (updates.accountId    !== undefined) dbUpdates.account_id     = updates.accountId;
-      if (updates.categoryId   !== undefined) dbUpdates.category_id    = updates.categoryId;
+      if (updates.accountId     !== undefined) dbUpdates.account_id     = updates.accountId;
+      if (updates.categoryId    !== undefined) dbUpdates.category_id    = updates.categoryId;
       if (updates.subcategoryId !== undefined) dbUpdates.subcategory_id = updates.subcategoryId ?? null;
-      if (updates.amount       !== undefined) dbUpdates.amount         = updates.amount;
-      if (updates.type         !== undefined) dbUpdates.type           = updates.type;
-      if (updates.date         !== undefined) dbUpdates.date           = updates.date;
-      if (updates.description  !== undefined) dbUpdates.description    = updates.description;
+      if (updates.amount        !== undefined) dbUpdates.amount         = updates.amount;
+      if (updates.type          !== undefined) dbUpdates.type           = updates.type;
+      if (updates.date          !== undefined) dbUpdates.date           = updates.date;
+      if (updates.description   !== undefined) dbUpdates.description    = updates.description;
       const { error: updateError } = await supabase.from('transactions').update(dbUpdates).eq('id', id);
       if (updateError) throw updateError;
       setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
@@ -227,7 +228,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ✅ Update kedua transaksi transfer sekaligus
   const updateTransfer = async (id: string, updates: {
     fromAccountId: string;
     toAccountId: string;
@@ -241,16 +241,13 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       const outTx = transactions.find(t => t.id === id);
       if (!outTx || !outTx.transferPairId) throw new Error('Transfer not found');
 
-      // Cari pasangan transaksi (yang to_account_id null = sisi masuk)
       const inTx = transactions.find(t =>
         t.transferPairId === outTx.transferPairId && t.id !== id
       );
 
-      // Revert saldo lama
       updateBalanceLocally(outTx.accountId, outTx.amount);
       if (inTx) updateBalanceLocally(inTx.accountId, -inTx.amount);
 
-      // Update sisi keluar
       const { error: outError } = await supabase
         .from('transactions')
         .update({
@@ -264,7 +261,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         .eq('id', id);
       if (outError) throw outError;
 
-      // Update sisi masuk
       if (inTx) {
         const { error: inError } = await supabase
           .from('transactions')
@@ -279,14 +275,12 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         if (inError) throw inError;
       }
 
-      // Update state lokal
       setTransactions(prev => prev.map(t => {
         if (t.id === id) return { ...t, accountId: updates.fromAccountId, toAccountId: updates.toAccountId, amount: updates.amount, date: updates.date, description: updates.description || '', categoryId: updates.categoryId };
         if (inTx && t.id === inTx.id) return { ...t, accountId: updates.toAccountId, amount: updates.amount, date: updates.date, description: updates.description || '', categoryId: updates.categoryId };
         return t;
       }));
 
-      // Apply saldo baru
       updateBalanceLocally(updates.fromAccountId, -updates.amount);
       updateBalanceLocally(updates.toAccountId, updates.amount);
 
@@ -303,7 +297,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       setError(null);
       const transaction = transactions.find(t => t.id === id);
 
-      // ✅ Jika transfer, hapus pasangannya juga
       if (transaction?.type === 'transfer' && transaction.transferPairId) {
         const pairTx = transactions.find(t =>
           t.transferPairId === transaction.transferPairId && t.id !== id
@@ -318,13 +311,10 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
         setTransactions(prev => prev.filter(t => t.transferPairId !== transaction.transferPairId));
 
-        // Revert kedua saldo
         if (transaction.toAccountId) {
-          // Ini sisi keluar
           updateBalanceLocally(transaction.accountId, transaction.amount);
           if (pairTx) updateBalanceLocally(pairTx.accountId, -pairTx.amount);
         } else {
-          // Ini sisi masuk
           updateBalanceLocally(transaction.accountId, -transaction.amount);
           if (pairTx) updateBalanceLocally(pairTx.accountId, pairTx.amount);
         }

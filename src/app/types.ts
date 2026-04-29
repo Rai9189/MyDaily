@@ -7,6 +7,7 @@ export interface Account {
   name: string;
   type: AccountType;
   balance: number;
+  is_primary?: boolean;
 }
 
 export type TransactionType = 'income' | 'expense' | 'transfer';
@@ -34,13 +35,14 @@ export interface Transaction {
   amount: number;
   type: TransactionType;
   date: string;
+  createdAt?: string;              // ✅ timestamp untuk sorting dalam satu hari
   categoryId: string;
   subcategoryId?: string | null;
   description?: string;
   attachments?: Attachment[];
   // ✅ Transfer fields
-  transferPairId?: string | null;  // ID pasangan transaksi transfer
-  toAccountId?: string | null;     // Akun tujuan (hanya di sisi "out")
+  transferPairId?: string | null;
+  toAccountId?: string | null;
 }
 
 export type TaskStatus = 'on_track' | 'upcoming' | 'urgent' | 'overdue';
@@ -49,6 +51,7 @@ export interface Task {
   id: string;
   title: string;
   deadline: string;
+  createdAt?: string;              // ✅ tiebreaker untuk task dengan deadline sama
   status: TaskStatus;
   completed: boolean;
   categoryId: string;

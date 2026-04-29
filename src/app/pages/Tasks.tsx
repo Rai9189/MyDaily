@@ -124,15 +124,23 @@ export function Tasks() {
     if (filterCategory !== 'all') result = result.filter(t => t.categoryId === filterCategory || t.subcategoryId === filterCategory);
     if (filterCompleted === 'completed') result = result.filter(t =>  t.completed);
     if (filterCompleted === 'active')    result = result.filter(t => !t.completed);
+
     result.sort((a, b) => {
-      if (sortBy === 'deadline') return sortOrder === 'asc'
-        ? new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
-        : new Date(b.deadline).getTime() - new Date(a.deadline).getTime();
+      if (sortBy === 'deadline') {
+        const deadlineDiff = new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+        // ✅ Jika deadline sama, pakai createdAt sebagai tiebreaker
+        if (deadlineDiff !== 0) return sortOrder === 'asc' ? deadlineDiff : -deadlineDiff;
+        const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        // Task yang dibuat lebih baru muncul lebih atas
+        return bCreated - aCreated;
+      }
       const order = { overdue: 4, urgent: 3, upcoming: 2, on_track: 1 };
       const va = order[a.status as keyof typeof order] ?? 0;
       const vb = order[b.status as keyof typeof order] ?? 0;
       return sortOrder === 'asc' ? vb - va : va - vb;
     });
+
     return result;
   }, [tasks, searchQuery, filterStatus, filterCategory, filterCompleted, sortBy, sortOrder]);
 

@@ -64,7 +64,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setError(null);
       if (!user) throw new Error('User not authenticated');
 
-      // Jika ini akun pertama, otomatis jadikan primary
       const isFirst = accounts.length === 0;
 
       const { data, error: insertError } = await supabase
@@ -80,7 +79,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         .single();
       if (insertError) throw insertError;
 
-      // Primary muncul di atas
       setAccounts(prev => isFirst ? [data, ...prev] : [...prev, data]);
       return { success: true, error: null };
     } catch (err) {
@@ -104,13 +102,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ✅ Set akun sebagai primary — unset yang lain dulu, lalu set yang baru
   const setPrimaryAccount = async (id: string) => {
     try {
       setError(null);
       if (!user) throw new Error('User not authenticated');
 
-      // Unset semua primary milik user ini
       const { error: unsetError } = await supabase
         .from('accounts')
         .update({ is_primary: false })
@@ -118,14 +114,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         .eq('is_primary', true);
       if (unsetError) throw unsetError;
 
-      // Set yang dipilih jadi primary
       const { error: setPrimaryError } = await supabase
         .from('accounts')
         .update({ is_primary: true })
         .eq('id', id);
       if (setPrimaryError) throw setPrimaryError;
 
-      // Update local state — primary muncul di atas
       setAccounts(prev => {
         const updated = prev.map(acc => ({ ...acc, is_primary: acc.id === id }));
         return [
@@ -185,13 +179,29 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setError(null);
       if (!user) throw new Error('User not authenticated');
 
+      // ✅ FIX: newBalance adalah nilai ABSOLUT yang diinginkan user (misal 50.000)
+      // bukan hasil kalkulasi — pastikan kita pakai nilai ini langsung ke DB
       const newBalance = updates.balance ?? oldBalance;
+
+      // ✅ diff hanya untuk menentukan amount & type transaksi adjustment
+      // diff = 50.000 - 99.000 = -49.000 → expense 49.000
       const diff = newBalance - oldBalance;
 
-      const { error: updateError } = await supabase.from('accounts').update(updates).eq('id', id);
+      // ✅ Step 1: Set balance account langsung ke newBalance di DB
+      const { error: updateError } = await supabase
+        .from('accounts')
+        .update(updates)
+        .eq('id', id);
       if (updateError) throw updateError;
+
+      // ✅ Step 2: Update local state langsung ke nilai absolut (bukan delta)
+      // Ini mencegah double-hit dari updateBalanceLocally
       setAccounts(prev => prev.map(acc => (acc.id === id ? { ...acc, ...updates } : acc)));
 
+      // ✅ Step 3: Catat transaksi adjustment sebesar Math.abs(diff)
+      // Transaksi ini HANYA sebagai catatan historis — balance sudah di-set di Step 1
+      // Kita INSERT langsung ke Supabase tanpa memanggil createTransaction()
+      // agar tidak ada updateBalanceLocally yang ikut jalan
       if (diff !== 0) {
         const type = diff > 0 ? 'income' : 'expense';
         const amount = Math.abs(diff);
@@ -205,8 +215,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             amount,
             type,
             date: new Date().toISOString().split('T')[0],
-            description: `Balance adjustment (${diff > 0 ? '+' : '-'}${amount.toLocaleString('id-ID')})`,
+            description: `Balance adjustment (${oldBalance.toLocaleString('id-ID')} → ${newBalance.toLocaleString('id-ID')})`,
           });
+
+          // ✅ Emit event agar TransactionContext refresh daftar transaksi
+          // tapi JANGAN panggil updateBalanceLocally — balance sudah benar di Step 2
           trashEvents.emitTransactionCreated();
         }
       }
@@ -232,7 +245,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       const remaining = accounts.filter(acc => acc.id !== id);
       setAccounts(remaining);
 
-      // Jika yang dihapus adalah primary, otomatis set akun pertama yang tersisa jadi primary
       if (accountToDelete?.is_primary && remaining.length > 0) {
         await setPrimaryAccount(remaining[0].id);
       }

@@ -36,7 +36,12 @@ function formatBalanceDisplay(value: number): string {
 }
 
 function parseBalanceInput(display: string): number {
-  const normalized = display.replace(/\./g, '').replace(',', '.');
+  // Format Indonesia: titik = ribuan, koma = desimal
+  // "50.000"     → "50000"     → 50000
+  // "300.010,50" → "300010.50" → 300010.50
+  const normalized = display
+    .replace(/\./g, '')  // hapus semua titik (pemisah ribuan)
+    .replace(',', '.');  // ganti koma desimal ke titik (JS standard)
   const parsed = parseFloat(normalized);
   return isNaN(parsed) ? 0 : parsed;
 }
@@ -72,8 +77,9 @@ export function Accounts() {
   const [adjustConfirm, setAdjustConfirm] = useState<{
     open: boolean;
     diff: number;
+    newBalance: number;
     pendingSubmit: (() => Promise<void>) | null;
-  }>({ open: false, diff: 0, pendingSubmit: null });
+  }>({ open: false, diff: 0, newBalance: 0, pendingSubmit: null });
 
   const closeConfirm = () => setConfirmState(DEFAULT_CONFIRM);
 
@@ -128,6 +134,7 @@ export function Accounts() {
 
     if (editingAccount && formData.balance !== editingAccount.balance) {
       const diff = formData.balance - editingAccount.balance;
+      const newBalance = formData.balance;
       const snapshotAccount = editingAccount;
       const snapshotForm = { ...formData };
 
@@ -148,7 +155,7 @@ export function Accounts() {
 
       setIsDialogOpen(false);
       setTimeout(() => {
-        setAdjustConfirm({ open: true, diff, pendingSubmit: doSubmit });
+        setAdjustConfirm({ open: true, diff, newBalance, pendingSubmit: doSubmit });
       }, 150);
       return;
     }
@@ -179,11 +186,13 @@ export function Accounts() {
     setSettingPrimaryId(null);
   };
 
+  // ✅ FIX: closeConfirm() selalu dipanggil setelah delete, sukses maupun gagal
   const handleDelete = (id: string, name: string) => {
     setConfirmState({
       open: true,
       accountName: name,
       onConfirm: async () => {
+        closeConfirm();
         const { success, error } = await deleteAccount(id);
         if (success) toast.success('Account deleted');
         else toast.error(error || 'Failed to delete account');
@@ -375,7 +384,6 @@ export function Accounts() {
                           <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
                             {cfg.icon}{account.type}
                           </span>
-                          {/* ✅ Badge Primary */}
                           {isPrimary && (
                             <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700">
                               <Star size={10} className="fill-current" /> Primary
@@ -383,7 +391,6 @@ export function Accounts() {
                           )}
                         </div>
                         <div className="flex items-center gap-0" onClick={e => e.stopPropagation()}>
-                          {/* ✅ Tombol Set as Primary — hanya muncul jika belum primary */}
                           {!isPrimary && (
                             <Button
                               variant="ghost"
@@ -426,7 +433,6 @@ export function Accounts() {
             </div>
           )}
 
-          {/* Info hint */}
           {accounts.length > 1 && (
             <p className="text-xs text-muted-foreground/60 text-center">
               Tap <Star size={10} className="inline" /> on an account to set it as the default for new transactions
@@ -463,7 +469,7 @@ export function Accounts() {
           setAdjustConfirm(prev => ({ ...prev, open: false }));
           if (adjustConfirm.pendingSubmit) await adjustConfirm.pendingSubmit();
         }}
-        onCancel={() => setAdjustConfirm({ open: false, diff: 0, pendingSubmit: null })}
+        onCancel={() => setAdjustConfirm({ open: false, diff: 0, newBalance: 0, pendingSubmit: null })}
       />
     </div>
   );

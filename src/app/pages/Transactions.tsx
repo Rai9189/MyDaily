@@ -20,6 +20,129 @@ import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
+// ✅ Tipe popup
+type PopupType = 'income' | 'expense' | 'transfer' | null;
+
+const fmt = (n: number) =>
+  new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(n);
+
+// ✅ Format ringkas untuk mobile — 2 desimal
+const fmtShort = (n: number) => {
+  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)}M`;
+  if (n >= 1_000_000)     return `Rp ${(n / 1_000_000).toFixed(2)}jt`;
+  if (n >= 1_000)         return `Rp ${(n / 1_000).toFixed(1)}rb`;
+  return `Rp ${n.toLocaleString('id-ID')}`;
+};
+
+// ✅ Komponen Popup Detail
+function SummaryPopup({
+  type,
+  amount,
+  txCount,
+  percentage,
+  onClose,
+  onViewAll,
+}: {
+  type: PopupType;
+  amount: number;
+  txCount: number;
+  percentage?: string;
+  onClose: () => void;
+  onViewAll: () => void;
+}) {
+  if (!type) return null;
+
+  const config = {
+    income: {
+      label: 'Income',
+      icon: <TrendingUp size={18} />,
+      color: 'text-green-600 dark:text-green-400',
+      bg: 'bg-green-50 dark:bg-green-900/20',
+      border: 'border-green-200 dark:border-green-800',
+      iconBg: 'bg-green-100 dark:bg-green-900/40',
+    },
+    expense: {
+      label: 'Expense',
+      icon: <TrendingDown size={18} />,
+      color: 'text-red-600 dark:text-red-400',
+      bg: 'bg-red-50 dark:bg-red-900/20',
+      border: 'border-red-200 dark:border-red-800',
+      iconBg: 'bg-red-100 dark:bg-red-900/40',
+    },
+    transfer: {
+      label: 'Transfer',
+      icon: <ArrowLeftRight size={18} />,
+      color: 'text-blue-600 dark:text-blue-400',
+      bg: 'bg-blue-50 dark:bg-blue-900/20',
+      border: 'border-blue-200 dark:border-blue-800',
+      iconBg: 'bg-blue-100 dark:bg-blue-900/40',
+    },
+  };
+
+  const c = config[type];
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
+        onClick={onClose}
+      />
+      {/* Popup */}
+      <div className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-72 rounded-2xl border-2 ${c.border} ${c.bg} shadow-2xl p-5 animate-in fade-in zoom-in-95 duration-150`}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className={`w-9 h-9 rounded-full ${c.iconBg} flex items-center justify-center ${c.color}`}>
+              {c.icon}
+            </div>
+            <span className={`font-semibold text-base ${c.color}`}>{c.label}</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Amount full */}
+        <div className="mb-3">
+          <p className="text-xs text-muted-foreground mb-1">Total Amount</p>
+          <p className={`text-2xl font-bold tracking-tight ${c.color}`}>{fmt(amount)}</p>
+        </div>
+
+        {/* Info row */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 bg-white/60 dark:bg-black/20 rounded-xl px-3 py-2 text-center">
+            <p className="text-xs text-muted-foreground">Transactions</p>
+            <p className="text-lg font-bold text-foreground">{txCount}</p>
+          </div>
+          {percentage && (
+            <div className="flex-1 bg-white/60 dark:bg-black/20 rounded-xl px-3 py-2 text-center">
+              <p className="text-xs text-muted-foreground">Portion</p>
+              <p className={`text-lg font-bold ${c.color}`}>{percentage}%</p>
+            </div>
+          )}
+        </div>
+
+        {/* View All button */}
+        <button
+          onClick={onViewAll}
+          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] ${c.iconBg} ${c.color} hover:opacity-80 flex items-center justify-center gap-1.5`}
+        >
+          View All {c.label} <ChevronRight size={15} />
+        </button>
+      </div>
+    </>
+  );
+}
+
 export function Transactions() {
   const navigate = useNavigate();
   const { transactions, loading, error, deleteTransaction } = useTransactions();
@@ -40,6 +163,8 @@ export function Transactions() {
   const [filterOpen, setFilterOpen]         = useState(false);
   const [deleteTarget, setDeleteTarget]     = useState<{ id: string; amount: number; type: string; isTransfer?: boolean } | null>(null);
   const [deleting, setDeleting]             = useState(false);
+  // ✅ State popup
+  const [activePopup, setActivePopup]       = useState<PopupType>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -58,14 +183,6 @@ export function Transactions() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const fmt = (n: number) =>
-    new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(n);
 
   const getAccountName   = (id: string | null) =>
     !id ? 'Deleted Account' : accounts.find(a => a.id === id)?.name ?? 'Deleted Account';
@@ -101,9 +218,14 @@ export function Transactions() {
     if (dateFrom) result = result.filter(t => t.date >= dateFrom);
     if (dateTo)   result = result.filter(t => t.date <= dateTo);
     result.sort((a, b) => {
-      if (sortBy === 'date') return sortOrder === 'desc'
-        ? new Date(b.date).getTime() - new Date(a.date).getTime()
-        : new Date(a.date).getTime() - new Date(b.date).getTime();
+      if (sortBy === 'date') {
+        const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+        // ✅ Jika tanggal sama, pakai createdAt sebagai tiebreaker
+        if (dateDiff !== 0) return sortOrder === 'desc' ? dateDiff : -dateDiff;
+        const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return sortOrder === 'desc' ? bCreated - aCreated : aCreated - bCreated;
+      }
       return sortOrder === 'desc' ? b.amount - a.amount : a.amount - b.amount;
     });
     return result;
@@ -114,6 +236,13 @@ export function Transactions() {
   const summaryIncome   = useMemo(() => filteredTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),   [filteredTransactions]);
   const summaryExpense  = useMemo(() => filteredTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),  [filteredTransactions]);
   const summaryTransfer = useMemo(() => filteredTransactions.filter(t => t.type === 'transfer' && t.toAccountId).reduce((s, t) => s + t.amount, 0), [filteredTransactions]);
+
+  const summaryIncomeTxCount   = useMemo(() => filteredTransactions.filter(t => t.type === 'income').length,                    [filteredTransactions]);
+  const summaryExpenseTxCount  = useMemo(() => filteredTransactions.filter(t => t.type === 'expense').length,                   [filteredTransactions]);
+  const summaryTransferTxCount = useMemo(() => filteredTransactions.filter(t => t.type === 'transfer' && t.toAccountId).length, [filteredTransactions]);
+
+  const summaryIncomePercent  = summaryIncome + summaryExpense > 0 ? ((summaryIncome  / (summaryIncome + summaryExpense)) * 100).toFixed(0) : undefined;
+  const summaryExpensePercent = summaryIncome + summaryExpense > 0 ? ((summaryExpense / (summaryIncome + summaryExpense)) * 100).toFixed(0) : undefined;
 
   const totalPages = useMemo(() => {
     if (itemsPerPage === 'all') return 1;
@@ -240,14 +369,6 @@ export function Transactions() {
     return t.type === 'income' ? 'border-green-200 dark:border-green-900/50' : 'border-red-200 dark:border-red-900/50';
   };
 
-  // ✅ Helper format amount ringkas untuk mobile summary
-  const fmtShort = (n: number) => {
-    if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(1)}M`;
-    if (n >= 1_000_000)     return `Rp ${(n / 1_000_000).toFixed(1)}jt`;
-    if (n >= 1_000)         return `Rp ${(n / 1_000).toFixed(0)}rb`;
-    return `Rp ${n}`;
-  };
-
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-2">
 
@@ -266,6 +387,37 @@ export function Transactions() {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {/* ✅ Popup detail */}
+      {activePopup === 'income' && (
+        <SummaryPopup
+          type="income"
+          amount={summaryIncome}
+          txCount={summaryIncomeTxCount}
+          percentage={summaryIncomePercent}
+          onClose={() => setActivePopup(null)}
+          onViewAll={() => { setActivePopup(null); setFilterType('income'); setCurrentPage(1); }}
+        />
+      )}
+      {activePopup === 'expense' && (
+        <SummaryPopup
+          type="expense"
+          amount={summaryExpense}
+          txCount={summaryExpenseTxCount}
+          percentage={summaryExpensePercent}
+          onClose={() => setActivePopup(null)}
+          onViewAll={() => { setActivePopup(null); setFilterType('expense'); setCurrentPage(1); }}
+        />
+      )}
+      {activePopup === 'transfer' && (
+        <SummaryPopup
+          type="transfer"
+          amount={summaryTransfer}
+          txCount={summaryTransferTxCount}
+          onClose={() => setActivePopup(null)}
+          onViewAll={() => { setActivePopup(null); setFilterType('transfer'); setCurrentPage(1); }}
+        />
+      )}
 
       {/* ── HEADER ── */}
       <div className="flex-shrink-0 space-y-2">
@@ -502,24 +654,30 @@ export function Transactions() {
           </span>
         </div>
 
-        {/* ✅ Summary bar — compact di mobile, full di desktop */}
+        {/* ✅ Summary bar — tap untuk popup */}
         {filteredTransactions.length > 0 && (
           <div className={`grid gap-2 ${summaryTransfer > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
             {/* Income */}
-            <div className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/10 border-2 border-green-200 dark:border-green-900/40 min-w-0">
+            <div
+              className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/10 border-2 border-green-200 dark:border-green-900/40 min-w-0 cursor-pointer active:scale-[0.98] transition-transform"
+              onClick={() => setActivePopup('income')}
+            >
               <div className="flex items-center gap-1.5">
                 <div className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
                   <TrendingUp size={12} className="text-green-600 dark:text-green-400" />
                 </div>
                 <p className="text-xs text-green-700 dark:text-green-400 font-medium truncate">Income</p>
               </div>
-              {/* Desktop: full format. Mobile: short format */}
+              {/* Desktop: full, Mobile: short — font diperbesar */}
               <p className="text-sm font-bold text-green-700 dark:text-green-300 truncate hidden sm:block">{fmt(summaryIncome)}</p>
-              <p className="text-sm font-bold text-green-700 dark:text-green-300 truncate sm:hidden">{fmtShort(summaryIncome)}</p>
+              <p className="text-base font-bold text-green-700 dark:text-green-300 truncate sm:hidden">{fmtShort(summaryIncome)}</p>
             </div>
 
             {/* Expense */}
-            <div className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/10 border-2 border-red-200 dark:border-red-900/40 min-w-0">
+            <div
+              className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/10 border-2 border-red-200 dark:border-red-900/40 min-w-0 cursor-pointer active:scale-[0.98] transition-transform"
+              onClick={() => setActivePopup('expense')}
+            >
               <div className="flex items-center gap-1.5">
                 <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
                   <TrendingDown size={12} className="text-red-600 dark:text-red-400" />
@@ -527,12 +685,15 @@ export function Transactions() {
                 <p className="text-xs text-red-700 dark:text-red-400 font-medium truncate">Expense</p>
               </div>
               <p className="text-sm font-bold text-red-700 dark:text-red-300 truncate hidden sm:block">{fmt(summaryExpense)}</p>
-              <p className="text-sm font-bold text-red-700 dark:text-red-300 truncate sm:hidden">{fmtShort(summaryExpense)}</p>
+              <p className="text-base font-bold text-red-700 dark:text-red-300 truncate sm:hidden">{fmtShort(summaryExpense)}</p>
             </div>
 
             {/* Transfer */}
             {summaryTransfer > 0 && (
-              <div className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/10 border-2 border-blue-200 dark:border-blue-900/40 min-w-0">
+              <div
+                className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/10 border-2 border-blue-200 dark:border-blue-900/40 min-w-0 cursor-pointer active:scale-[0.98] transition-transform"
+                onClick={() => setActivePopup('transfer')}
+              >
                 <div className="flex items-center gap-1.5">
                   <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
                     <ArrowLeftRight size={12} className="text-blue-600 dark:text-blue-400" />
@@ -540,7 +701,7 @@ export function Transactions() {
                   <p className="text-xs text-blue-700 dark:text-blue-400 font-medium truncate">Transfer</p>
                 </div>
                 <p className="text-sm font-bold text-blue-700 dark:text-blue-300 truncate hidden sm:block">{fmt(summaryTransfer)}</p>
-                <p className="text-sm font-bold text-blue-700 dark:text-blue-300 truncate sm:hidden">{fmtShort(summaryTransfer)}</p>
+                <p className="text-base font-bold text-blue-700 dark:text-blue-300 truncate sm:hidden">{fmtShort(summaryTransfer)}</p>
               </div>
             )}
           </div>

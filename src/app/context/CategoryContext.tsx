@@ -19,7 +19,6 @@ interface CategoryContextType {
   updateCategory: (id: string, updates: Partial<Category>) => Promise<{ success: boolean; error: string | null }>;
   deleteCategory: (id: string) => Promise<{ success: boolean; error: string | null }>;
   reorderCategories: (orderedIds: string[]) => Promise<void>;
-  // ✅ Reset urutan kategori ke default (created_at asc) per type atau per parent
   resetCategoryOrder: (type: 'transaction' | 'task' | 'note', parentId?: string) => Promise<{ success: boolean; error: string | null }>;
   refreshCategories: () => Promise<void>;
 }
@@ -62,6 +61,24 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
       setError(handleSupabaseError(err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ✅ Fetch tanpa set loading = true — untuk refresh silent (tidak flash skeleton)
+  const fetchCategoriesSilent = async () => {
+    if (!user) return;
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', user.id)
+        .is('deleted_at', null)
+        .neq('is_system', true)
+        .order('sort_order', { ascending: true });
+      if (fetchError) throw fetchError;
+      setCategories((data || []).map(mapToCategory));
+    } catch (err) {
+      setError(handleSupabaseError(err));
     }
   };
 
@@ -209,7 +226,9 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ✅ Reset urutan ke default (created_at asc) via RPC
+  // ✅ FIX: resetCategoryOrder tidak lagi memanggil fetchCategories() sendiri
+  // karena setiap panggilan fetchCategories() set loading=true → flash skeleton
+  // Caller (Categories.tsx) yang bertanggung jawab fetch sekali di akhir
   const resetCategoryOrder = async (type: 'transaction' | 'task' | 'note', parentId?: string) => {
     if (!user) return { success: false, error: 'Not authenticated' };
     try {
@@ -219,8 +238,7 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
         p_parent_id: parentId ?? null,
       });
       if (rpcError) throw rpcError;
-      // Refresh dari DB agar state sinkron
-      await fetchCategories();
+      // ✅ Tidak fetch di sini — caller akan fetch silent sekali setelah semua RPC selesai
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -228,7 +246,7 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refreshCategories = async () => { await fetchCategories(); };
+  const refreshCategories = async () => { await fetchCategoriesSilent(); };
 
   const value = {
     categories, loading, error,

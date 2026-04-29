@@ -41,6 +41,7 @@ function mapToTask(row: any): Task {
     title: row.title,
     description: row.description || '',
     deadline: row.deadline,
+    createdAt: row.created_at ?? null,  // ✅ map created_at untuk tiebreaker
     status: computeStatus(row.deadline, row.completed),
     completed: row.completed,
     completionNote: row.completion_note || '',
@@ -63,7 +64,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         .select('*')
         .eq('user_id', user.id)
         .is('deleted_at', null)
-        .order('deadline', { ascending: true });
+        // ✅ deadline asc, lalu created_at desc sebagai tiebreaker
+        // Task dengan deadline sama → yang dibuat lebih baru muncul lebih atas
+        .order('deadline', { ascending: true })
+        .order('created_at', { ascending: false });
       if (fetchError) throw fetchError;
       setTasks((data || []).map(mapToTask));
     } catch (err) {
@@ -99,7 +103,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
           completed: task.completed || false,
           completion_note: task.completionNote,
         })
-        .select('id')
+        .select()
         .single();
       if (insertError) throw insertError;
       const newTask: Task = {
@@ -109,6 +113,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         title: task.title,
         description: task.description || '',
         deadline: task.deadline,
+        createdAt: data.created_at ?? null,
         completed: task.completed || false,
         completionNote: task.completionNote || '',
         status: computeStatus(task.deadline, task.completed || false),
