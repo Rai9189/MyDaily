@@ -20,7 +20,6 @@ import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
-// ✅ Tipe popup
 type PopupType = 'income' | 'expense' | 'transfer' | null;
 
 const fmt = (n: number) =>
@@ -31,7 +30,6 @@ const fmt = (n: number) =>
     maximumFractionDigits: 2,
   }).format(n);
 
-// ✅ Format ringkas untuk mobile — 2 desimal
 const fmtShort = (n: number) => {
   if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)}M`;
   if (n >= 1_000_000)     return `Rp ${(n / 1_000_000).toFixed(2)}jt`;
@@ -39,14 +37,8 @@ const fmtShort = (n: number) => {
   return `Rp ${n.toLocaleString('id-ID')}`;
 };
 
-// ✅ Komponen Popup Detail
 function SummaryPopup({
-  type,
-  amount,
-  txCount,
-  percentage,
-  onClose,
-  onViewAll,
+  type, amount, txCount, percentage, onClose, onViewAll,
 }: {
   type: PopupType;
   amount: number;
@@ -62,25 +54,31 @@ function SummaryPopup({
       label: 'Income',
       icon: <TrendingUp size={18} />,
       color: 'text-green-600 dark:text-green-400',
-      bg: 'bg-green-50 dark:bg-green-900/20',
-      border: 'border-green-200 dark:border-green-800',
-      iconBg: 'bg-green-100 dark:bg-green-900/40',
+      bg: 'bg-green-50 dark:bg-zinc-900',
+      border: 'border-green-200 dark:border-green-700',
+      iconBg: 'bg-green-100 dark:bg-green-900/60',
+      innerBg: 'bg-white dark:bg-zinc-800',
+      btnBg: 'bg-green-100 dark:bg-green-900/60 hover:bg-green-200 dark:hover:bg-green-900',
     },
     expense: {
       label: 'Expense',
       icon: <TrendingDown size={18} />,
       color: 'text-red-600 dark:text-red-400',
-      bg: 'bg-red-50 dark:bg-red-900/20',
-      border: 'border-red-200 dark:border-red-800',
-      iconBg: 'bg-red-100 dark:bg-red-900/40',
+      bg: 'bg-red-50 dark:bg-zinc-900',
+      border: 'border-red-200 dark:border-red-700',
+      iconBg: 'bg-red-100 dark:bg-red-900/60',
+      innerBg: 'bg-white dark:bg-zinc-800',
+      btnBg: 'bg-red-100 dark:bg-red-900/60 hover:bg-red-200 dark:hover:bg-red-900',
     },
     transfer: {
       label: 'Transfer',
       icon: <ArrowLeftRight size={18} />,
       color: 'text-blue-600 dark:text-blue-400',
-      bg: 'bg-blue-50 dark:bg-blue-900/20',
-      border: 'border-blue-200 dark:border-blue-800',
-      iconBg: 'bg-blue-100 dark:bg-blue-900/40',
+      bg: 'bg-blue-50 dark:bg-zinc-900',
+      border: 'border-blue-200 dark:border-blue-700',
+      iconBg: 'bg-blue-100 dark:bg-blue-900/60',
+      innerBg: 'bg-white dark:bg-zinc-800',
+      btnBg: 'bg-blue-100 dark:bg-blue-900/60 hover:bg-blue-200 dark:hover:bg-blue-900',
     },
   };
 
@@ -88,14 +86,8 @@ function SummaryPopup({
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
-        onClick={onClose}
-      />
-      {/* Popup */}
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
       <div className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-72 rounded-2xl border-2 ${c.border} ${c.bg} shadow-2xl p-5 animate-in fade-in zoom-in-95 duration-150`}>
-        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <div className={`w-9 h-9 rounded-full ${c.iconBg} flex items-center justify-center ${c.color}`}>
@@ -111,30 +103,27 @@ function SummaryPopup({
           </button>
         </div>
 
-        {/* Amount full */}
         <div className="mb-3">
           <p className="text-xs text-muted-foreground mb-1">Total Amount</p>
           <p className={`text-2xl font-bold tracking-tight ${c.color}`}>{fmt(amount)}</p>
         </div>
 
-        {/* Info row */}
         <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 bg-white/60 dark:bg-black/20 rounded-xl px-3 py-2 text-center">
+          <div className={`flex-1 ${c.innerBg} rounded-xl px-3 py-2 text-center`}>
             <p className="text-xs text-muted-foreground">Transactions</p>
             <p className="text-lg font-bold text-foreground">{txCount}</p>
           </div>
           {percentage && (
-            <div className="flex-1 bg-white/60 dark:bg-black/20 rounded-xl px-3 py-2 text-center">
+            <div className={`flex-1 ${c.innerBg} rounded-xl px-3 py-2 text-center`}>
               <p className="text-xs text-muted-foreground">Portion</p>
               <p className={`text-lg font-bold ${c.color}`}>{percentage}%</p>
             </div>
           )}
         </div>
 
-        {/* View All button */}
         <button
           onClick={onViewAll}
-          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] ${c.iconBg} ${c.color} hover:opacity-80 flex items-center justify-center gap-1.5`}
+          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] ${c.btnBg} ${c.color} flex items-center justify-center gap-1.5`}
         >
           View All {c.label} <ChevronRight size={15} />
         </button>
@@ -163,7 +152,6 @@ export function Transactions() {
   const [filterOpen, setFilterOpen]         = useState(false);
   const [deleteTarget, setDeleteTarget]     = useState<{ id: string; amount: number; type: string; isTransfer?: boolean } | null>(null);
   const [deleting, setDeleting]             = useState(false);
-  // ✅ State popup
   const [activePopup, setActivePopup]       = useState<PopupType>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -220,7 +208,6 @@ export function Transactions() {
     result.sort((a, b) => {
       if (sortBy === 'date') {
         const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
-        // ✅ Jika tanggal sama, pakai createdAt sebagai tiebreaker
         if (dateDiff !== 0) return sortOrder === 'desc' ? dateDiff : -dateDiff;
         const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -388,7 +375,7 @@ export function Transactions() {
         onCancel={() => setDeleteTarget(null)}
       />
 
-      {/* ✅ Popup detail */}
+      {/* ── Popup detail ── */}
       {activePopup === 'income' && (
         <SummaryPopup
           type="income"
@@ -654,10 +641,9 @@ export function Transactions() {
           </span>
         </div>
 
-        {/* ✅ Summary bar — tap untuk popup */}
+        {/* ── Summary bar ── */}
         {filteredTransactions.length > 0 && (
           <div className={`grid gap-2 ${summaryTransfer > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-            {/* Income */}
             <div
               className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/10 border-2 border-green-200 dark:border-green-900/40 min-w-0 cursor-pointer active:scale-[0.98] transition-transform"
               onClick={() => setActivePopup('income')}
@@ -668,12 +654,10 @@ export function Transactions() {
                 </div>
                 <p className="text-xs text-green-700 dark:text-green-400 font-medium truncate">Income</p>
               </div>
-              {/* Desktop: full, Mobile: short — font diperbesar */}
               <p className="text-sm font-bold text-green-700 dark:text-green-300 truncate hidden sm:block">{fmt(summaryIncome)}</p>
               <p className="text-base font-bold text-green-700 dark:text-green-300 truncate sm:hidden">{fmtShort(summaryIncome)}</p>
             </div>
 
-            {/* Expense */}
             <div
               className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/10 border-2 border-red-200 dark:border-red-900/40 min-w-0 cursor-pointer active:scale-[0.98] transition-transform"
               onClick={() => setActivePopup('expense')}
@@ -688,7 +672,6 @@ export function Transactions() {
               <p className="text-base font-bold text-red-700 dark:text-red-300 truncate sm:hidden">{fmtShort(summaryExpense)}</p>
             </div>
 
-            {/* Transfer */}
             {summaryTransfer > 0 && (
               <div
                 className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/10 border-2 border-blue-200 dark:border-blue-900/40 min-w-0 cursor-pointer active:scale-[0.98] transition-transform"

@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import {
   AlertCircle, Wallet, TrendingUp, TrendingDown,
   CalendarX, CheckCircle2, Clock, CalendarClock, ChevronRight, ChevronDown, BarChart2,
-  Info, ArrowLeftRight, X,
+  Info, ArrowLeftRight, X, CalendarDays,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { isWithinInterval, isAfter, isBefore, addDays, format } from 'date-fns';
@@ -24,7 +24,6 @@ const fmt = (n: number) =>
     maximumFractionDigits: 2,
   }).format(n);
 
-// ✅ Format ringkas untuk mobile — 2 desimal lebih informatif
 const fmtShort = (n: number) => {
   if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)}M`;
   if (n >= 1_000_000)     return `Rp ${(n / 1_000_000).toFixed(2)}jt`;
@@ -36,8 +35,6 @@ const inRange = (dateStr: string, start: Date, end: Date) =>
   isWithinInterval(new Date(dateStr), { start, end });
 
 type PieMode = 'income' | 'expense' | 'both';
-
-// ✅ Tipe popup
 type PopupType = 'income' | 'expense' | 'transfer' | null;
 
 function CustomPieTooltip({ active, payload }: any) {
@@ -62,14 +59,8 @@ function EmptyState({ label }: { label: string }) {
   );
 }
 
-// ✅ Komponen Popup Detail
 function SummaryPopup({
-  type,
-  amount,
-  txCount,
-  percentage,
-  onClose,
-  onViewAll,
+  type, amount, txCount, percentage, onClose, onViewAll,
 }: {
   type: PopupType;
   amount: number;
@@ -85,25 +76,31 @@ function SummaryPopup({
       label: 'Income',
       icon: <TrendingUp size={18} />,
       color: 'text-green-600 dark:text-green-400',
-      bg: 'bg-green-50 dark:bg-green-900/20',
-      border: 'border-green-200 dark:border-green-800',
-      iconBg: 'bg-green-100 dark:bg-green-900/40',
+      bg: 'bg-green-50 dark:bg-zinc-900',
+      border: 'border-green-200 dark:border-green-700',
+      iconBg: 'bg-green-100 dark:bg-green-900/60',
+      innerBg: 'bg-white dark:bg-zinc-800',
+      btnBg: 'bg-green-100 dark:bg-green-900/60 hover:bg-green-200 dark:hover:bg-green-900',
     },
     expense: {
       label: 'Expense',
       icon: <TrendingDown size={18} />,
       color: 'text-red-600 dark:text-red-400',
-      bg: 'bg-red-50 dark:bg-red-900/20',
-      border: 'border-red-200 dark:border-red-800',
-      iconBg: 'bg-red-100 dark:bg-red-900/40',
+      bg: 'bg-red-50 dark:bg-zinc-900',
+      border: 'border-red-200 dark:border-red-700',
+      iconBg: 'bg-red-100 dark:bg-red-900/60',
+      innerBg: 'bg-white dark:bg-zinc-800',
+      btnBg: 'bg-red-100 dark:bg-red-900/60 hover:bg-red-200 dark:hover:bg-red-900',
     },
     transfer: {
       label: 'Transfer',
       icon: <ArrowLeftRight size={18} />,
       color: 'text-blue-600 dark:text-blue-400',
-      bg: 'bg-blue-50 dark:bg-blue-900/20',
-      border: 'border-blue-200 dark:border-blue-800',
-      iconBg: 'bg-blue-100 dark:bg-blue-900/40',
+      bg: 'bg-blue-50 dark:bg-zinc-900',
+      border: 'border-blue-200 dark:border-blue-700',
+      iconBg: 'bg-blue-100 dark:bg-blue-900/60',
+      innerBg: 'bg-white dark:bg-zinc-800',
+      btnBg: 'bg-blue-100 dark:bg-blue-900/60 hover:bg-blue-200 dark:hover:bg-blue-900',
     },
   };
 
@@ -111,14 +108,8 @@ function SummaryPopup({
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
-        onClick={onClose}
-      />
-      {/* Popup */}
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
       <div className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-72 rounded-2xl border-2 ${c.border} ${c.bg} shadow-2xl p-5 animate-in fade-in zoom-in-95 duration-150`}>
-        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <div className={`w-9 h-9 rounded-full ${c.iconBg} flex items-center justify-center ${c.color}`}>
@@ -134,30 +125,27 @@ function SummaryPopup({
           </button>
         </div>
 
-        {/* Amount full */}
         <div className="mb-3">
           <p className="text-xs text-muted-foreground mb-1">Total Amount</p>
           <p className={`text-2xl font-bold tracking-tight ${c.color}`}>{fmt(amount)}</p>
         </div>
 
-        {/* Info row */}
         <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 bg-white/60 dark:bg-black/20 rounded-xl px-3 py-2 text-center">
+          <div className={`flex-1 ${c.innerBg} rounded-xl px-3 py-2 text-center`}>
             <p className="text-xs text-muted-foreground">Transactions</p>
             <p className="text-lg font-bold text-foreground">{txCount}</p>
           </div>
           {percentage && (
-            <div className="flex-1 bg-white/60 dark:bg-black/20 rounded-xl px-3 py-2 text-center">
+            <div className={`flex-1 ${c.innerBg} rounded-xl px-3 py-2 text-center`}>
               <p className="text-xs text-muted-foreground">Portion</p>
               <p className={`text-lg font-bold ${c.color}`}>{percentage}%</p>
             </div>
           )}
         </div>
 
-        {/* View All button */}
         <button
           onClick={onViewAll}
-          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] ${c.iconBg} ${c.color} hover:opacity-80 flex items-center justify-center gap-1.5`}
+          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] ${c.btnBg} ${c.color} flex items-center justify-center gap-1.5`}
         >
           View All {c.label} <ChevronRight size={15} />
         </button>
@@ -177,7 +165,6 @@ export function Dashboard() {
   const [pieMode, setPieMode] = useState<PieMode>('both');
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
-  // ✅ State popup
   const [activePopup, setActivePopup] = useState<PopupType>(null);
 
   const filteredTx = useMemo(
@@ -276,6 +263,13 @@ export function Dashboard() {
     catch { return 'this period'; }
   }, [range]);
 
+  // Tab config — warna aktif berbeda per mode agar lebih kontras & informatif
+  const tabConfig: { key: PieMode; label: string; activeClass: string }[] = [
+    { key: 'income',  label: 'Income',  activeClass: 'bg-green-500 text-white shadow-sm' },
+    { key: 'expense', label: 'Expense', activeClass: 'bg-red-500 text-white shadow-sm'   },
+    { key: 'both',    label: 'vs',      activeClass: 'bg-primary text-primary-foreground shadow-sm' },
+  ];
+
   if (aL || tL || tkL) {
     return (
       <div className="flex flex-col flex-1 min-h-0">
@@ -365,7 +359,7 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* ✅ Income + Expense + Transfer cards */}
+          {/* ── Income + Expense + Transfer cards ── */}
           <div className={`grid gap-2 ${transfer > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
             {/* Income */}
             <Card
@@ -382,7 +376,6 @@ export function Dashboard() {
                     {income + expense > 0 ? `${((income / (income + expense)) * 100).toFixed(0)}%` : '—'}
                   </span>
                 </div>
-                {/* Desktop: full, Mobile: short — font diperbesar */}
                 <p className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(income)}</p>
                 <p className="text-base font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(income)}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-0.5 truncate">
@@ -440,7 +433,7 @@ export function Dashboard() {
             )}
           </div>
 
-          {/* ✅ Popup detail */}
+          {/* ── Popup detail ── */}
           {activePopup === 'income' && (
             <SummaryPopup
               type="income"
@@ -488,19 +481,16 @@ export function Dashboard() {
                 </button>
               </div>
 
+              {/* ── Tab: warna aktif kontras per mode ── */}
               <div className="flex bg-muted rounded-lg p-1 gap-1">
-                {([
-                  { key: 'income',  label: 'Income'  },
-                  { key: 'expense', label: 'Expense' },
-                  { key: 'both',    label: 'vs'      },
-                ] as { key: PieMode; label: string }[]).map(m => (
+                {tabConfig.map(m => (
                   <button
                     key={m.key}
                     type="button"
                     onClick={() => setPieMode(m.key)}
-                    className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-all duration-150 ${
                       pieMode === m.key
-                        ? 'bg-white dark:bg-card text-foreground shadow-sm'
+                        ? m.activeClass
                         : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
@@ -520,6 +510,7 @@ export function Dashboard() {
                   } transactions in ${rangeLabel}.`}
                 />
               ) : pieMode === 'both' ? (
+                /* ── Mode "vs": surplus info + donut kiri, legend kanan ── */
                 <>
                   <div className={`rounded-xl px-4 py-3 mb-4 ${net >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
                     <p className="text-[11px] text-muted-foreground mb-0.5">
@@ -535,40 +526,10 @@ export function Dashboard() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="flex-shrink-0" style={{ width: 120, height: 120 }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={pieData} cx="50%" cy="50%" innerRadius={38} outerRadius={56} dataKey="value" strokeWidth={2}>
-                            {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                          </Pie>
-                          <Tooltip content={<CustomPieTooltip />} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="flex-1 min-w-0 space-y-3">
-                      {[
-                        { label: 'Income',  value: income,  color: '#16a34a', pct: income + expense > 0 ? ((income  / (income + expense)) * 100).toFixed(0) : '0' },
-                        { label: 'Expense', value: expense, color: '#dc2626', pct: income + expense > 0 ? ((expense / (income + expense)) * 100).toFixed(0) : '0' },
-                      ].map(row => (
-                        <div key={row.label}>
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: row.color }} />
-                            <span className="text-[11px] text-muted-foreground">{row.label}</span>
-                            <span className="ml-auto text-[10px] text-muted-foreground">{row.pct}%</span>
-                          </div>
-                          <p className="text-sm font-bold text-foreground pl-3.5 truncate">{fmt(row.value)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="w-full" style={{ height: 200 }}>
+                  <div className="w-full" style={{ height: 220 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={0} outerRadius={82} dataKey="value" strokeWidth={2}>
+                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={95} dataKey="value" strokeWidth={2}>
                           {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                         </Pie>
                         <Tooltip content={<CustomPieTooltip />} />
@@ -576,17 +537,55 @@ export function Dashboard() {
                     </ResponsiveContainer>
                   </div>
 
-                  <div className="space-y-1.5 mt-3">
+                  <div className="space-y-2 mt-2">
+                    {[
+                      { label: 'Income',  value: income,  color: '#16a34a', pct: income + expense > 0 ? ((income  / (income + expense)) * 100).toFixed(0) : '0' },
+                      { label: 'Expense', value: expense, color: '#dc2626', pct: income + expense > 0 ? ((expense / (income + expense)) * 100).toFixed(0) : '0' },
+                    ].map(row => (
+                      <div key={row.label} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-muted/40">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: row.color }} />
+                          <span className="text-sm font-medium text-foreground">{row.label}</span>
+                          <span className="text-xs text-muted-foreground flex-shrink-0">({row.pct}%)</span>
+                        </div>
+                        <span className="text-sm font-bold text-foreground ml-3 flex-shrink-0">{fmt(row.value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                /* ── Mode Income / Expense: chart tengah, detail di bawah ── */
+                <>
+                  <div className="w-full" style={{ height: 220 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={pieData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={0}
+                          outerRadius={95}
+                          dataKey="value"
+                          strokeWidth={2}
+                        >
+                          {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                        </Pie>
+                        <Tooltip content={<CustomPieTooltip />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="space-y-2 mt-2">
                     {pieData.map((item, i) => {
                       const pct = pieTotal > 0 ? ((item.value / pieTotal) * 100).toFixed(0) : 0;
                       return (
-                        <div key={i} className="flex items-center justify-between px-2.5 py-2 rounded-lg bg-slate-50 dark:bg-muted/40">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
-                            <span className="text-xs text-foreground font-medium truncate">{item.name}</span>
-                            <span className="text-[10px] text-muted-foreground flex-shrink-0">({pct}%)</span>
+                        <div key={i} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-muted/40">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                            <span className="text-sm font-medium text-foreground truncate">{item.name}</span>
+                            <span className="text-xs text-muted-foreground flex-shrink-0">({pct}%)</span>
                           </div>
-                          <span className="text-xs font-semibold text-foreground ml-2 flex-shrink-0">{fmt(item.value)}</span>
+                          <span className="text-sm font-bold text-foreground ml-3 flex-shrink-0">{fmt(item.value)}</span>
                         </div>
                       );
                     })}
@@ -616,10 +615,10 @@ export function Dashboard() {
             <CardContent className="px-4 pb-4">
               <div className="grid grid-cols-4 gap-1.5 mb-3">
                 {[
-                  { label: 'Overdue',   count: overdueTasks.length,   color: overdueTasks.length   > 0 ? 'text-red-600 dark:text-red-400'     : 'text-foreground', icon: <CalendarX   size={13} className={overdueTasks.length   > 0 ? 'text-red-500'    : 'text-slate-400'} /> },
-                  { label: 'Urgent',    count: urgentTasks.length,    color: urgentTasks.length    > 0 ? 'text-orange-500 dark:text-orange-400': 'text-foreground', icon: <AlertCircle size={13} className={urgentTasks.length    > 0 ? 'text-orange-500' : 'text-slate-400'} /> },
-                  { label: 'Active',    count: activeTasks.length,    color: 'text-blue-600 dark:text-blue-400',                                                   icon: <Clock       size={13} className="text-blue-500" /> },
-                  { label: 'Done',      count: completedTasks.length, color: 'text-green-600 dark:text-green-400',                                                 icon: <CheckCircle2 size={13} className="text-green-500" /> },
+                  { label: 'Overdue',  count: overdueTasks.length,   color: overdueTasks.length   > 0 ? 'text-red-600 dark:text-red-400'      : 'text-foreground', icon: <CalendarX    size={13} className={overdueTasks.length   > 0 ? 'text-red-500'    : 'text-slate-400'} /> },
+                  { label: 'Urgent',   count: urgentTasks.length,    color: urgentTasks.length    > 0 ? 'text-orange-500 dark:text-orange-400' : 'text-foreground', icon: <AlertCircle  size={13} className={urgentTasks.length    > 0 ? 'text-orange-500' : 'text-slate-400'} /> },
+                  { label: 'Active',   count: activeTasks.length,    color: 'text-blue-600 dark:text-blue-400',                                                    icon: <Clock        size={13} className="text-blue-500" /> },
+                  { label: 'Done',     count: completedTasks.length, color: 'text-green-600 dark:text-green-400',                                                  icon: <CheckCircle2 size={13} className="text-green-500" /> },
                 ].map(item => (
                   <div key={item.label} className="flex flex-col items-center bg-slate-50 dark:bg-muted/40 rounded-lg py-2 px-1 gap-0.5">
                     {item.icon}
@@ -629,9 +628,10 @@ export function Dashboard() {
                 ))}
               </div>
 
+              {/* ── "Upcoming" header lebih tegas ── */}
               <div className="flex items-center gap-2 mb-2.5">
                 <div className="flex-1 h-px bg-border" />
-                <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Upcoming</span>
+                <span className="text-[11px] text-foreground font-semibold uppercase tracking-widest">Upcoming</span>
                 <div className="flex-1 h-px bg-border" />
               </div>
 
@@ -675,8 +675,9 @@ export function Dashboard() {
                     })}
                   </div>
                 ) : (
+                  /* ── Empty state: icon CalendarDays (bukan centang) ── */
                   <div className="flex flex-col items-center justify-center h-24 gap-1.5">
-                    <CheckCircle2 size={22} className="text-green-400" />
+                    <CalendarDays size={24} className="text-muted-foreground/50" />
                     <p className="text-sm text-muted-foreground">No upcoming tasks</p>
                   </div>
                 )}
