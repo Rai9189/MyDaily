@@ -182,8 +182,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!authData.user) throw new Error('User creation failed');
 
       const { error: profileError } = await supabase
-        .from('users')
-        .insert({ id: authData.user.id, name, email, pin_type: 'numeric', pin_hash: null });
+        .rpc('create_user_profile', {
+          user_id: authData.user.id,
+          user_name: name,
+          user_email: email,
+        });
 
       if (profileError) throw profileError;
 

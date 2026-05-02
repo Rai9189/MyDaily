@@ -7,7 +7,6 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Eye, EyeOff, Loader2, Check, X, UserPlus } from 'lucide-react';
-import { toast } from 'sonner';
 
 interface PasswordRule { label: string; test: (pw: string) => boolean; }
 
@@ -22,10 +21,18 @@ const PASSWORD_RULES: PasswordRule[] = [
 function getStrength(password: string) {
   const score = PASSWORD_RULES.filter(r => r.test(password)).length;
   if (score <= 1) return { score, label: 'Very weak',  color: 'bg-red-500' };
-  if (score === 2) return { score, label: 'Weak',       color: 'bg-orange-500' };
-  if (score === 3) return { score, label: 'Fair',       color: 'bg-amber-500' };
-  if (score === 4) return { score, label: 'Strong',     color: 'bg-blue-500' };
-  return              { score, label: 'Very strong', color: 'bg-green-500' };
+  if (score === 2) return { score, label: 'Weak',      color: 'bg-orange-500' };
+  if (score === 3) return { score, label: 'Fair',      color: 'bg-amber-500' };
+  if (score === 4) return { score, label: 'Strong',    color: 'bg-blue-500' };
+  return             { score, label: 'Very strong', color: 'bg-green-500' };
+}
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function isValidName(name: string) {
+  return name.trim().length >= 2 && /^[a-zA-Z\s'-]+$/.test(name.trim());
 }
 
 export function Register() {
@@ -40,30 +47,43 @@ export function Register() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading]                         = useState(false);
   const [error, setError]                             = useState<string | null>(null);
-  const [passwordTouched, setPasswordTouched]         = useState(false);
+
+  const [nameTouched, setNameTouched]   = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
 
   const strength       = useMemo(() => getStrength(password), [password]);
   const allRulesPassed = PASSWORD_RULES.every(r => r.test(password));
   const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
 
+  const nameError = nameTouched && !isValidName(name)
+    ? name.trim().length === 0
+      ? 'Full name is required.'
+      : name.trim().length < 2
+        ? 'Name must be at least 2 characters.'
+        : 'Name can only contain letters, spaces, hyphens, and apostrophes.'
+    : null;
+
+  const emailError = emailTouched && email.length > 0 && !isValidEmail(email)
+    ? 'Please enter a valid email address.'
+    : null;
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!allRulesPassed) {
-      setError('Password does not meet the requirements below.');
-      setPasswordTouched(true);
-      return;
-    }
-    if (password !== confirmPassword) { setError('Passwords do not match.'); return; }
+    setNameTouched(true);
+    setEmailTouched(true);
+
+    if (!isValidName(name))           return;
+    if (!isValidEmail(email))         return;
+    if (!allRulesPassed)              return;
+    if (password !== confirmPassword) return;
+
     setLoading(true);
     const { success, error: signUpError } = await signUp(email, password, name);
     if (success) {
-      toast.success('Account created! Set up your PIN to continue.');
       navigate('/pin-setup');
     } else {
-      const message = signUpError || 'Registration failed. Please try again.';
-      setError(message);
-      toast.error(message);
+      setError(signUpError || 'Registration failed. Please try again.');
     }
     setLoading(false);
   };
@@ -83,9 +103,12 @@ export function Register() {
               <p className="text-sm text-muted-foreground mt-1">Sign up to get started</p>
             </div>
 
-            <form onSubmit={handleRegister} className="space-y-4">
+            <form onSubmit={handleRegister} className="space-y-4" noValidate>
+
+              {/* Server error */}
               {error && (
                 <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl border-2 bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-400">
+                  <X size={15} className="shrink-0 mt-0.5" />
                   <p>{error}</p>
                 </div>
               )}
@@ -94,20 +117,40 @@ export function Register() {
               <div className="space-y-1.5">
                 <Label htmlFor="name">Full Name</Label>
                 <Input
-                  id="name" type="text" placeholder="John Doe"
-                  value={name} onChange={(e) => setName(e.target.value)}
-                  required disabled={loading}
+                  id="name"
+                  type="text"
+                  placeholder="John Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onBlur={() => setNameTouched(true)}
+                  disabled={loading}
+                  className={nameError ? 'border-red-400 dark:border-red-600' : ''}
                 />
+                {nameError && (
+                  <p className="text-xs text-red-500 flex items-center gap-1">
+                    <X size={11} className="shrink-0" /> {nameError}
+                  </p>
+                )}
               </div>
 
               {/* Email */}
               <div className="space-y-1.5">
                 <Label htmlFor="email">Email</Label>
                 <Input
-                  id="email" type="email" placeholder="name@example.com"
-                  value={email} onChange={(e) => setEmail(e.target.value)}
-                  required disabled={loading}
+                  id="email"
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => setEmailTouched(true)}
+                  disabled={loading}
+                  className={emailError ? 'border-red-400 dark:border-red-600' : ''}
                 />
+                {emailError && (
+                  <p className="text-xs text-red-500 flex items-center gap-1">
+                    <X size={11} className="shrink-0" /> {emailError}
+                  </p>
+                )}
               </div>
 
               {/* Password */}
@@ -115,53 +158,65 @@ export function Register() {
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
                   <Input
-                    id="password" type={showPassword ? 'text' : 'password'}
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
                     placeholder="Create a strong password"
                     value={password}
-                    onChange={(e) => { setPassword(e.target.value); setPasswordTouched(true); }}
-                    required disabled={loading} className="pr-10"
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={loading}
+                    className="pr-10"
                   />
                   <button
                     type="button"
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setShowPassword(!showPassword)} disabled={loading}
+                    onClick={() => setShowPassword(!showPassword)}
+                    disabled={loading}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
 
-                {/* Strength indicator */}
-                {passwordTouched && password.length > 0 && (
-                  <div className="mt-2 space-y-2">
-                    <div className="flex gap-1">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                          i < strength.score ? strength.color : 'bg-slate-200 dark:bg-slate-700'
-                        }`} />
-                      ))}
-                    </div>
-                    <p className={`text-xs font-medium ${
-                      strength.score <= 2 ? 'text-red-500' :
-                      strength.score === 3 ? 'text-amber-500' : 'text-green-500'
-                    }`}>{strength.label}</p>
-                    <ul className="space-y-1">
-                      {PASSWORD_RULES.map(rule => {
-                        const passed = rule.test(password);
-                        return (
-                          <li key={rule.label} className="flex items-center gap-1.5">
-                            {passed
-                              ? <Check size={12} className="text-green-500 shrink-0" />
-                              : <X size={12} className="text-red-400 shrink-0" />
-                            }
-                            <span className={`text-xs ${passed ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
-                              {rule.label}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                )}
+                <div className="mt-2 space-y-2">
+                  {/* Strength bar — hanya muncul kalau ada input */}
+                  {password.length > 0 && (
+                    <>
+                      <div className="flex gap-1">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <div
+                            key={i}
+                            className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                              i < strength.score ? strength.color : 'bg-slate-200 dark:bg-slate-700'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <p className={`text-xs font-medium ${
+                        strength.score <= 2 ? 'text-red-500' :
+                        strength.score === 3 ? 'text-amber-500' : 'text-green-500'
+                      }`}>{strength.label}</p>
+                    </>
+                  )}
+
+                  {/* Rules list — selalu tampil dari awal */}
+                  <ul className="space-y-1">
+                    {PASSWORD_RULES.map(rule => {
+                      const passed = rule.test(password);
+                      return (
+                        <li key={rule.label} className="flex items-center gap-1.5">
+                          {passed
+                            ? <Check size={12} className="text-green-500 shrink-0" />
+                            : <X size={12} className="text-slate-300 dark:text-slate-600 shrink-0" />
+                          }
+                          <span className={`text-xs ${
+                            passed ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
+                          }`}>
+                            {rule.label}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               </div>
 
               {/* Confirm Password */}
@@ -169,11 +224,13 @@ export function Register() {
                 <Label htmlFor="confirmPassword">Confirm Password</Label>
                 <div className="relative">
                   <Input
-                    id="confirmPassword" type={showConfirmPassword ? 'text' : 'password'}
+                    id="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'}
                     placeholder="Repeat your password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    required disabled={loading} className={`pr-10 ${
+                    disabled={loading}
+                    className={`pr-10 ${
                       confirmPassword.length > 0
                         ? passwordsMatch
                           ? 'border-green-400 dark:border-green-600'
@@ -184,46 +241,54 @@ export function Register() {
                   <button
                     type="button"
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)} disabled={loading}
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    disabled={loading}
                   >
                     {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
                 {confirmPassword.length > 0 && (
-                  <p className={`text-xs ${passwordsMatch ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
-                    {passwordsMatch ? '✓ Passwords match' : '✗ Passwords do not match'}
+                  <p className={`text-xs flex items-center gap-1 ${
+                    passwordsMatch ? 'text-green-600 dark:text-green-400' : 'text-red-500'
+                  }`}>
+                    {passwordsMatch
+                      ? <><Check size={11} className="shrink-0" /> Passwords match</>
+                      : <><X size={11} className="shrink-0" /> Passwords do not match</>
+                    }
                   </p>
                 )}
               </div>
 
+              {/* Submit */}
               <Button
-                type="submit" className="w-full gap-2"
-                disabled={loading || !allRulesPassed || !passwordsMatch}
+                type="submit"
+                className="w-full gap-2 h-11 text-sm font-semibold mt-2"
+                disabled={loading}
               >
-                {loading
-                  ? <><Loader2 size={16} className="animate-spin" /> Registering...</>
-                  : 'Register'
-                }
+                {loading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Creating your account…</span>
+                  </>
+                ) : (
+                  'Create Account'
+                )}
               </Button>
 
-              {(!allRulesPassed || !passwordsMatch) && !loading && (
-                <p className="text-xs text-center text-muted-foreground">
-                  {!allRulesPassed
-                    ? 'Complete all password requirements to continue'
-                    : 'Passwords must match to continue'
-                  }
-                </p>
-              )}
-
-              <p className="text-center text-sm text-muted-foreground">
+              {/* Sign in link — di dalam card */}
+              <p className="text-center text-sm text-muted-foreground pt-1">
                 Already have an account?{' '}
                 <Button
-                  type="button" variant="link" className="p-0 h-auto font-medium"
-                  onClick={() => navigate('/login')} disabled={loading}
+                  type="button"
+                  variant="link"
+                  className="p-0 h-auto font-semibold text-blue-600 dark:text-blue-400"
+                  onClick={() => navigate('/login')}
+                  disabled={loading}
                 >
                   Sign in
                 </Button>
               </p>
+
             </form>
           </CardContent>
         </Card>
