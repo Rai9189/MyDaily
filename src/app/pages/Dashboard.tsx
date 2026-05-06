@@ -1,6 +1,7 @@
 // src/app/pages/Dashboard.tsx
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useAccounts } from '../context/AccountContext';
 import { useTransactions } from '../context/TransactionContext';
 import { useTasks } from '../context/TaskContext';
@@ -12,7 +13,7 @@ import {
   Info, ArrowLeftRight, X, CalendarDays,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { isWithinInterval, isAfter, isBefore, addDays, format } from 'date-fns';
+import { isWithinInterval, format } from 'date-fns';
 import { DateRangeFilter, defaultDateRange, type DateRangeValue } from '../components/DateRangeFilter';
 import { DashboardSkeleton } from '../components/Skeletons';
 
@@ -158,7 +159,7 @@ export function Dashboard() {
   const navigate = useNavigate();
   const { accounts, loading: aL } = useAccounts();
   const { transactions, loading: tL } = useTransactions();
-  const { tasks, loading: tkL } = useTasks();
+  const { tasks, loading: tkL, completeTask } = useTasks();
   const { categories } = useCategories();
 
   const [range, setRange] = useState<DateRangeValue>(defaultDateRange());
@@ -236,14 +237,12 @@ export function Dashboard() {
   const completedTasks = useMemo(() => tasks.filter(t =>  t.completed), [tasks]);
 
   const upcomingTasks = useMemo(() => {
-    const today = new Date();
-    const horizon = addDays(today, 14);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
     return tasks
       .filter(t => {
         if (t.completed) return false;
         const d = new Date(t.deadline);
-        return isWithinInterval(d, { start: range.start, end: range.end }) ||
-               (isAfter(d, today) && isBefore(d, horizon));
+        return d >= today && isWithinInterval(d, { start: range.start, end: range.end });
       })
       .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
       .slice(0, 8);
@@ -258,6 +257,21 @@ export function Dashboard() {
     }
   };
 
+  const dotBorderColor = (status: string) => {
+    switch (status) {
+      case 'overdue':  return 'border-red-500';
+      case 'urgent':   return 'border-orange-500';
+      case 'upcoming': return 'border-amber-400';
+      default:         return 'border-blue-400';
+    }
+  };
+
+  const handleToggleTask = async (e: React.MouseEvent, task: any) => {
+    e.stopPropagation();
+    const { success, error: err } = await completeTask(task.id);
+    if (!success) toast.error(err || 'Failed to update task');
+  };
+
   const rangeLabel = useMemo(() => {
     try { return `${format(range.start, 'd MMM')} – ${format(range.end, 'd MMM yyyy')}`; }
     catch { return 'this period'; }
@@ -267,7 +281,7 @@ export function Dashboard() {
   const tabConfig: { key: PieMode; label: string; activeClass: string }[] = [
     { key: 'income',  label: 'Income',  activeClass: 'bg-green-500 text-white shadow-sm' },
     { key: 'expense', label: 'Expense', activeClass: 'bg-red-500 text-white shadow-sm'   },
-    { key: 'both',    label: 'vs',      activeClass: 'bg-primary text-primary-foreground shadow-sm' },
+    { key: 'both',    label: 'Overview', activeClass: 'bg-primary text-primary-foreground shadow-sm' },
   ];
 
   if (aL || tL || tkL) {
@@ -360,7 +374,7 @@ export function Dashboard() {
           </Card>
 
           {/* ── Income + Expense + Transfer cards ── */}
-          <div className={`grid gap-2 ${transfer > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <div className="grid gap-2 grid-cols-3">
             {/* Income */}
             <Card
               className="bg-white dark:bg-card border-2 border-green-200 dark:border-green-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform overflow-hidden"
@@ -410,27 +424,25 @@ export function Dashboard() {
             </Card>
 
             {/* Transfer */}
-            {transfer > 0 && (
-              <Card
-                className="bg-white dark:bg-card border-2 border-blue-200 dark:border-blue-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform overflow-hidden"
-                onClick={() => setActivePopup('transfer')}
-              >
-                <CardContent className="pt-3 pb-3 px-3">
-                  <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 mb-1.5">
-                    <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                      <ArrowLeftRight size={11} />
-                    </div>
-                    <span className="text-xs font-semibold truncate">Transfer</span>
+            <Card
+              className="bg-white dark:bg-card border-2 border-blue-200 dark:border-blue-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform overflow-hidden"
+              onClick={() => setActivePopup('transfer')}
+            >
+              <CardContent className="pt-3 pb-3 px-3">
+                <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 mb-1.5">
+                  <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                    <ArrowLeftRight size={11} />
                   </div>
-                  <p className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(transfer)}</p>
-                  <p className="text-base font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(transfer)}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-0.5 truncate">
-                    <span className="truncate">{transferTxCount} tx</span>
-                    <ChevronRight size={10} className="opacity-50 flex-shrink-0" />
-                  </p>
-                </CardContent>
-              </Card>
-            )}
+                  <span className="text-xs font-semibold truncate">Transfer</span>
+                </div>
+                <p className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(transfer)}</p>
+                <p className="text-base font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(transfer)}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-0.5 truncate">
+                  <span className="truncate">{transferTxCount} tx</span>
+                  <ChevronRight size={10} className="opacity-50 flex-shrink-0" />
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           {/* ── Popup detail ── */}
@@ -631,7 +643,10 @@ export function Dashboard() {
               {/* ── "Upcoming" header lebih tegas ── */}
               <div className="flex items-center gap-2 mb-2.5">
                 <div className="flex-1 h-px bg-border" />
-                <span className="text-[11px] text-foreground font-semibold uppercase tracking-widest">Upcoming</span>
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-[11px] text-foreground font-semibold uppercase tracking-widest">Upcoming</span>
+                  <span className="text-[10px] text-muted-foreground">{rangeLabel}</span>
+                </div>
                 <div className="flex-1 h-px bg-border" />
               </div>
 
@@ -659,7 +674,14 @@ export function Dashboard() {
                           onClick={() => navigate(`/tasks/${task.id}`)}
                         >
                           <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor(task.status)}`} />
+                            <button
+                              type="button"
+                              onClick={(e) => handleToggleTask(e, task)}
+                              title="Mark complete"
+                              className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted/50 active:bg-muted/70 transition-all active:scale-95"
+                            >
+                              <span className={`w-3 h-3 rounded-full border-2 block ${dotBorderColor(task.status)}`} />
+                            </button>
                             <div className="min-w-0">
                               <p className="text-xs font-medium text-foreground truncate leading-tight">{task.title}</p>
                               <p className="text-[10px] text-muted-foreground mt-0.5">

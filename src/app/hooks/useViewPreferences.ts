@@ -10,10 +10,14 @@ interface ViewPreferences {
 }
 
 const DEFAULTS: Record<string, ViewPreferences> = {
-  transactions: { itemsPerPage: 10, viewMode: 'list' },
-  tasks:        { itemsPerPage: 10, viewMode: 'list' },
-  notes:        { itemsPerPage: 10, viewMode: 'card' },
+  transactions: { itemsPerPage: 20, viewMode: 'list' },
+  tasks:        { itemsPerPage: 20, viewMode: 'list' },
+  notes:        { itemsPerPage: 20, viewMode: 'card' },
 };
+
+function isMobile() {
+  return !window.matchMedia('(min-width: 768px)').matches;
+}
 
 function getStorageKey(page: string) {
   return `mydaily_view_prefs_${page}`;
@@ -22,14 +26,14 @@ function getStorageKey(page: string) {
 function loadPrefs(page: string): ViewPreferences {
   try {
     const raw = localStorage.getItem(getStorageKey(page));
-    if (!raw) return DEFAULTS[page] ?? { itemsPerPage: 10, viewMode: 'list' };
+    if (!raw) return DEFAULTS[page] ?? { itemsPerPage: 20, viewMode: 'list' };
     const parsed = JSON.parse(raw);
     return {
-      itemsPerPage: parsed.itemsPerPage ?? DEFAULTS[page]?.itemsPerPage ?? 10,
+      itemsPerPage: parsed.itemsPerPage ?? DEFAULTS[page]?.itemsPerPage ?? 20,
       viewMode:     parsed.viewMode     ?? DEFAULTS[page]?.viewMode     ?? 'list',
     };
   } catch {
-    return DEFAULTS[page] ?? { itemsPerPage: 10, viewMode: 'list' };
+    return DEFAULTS[page] ?? { itemsPerPage: 20, viewMode: 'list' };
   }
 }
 
@@ -37,32 +41,34 @@ function savePrefs(page: string, prefs: ViewPreferences) {
   try {
     localStorage.setItem(getStorageKey(page), JSON.stringify(prefs));
   } catch {
-    // localStorage tidak tersedia (misal private mode yang ketat)
+    // localStorage not available (e.g. strict private mode)
   }
 }
 
 export function useViewPreferences(page: 'transactions' | 'tasks' | 'notes') {
-  const isMobile = () => !window.matchMedia('(min-width: 768px)').matches;
-
   const [itemsPerPage, setItemsPerPageState] = useState<ItemsPerPage>(() => {
+    // Mobile always shows all items — no pagination
+    if (isMobile()) return 'all';
     return loadPrefs(page).itemsPerPage;
   });
 
   const [viewMode, setViewModeState] = useState<ViewMode>(() => {
-    // Mobile selalu card, tapi itemsPerPage tetap dari localStorage
     if (isMobile()) return 'card';
     return loadPrefs(page).viewMode;
   });
 
-  // Listener resize: paksa card di mobile
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
     const handler = (e: MediaQueryListEvent) => {
       if (!e.matches) {
+        // Shrunk to mobile: force card view, show all items
         setViewModeState('card');
+        setItemsPerPageState('all');
       } else {
-        // Kembali ke desktop: restore preferensi tersimpan
-        setViewModeState(loadPrefs(page).viewMode);
+        // Expanded to desktop: restore saved preferences
+        const prefs = loadPrefs(page);
+        setViewModeState(prefs.viewMode);
+        setItemsPerPageState(prefs.itemsPerPage);
       }
     };
     mq.addEventListener('change', handler);
@@ -71,13 +77,15 @@ export function useViewPreferences(page: 'transactions' | 'tasks' | 'notes') {
 
   const setItemsPerPage = (value: ItemsPerPage) => {
     setItemsPerPageState(value);
-    const current = loadPrefs(page);
-    savePrefs(page, { ...current, itemsPerPage: value });
+    // Only persist on desktop — mobile is always 'all'
+    if (!isMobile()) {
+      const current = loadPrefs(page);
+      savePrefs(page, { ...current, itemsPerPage: value });
+    }
   };
 
   const setViewMode = (value: ViewMode) => {
     setViewModeState(value);
-    // Hanya simpan kalau desktop (mobile tidak perlu simpan karena selalu card)
     if (!isMobile()) {
       const current = loadPrefs(page);
       savePrefs(page, { ...current, viewMode: value });

@@ -93,7 +93,7 @@ function DraggableParent({
   return (
     <div ref={ref} className={`${isDragging ? 'opacity-40' : 'opacity-100'} ${isOver ? 'ring-2 ring-primary/30 rounded-lg' : ''}`}>
       <div className="flex items-center gap-1">
-        <div ref={dragRef} className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0 px-0.5 touch-none">
+        <div ref={dragRef} className="hidden md:flex cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0 px-0.5 touch-none">
           <GripVertical size={15} />
         </div>
         <div className="flex-1">{children}</div>
@@ -150,7 +150,7 @@ function DraggableSub({
   return (
     <div ref={ref} className={`${isDragging ? 'opacity-40' : 'opacity-100'} ${isOver ? 'ring-2 ring-primary/30 rounded-lg' : ''}`}>
       <div className="flex items-center gap-1">
-        <div ref={dragRef} className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0 px-0.5 touch-none ml-6">
+        <div ref={dragRef} className="hidden md:flex cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0 px-0.5 touch-none ml-6">
           <GripVertical size={13} />
         </div>
         <div className="flex-1">{children}</div>
@@ -487,9 +487,9 @@ export function Categories() {
           <div className="space-y-4 pb-6">
 
             <div className="flex items-center justify-between gap-2">
-              <button type="button" onClick={() => navigate('/settings')}
+              <button type="button" onClick={() => navigate(-1)}
                 className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <ChevronLeft size={16} /> Back to Settings
+                <ChevronLeft size={16} /> Back
               </button>
               <Button size="sm" className="gap-2" onClick={() => openAddParent(activeTab)}>
                 <Plus size={15} /> Add Category

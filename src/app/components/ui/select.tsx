@@ -119,7 +119,10 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        // ✅ FIX: Tambah text-popover-foreground agar teks item selalu terbaca di dark mode
+        // Sebelumnya tidak ada warna teks eksplisit, sehingga fallback ke nilai yang kurang kontras
+        // ✅ FIX: data-[disabled]:opacity-60 (dari 50) agar item disabled tetap terbaca di dark mode
+        "focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm text-popover-foreground outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-60 dark:data-[disabled]:opacity-50 dark:data-[disabled]:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className,
       )}
       {...props}

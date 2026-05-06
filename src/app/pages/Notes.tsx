@@ -154,7 +154,17 @@ export function Notes() {
                   style={{ borderColor: getCategoryColor(note.categoryId, note.subcategoryId), color: getCategoryColor(note.categoryId, note.subcategoryId) }}>
                   {getCategoryName(note.categoryId, note.subcategoryId)}
                 </span>
-                {note.pinned && <Pin size={13} className="text-amber-500" />}
+                {note.pinned && (
+                  <button
+                    type="button"
+                    onClick={(e) => handlePin(e, note)}
+                    title="Unpin"
+                    disabled={pinningId === note.id}
+                    className="text-amber-500 hover:text-amber-600 transition-colors leading-none disabled:opacity-50"
+                  >
+                    {pinningId === note.id ? <Loader2 size={12} className="animate-spin" /> : <Pin size={13} />}
+                  </button>
+                )}
               </div>
               <h3 className="text-sm font-semibold text-foreground line-clamp-1 mt-2">{note.title}</h3>
               <p className="text-sm text-slate-500 dark:text-muted-foreground line-clamp-3 mt-1">{plainContent}</p>
@@ -292,7 +302,7 @@ export function Notes() {
       <div className="flex-shrink-0 space-y-3">
         <div className="flex justify-between items-center">
           <p className="text-sm font-medium text-foreground/65">Your Personal Notes</p>
-          <Button onClick={() => navigate('/notes/new')} className="gap-2"><Plus size={18} /> Add Note</Button>
+          <Button onClick={() => navigate('/notes/new')} className="hidden md:flex gap-2"><Plus size={18} /> Add Note</Button>
         </div>
 
         {activeFilterCount > 0 && (
@@ -399,7 +409,7 @@ export function Notes() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="hidden md:flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-foreground/65">Show:</span>
           <div className="inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             {([5, 10, 20, 'all'] as (number | 'all')[]).map((num) => (
@@ -418,7 +428,12 @@ export function Notes() {
               title="Card View"><LayoutGrid size={16} /></button>
           </div>
           <span className="text-sm font-medium text-foreground/65 ml-auto">
-            {itemsPerPage === 'all' ? `Showing All ${filteredNotes.length} Notes` : `Page ${currentPage} Of ${totalPages} (${filteredNotes.length} Total)`}
+            {itemsPerPage === 'all'
+              ? `Showing All ${filteredNotes.length} Notes`
+              : pinnedNotes.length > 0
+                ? `Page ${currentPage} of ${totalPages} · ${regularNotes.length} regular + ${pinnedNotes.length} pinned`
+                : `Page ${currentPage} of ${totalPages} (${filteredNotes.length} total)`
+            }
           </span>
         </div>
       </div>
@@ -478,7 +493,7 @@ export function Notes() {
       </div>
 
       {itemsPerPage !== 'all' && totalPages > 1 && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-card border-t-2 border-slate-200 dark:border-border shadow-[0_-4px_16px_rgba(0,0,0,0.08)] py-3 px-6">
+        <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-30 bg-white dark:bg-card border-t-2 border-slate-200 dark:border-border shadow-[0_-4px_16px_rgba(0,0,0,0.08)] py-3 px-6">
           <div className="flex items-center justify-between w-full">
             <p className="text-sm font-medium text-foreground/65">
               Showing {startIndex + 1}–{Math.min(startIndex + (itemsPerPage as number), regularNotes.length)} of {regularNotes.length}

@@ -1,11 +1,13 @@
 // src/app/pages/Transactions.tsx
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTransactions } from '../context/TransactionContext';
 import { useAccounts } from '../context/AccountContext';
 import { useCategories } from '../context/CategoryContext';
 import { stripHtml } from '../components/RichTextEditor';
 import { useViewPreferences } from '../hooks/useViewPreferences';
+import { DateRangeFilter, defaultDateRange, type DateRangeValue } from '../components/DateRangeFilter';
+import { format } from 'date-fns';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -134,25 +136,26 @@ function SummaryPopup({
 
 export function Transactions() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { transactions, loading, error, deleteTransaction } = useTransactions();
   const { accounts }                                        = useAccounts();
   const { categories, getCategoriesByType, getCategoriesBySubtype, getEffectiveCategoryName, getEffectiveCategoryColor } = useCategories();
 
   const { itemsPerPage, setItemsPerPage, viewMode, setViewMode } = useViewPreferences('transactions');
 
-  const [searchQuery, setSearchQuery]       = useState('');
-  const [filterAccount, setFilterAccount]   = useState('all');
-  const [filterType, setFilterType]         = useState('all');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [dateFrom, setDateFrom]             = useState('');
-  const [dateTo, setDateTo]                 = useState('');
-  const [sortBy, setSortBy]                 = useState<'date' | 'amount'>('date');
-  const [sortOrder, setSortOrder]           = useState<'asc' | 'desc'>('desc');
-  const [currentPage, setCurrentPage]       = useState(1);
-  const [filterOpen, setFilterOpen]         = useState(false);
-  const [deleteTarget, setDeleteTarget]     = useState<{ id: string; amount: number; type: string; isTransfer?: boolean } | null>(null);
-  const [deleting, setDeleting]             = useState(false);
-  const [activePopup, setActivePopup]       = useState<PopupType>(null);
+  const [searchQuery, setSearchQuery]         = useState('');
+  const [filterAccount, setFilterAccount]     = useState('all');
+  const [filterType, setFilterType]           = useState('all');
+  const [filterCategory, setFilterCategory]   = useState('all');
+  const [dateRangeEnabled, setDateRangeEnabled] = useState(false);
+  const [dateRange, setDateRange]             = useState<DateRangeValue>(defaultDateRange());
+  const [sortBy, setSortBy]                   = useState<'date' | 'amount'>('date');
+  const [sortOrder, setSortOrder]             = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage]         = useState(1);
+  const [filterOpen, setFilterOpen]           = useState(false);
+  const [deleteTarget, setDeleteTarget]       = useState<{ id: string; amount: number; type: string; isTransfer?: boolean } | null>(null);
+  const [deleting, setDeleting]               = useState(false);
+  const [activePopup, setActivePopup]         = useState<PopupType>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -171,6 +174,16 @@ export function Transactions() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const type = params.get('type');
+    const accountId = params.get('accountId');
+    if (!type && !accountId) return;
+    if (type && ['income', 'expense', 'transfer'].includes(type)) setFilterType(type);
+    if (accountId) setFilterAccount(accountId);
+    navigate('/transactions', { replace: true });
+  }, [location.search, navigate]);
 
   const getAccountName   = (id: string | null) =>
     !id ? 'Deleted Account' : accounts.find(a => a.id === id)?.name ?? 'Deleted Account';
@@ -203,8 +216,10 @@ export function Transactions() {
     if (filterCategory !== 'all') result = result.filter(t =>
       t.type !== 'transfer' && (t.categoryId === filterCategory || t.subcategoryId === filterCategory)
     );
-    if (dateFrom) result = result.filter(t => t.date >= dateFrom);
-    if (dateTo)   result = result.filter(t => t.date <= dateTo);
+    if (dateRangeEnabled) result = result.filter(t => {
+      const d = new Date(t.date);
+      return d >= dateRange.start && d <= dateRange.end;
+    });
     result.sort((a, b) => {
       if (sortBy === 'date') {
         const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -216,9 +231,9 @@ export function Transactions() {
       return sortOrder === 'desc' ? b.amount - a.amount : a.amount - b.amount;
     });
     return result;
-  }, [transactions, searchQuery, filterAccount, filterType, filterCategory, sortBy, sortOrder, dateFrom, dateTo]);
+  }, [transactions, searchQuery, filterAccount, filterType, filterCategory, sortBy, sortOrder, dateRangeEnabled, dateRange]);
 
-  useMemo(() => { setCurrentPage(1); }, [searchQuery, filterAccount, filterType, filterCategory, dateFrom, dateTo, itemsPerPage]);
+  useMemo(() => { setCurrentPage(1); }, [searchQuery, filterAccount, filterType, filterCategory, dateRangeEnabled, dateRange, itemsPerPage]);
 
   const summaryIncome   = useMemo(() => filteredTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),   [filteredTransactions]);
   const summaryExpense  = useMemo(() => filteredTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),  [filteredTransactions]);
@@ -257,11 +272,11 @@ export function Transactions() {
                                  : filterType === 'expense' ? getCategoriesBySubtype('expense')
                                  : getCategoriesByType('transaction');
 
-  const activeFilterCount = [filterAccount !== 'all', filterType !== 'all', filterCategory !== 'all', !!dateFrom || !!dateTo].filter(Boolean).length;
+  const activeFilterCount = [filterAccount !== 'all', filterType !== 'all', filterCategory !== 'all', dateRangeEnabled].filter(Boolean).length;
 
   const resetFilters = () => {
     setFilterAccount('all'); setFilterType('all'); setFilterCategory('all');
-    setDateFrom(''); setDateTo('');
+    setDateRangeEnabled(false); setDateRange(defaultDateRange());
     setSortBy('date'); setSortOrder('desc'); setCurrentPage(1);
   };
 
@@ -411,7 +426,7 @@ export function Transactions() {
 
         <div className="flex justify-between items-center">
           <p className="text-sm font-medium text-foreground/65">All Your Transaction History</p>
-          <Button onClick={() => navigate('/transactions/new')} className="gap-2" disabled={accounts.length === 0}>
+          <Button onClick={() => navigate('/transactions/new')} className="hidden md:flex gap-2" disabled={accounts.length === 0}>
             <Plus size={18} /> Add Transaction
           </Button>
         </div>
@@ -439,11 +454,11 @@ export function Transactions() {
                   className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={11} /></button>
               </span>
             )}
-            {(dateFrom || dateTo) && (
+            {dateRangeEnabled && (
               <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium shadow-sm">
                 <CalendarDays size={11} />
-                {dateFrom && dateTo ? `${dateFrom} – ${dateTo}` : dateFrom ? `From ${dateFrom}` : `Until ${dateTo}`}
-                <button onClick={() => { setDateFrom(''); setDateTo(''); setCurrentPage(1); }}
+                {format(dateRange.start, 'd MMM')} – {format(dateRange.end, 'd MMM yyyy')}
+                <button onClick={() => { setDateRangeEnabled(false); setCurrentPage(1); }}
                   className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={11} /></button>
               </span>
             )}
@@ -565,24 +580,22 @@ export function Transactions() {
                     </div>
                   )}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date Range</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">From</p>
-                        <Input type="date" value={dateFrom}
-                          onChange={(e) => { setDateFrom(e.target.value); setCurrentPage(1); }}
-                          className="text-xs h-9" />
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">To</p>
-                        <Input type="date" value={dateTo}
-                          onChange={(e) => { setDateTo(e.target.value); setCurrentPage(1); }}
-                          className="text-xs h-9" />
-                      </div>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date Range</label>
+                      <button
+                        type="button"
+                        onClick={() => { setDateRangeEnabled(e => !e); setCurrentPage(1); }}
+                        className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border transition-colors ${
+                          dateRangeEnabled
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
+                        }`}
+                      >
+                        {dateRangeEnabled ? 'On' : 'Off'}
+                      </button>
                     </div>
-                    {(dateFrom || dateTo) && (
-                      <button onClick={() => { setDateFrom(''); setDateTo(''); }}
-                        className="text-xs text-primary hover:underline">Clear dates</button>
+                    {dateRangeEnabled && (
+                      <DateRangeFilter value={dateRange} onChange={(v) => { setDateRange(v); setCurrentPage(1); }} />
                     )}
                   </div>
                   <div className="space-y-1.5">
@@ -607,7 +620,7 @@ export function Transactions() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="hidden md:flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-foreground/65">Show:</span>
           <div className="inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             {([5, 10, 20, 'all'] as (number | 'all')[]).map((num) => (
@@ -858,7 +871,7 @@ export function Transactions() {
 
       {/* ── PAGINATION ── */}
       {itemsPerPage !== 'all' && totalPages > 1 && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-card border-t-2 border-slate-200 dark:border-border shadow-[0_-4px_16px_rgba(0,0,0,0.08)] py-3 px-6">
+        <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-30 bg-white dark:bg-card border-t-2 border-slate-200 dark:border-border shadow-[0_-4px_16px_rgba(0,0,0,0.08)] py-3 px-6">
           <div className="flex items-center justify-between w-full">
             <p className="text-sm font-medium text-foreground/65">
               Showing {startIndex + 1}–{Math.min(startIndex + (itemsPerPage as number), filteredTransactions.length)} of {filteredTransactions.length}

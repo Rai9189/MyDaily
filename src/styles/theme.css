@@ -56,33 +56,34 @@
 }
 
 .dark {
-  /* Semua tone dalam satu family navy — tidak ada yang "jumping out" */
   --background: #0e1c2a;
-  --foreground: #cde0f0;
+  --foreground: #daeef8;
 
   --card: #162435;
-  --card-foreground: #cde0f0;
+  --card-foreground: #daeef8;
 
   --popover: #162435;
-  --popover-foreground: #cde0f0;
+  --popover-foreground: #daeef8;
 
-  /* Primary lebih gelap & desaturated — topbar tidak terlalu pop out */
   --primary: #1f5680;
   --primary-foreground: #e8f4fd;
 
   --secondary: #1a3048;
-  --secondary-foreground: #cde0f0;
+  --secondary-foreground: #daeef8;
 
-  --muted: #121f2e;
-  --muted-foreground: #6a9ab8;
+  /* Lighter than card so muted areas are visually distinct, not sunken */
+  --muted: #1c3350;
+  --muted-foreground: #95c2d8;
 
   --accent: #a07810;
   --accent-foreground: #ffffff;
 
-  --destructive: #8b2218;
+  /* Bright enough to be visible as text and button backgrounds */
+  --destructive: #c0392b;
   --destructive-foreground: #ffffff;
 
-  --border: rgba(80, 140, 180, 0.18);
+  /* Stronger border so cards are clearly separated from the page */
+  --border: rgba(80, 140, 180, 0.28);
 
   --input: rgba(80, 140, 180, 0.1);
   --input-background: #1a3048;
@@ -93,20 +94,19 @@
   --font-weight-medium: 500;
   --font-weight-normal: 400;
 
-  --chart-1: #a07810;
+  --chart-1: #c8920e;
   --chart-2: #2471a3;
   --chart-3: #4a90be;
-  --chart-4: #c8900e;
-  --chart-5: #0e7a63;
+  --chart-4: #e0a820;
+  --chart-5: #12a07e;
 
-  /* Sidebar senada dengan card */
   --sidebar: #162435;
-  --sidebar-foreground: #cde0f0;
+  --sidebar-foreground: #daeef8;
   --sidebar-primary: #1f5680;
   --sidebar-primary-foreground: #e8f4fd;
-  --sidebar-accent: #1a3048;
-  --sidebar-accent-foreground: #cde0f0;
-  --sidebar-border: rgba(255, 255, 255, 0.05);
+  --sidebar-accent: #1c3350;
+  --sidebar-accent-foreground: #daeef8;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #2471a3;
 }
 
@@ -227,10 +227,10 @@
   color: var(--destructive-foreground) !important;
 }
 
-/* ✅ Dark mode: pastikan placeholder teks cukup terbaca */
+/* Dark mode: ensure placeholder text is readable */
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: #7ab3d0;
+  color: #7ab8d4;
   opacity: 1;
 }
 

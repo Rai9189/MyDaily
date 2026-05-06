@@ -313,9 +313,9 @@ export function TransactionDetail() {
 
           {/* Header */}
           <div className="flex items-center justify-between">
-            <button type="button" onClick={() => navigate('/transactions')}
+            <button type="button" onClick={() => navigate(-1)}
               className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <ChevronLeft size={16} /> Back to Transactions
+              <ChevronLeft size={16} /> Back
             </button>
           </div>
 

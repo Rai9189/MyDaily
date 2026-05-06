@@ -266,9 +266,9 @@ export function TaskDetail() {
 
           {/* Header */}
           <div className="flex items-center justify-between">
-            <button type="button" onClick={() => navigate('/tasks')}
+            <button type="button" onClick={() => navigate(-1)}
               className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <ChevronLeft size={16} /> Back to Tasks
+              <ChevronLeft size={16} /> Back
             </button>
             {!isNew && task && (
               task.completed

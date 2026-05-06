@@ -237,9 +237,9 @@ export function Trash() {
         <div className="space-y-4 pb-6">
 
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <button type="button" onClick={() => navigate('/settings')}
+            <button type="button" onClick={() => navigate(-1)}
               className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <ChevronLeft size={16} /> Back to Settings
+              <ChevronLeft size={16} /> Back
             </button>
             {trashItems.length > 0 && (
               <div className="flex items-center gap-2">

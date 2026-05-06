@@ -21,7 +21,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export function Tasks() {
   const navigate = useNavigate();
-  const { tasks, loading, error, deleteTask } = useTasks();
+  const { tasks, loading, error, deleteTask, completeTask, uncompleteTask } = useTasks();
   const { categories, getEffectiveCategoryName, getEffectiveCategoryColor } = useCategories();
 
   const { itemsPerPage, setItemsPerPage, viewMode, setViewMode } = useViewPreferences('tasks');
@@ -195,6 +195,14 @@ export function Tasks() {
     navigate(`/tasks/${id}`);
   };
 
+  const handleToggleComplete = async (e: React.MouseEvent, task: any) => {
+    e.stopPropagation();
+    const { success, error: err } = task.completed
+      ? await uncompleteTask(task.id)
+      : await completeTask(task.id);
+    if (!success) toast.error(err || 'Failed to update task');
+  };
+
   if (loading) return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex-1 overflow-y-auto no-scrollbar">
@@ -227,7 +235,7 @@ export function Tasks() {
       <div className="flex-shrink-0 space-y-2">
         <div className="flex justify-between items-center">
           <p className="text-sm font-medium text-foreground/65">Manage All Your Tasks</p>
-          <Button onClick={() => navigate('/tasks/new')} className="gap-2">
+          <Button onClick={() => navigate('/tasks/new')} className="hidden md:flex gap-2">
             <Plus size={18} /> Add Task
           </Button>
         </div>
@@ -360,7 +368,7 @@ export function Tasks() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="hidden md:flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-foreground/65">Show:</span>
           <div className="inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             {([5, 10, 20, 'all'] as (number | 'all')[]).map((num) => (
@@ -413,8 +421,23 @@ export function Tasks() {
                       <tr key={task.id}
                         className={`group hover:bg-slate-50 dark:hover:bg-muted/40 cursor-pointer transition-colors ${task.completed ? 'opacity-60' : ''}`}
                         onClick={() => navigate(`/tasks/${task.id}`)}>
-                        <td className={`pl-4 pr-2 ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
-                          <div className={`w-2.5 h-2.5 rounded-full ${getDotColor(task)}`} />
+                        <td className={`pl-4 pr-2 ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`} onClick={e => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={(e) => handleToggleComplete(e, task)}
+                            title={task.completed ? 'Mark incomplete' : 'Mark complete'}
+                            className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${
+                              task.completed
+                                ? 'bg-gray-400 border-gray-400'
+                                : `bg-transparent ${task.status === 'overdue' ? 'border-red-600' : task.status === 'urgent' ? 'border-orange-500' : task.status === 'upcoming' ? 'border-amber-500' : 'border-blue-500'}`
+                            }`}
+                          >
+                            {task.completed && (
+                              <svg viewBox="0 0 10 10" width="8" height="8" fill="none">
+                                <path d="M1.5 5L4 7.5L8.5 2.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </button>
                         </td>
                         <td className={`px-4 text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
                           <div className="relative inline-block">
@@ -471,7 +494,22 @@ export function Tasks() {
                 <Card key={task.id} className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer border-2 ${getCardBorder(task)}`}>
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
-                      <div className={`mt-1.5 flex-shrink-0 w-2.5 h-2.5 rounded-full ${getDotColor(task)}`} />
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleComplete(e, task)}
+                        title={task.completed ? 'Mark incomplete' : 'Mark complete'}
+                        className={`mt-1 flex-shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${
+                          task.completed
+                            ? 'bg-gray-400 border-gray-400'
+                            : `bg-transparent ${task.status === 'overdue' ? 'border-red-600' : task.status === 'urgent' ? 'border-orange-500' : task.status === 'upcoming' ? 'border-amber-500' : 'border-blue-500'}`
+                        }`}
+                      >
+                        {task.completed && (
+                          <svg viewBox="0 0 10 10" width="8" height="8" fill="none">
+                            <path d="M1.5 5L4 7.5L8.5 2.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </button>
                       <div className="flex-1 min-w-0" onClick={() => navigate(`/tasks/${task.id}`)}>
                         <div className="flex items-center gap-2 flex-wrap mb-1.5">
                           <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
@@ -517,7 +555,7 @@ export function Tasks() {
       </div>
 
       {itemsPerPage !== 'all' && totalPages > 1 && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-card border-t-2 border-slate-200 dark:border-border shadow-[0_-4px_16px_rgba(0,0,0,0.08)] py-3 px-6">
+        <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-30 bg-white dark:bg-card border-t-2 border-slate-200 dark:border-border shadow-[0_-4px_16px_rgba(0,0,0,0.08)] py-3 px-6">
           <div className="flex items-center justify-between w-full">
             <p className="text-sm font-medium text-foreground/65">
               Showing {startIndex + 1}–{Math.min(startIndex + (itemsPerPage as number), filteredTasks.length)} of {filteredTasks.length}

@@ -1,6 +1,6 @@
 // src/app/pages/Accounts.tsx
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAccounts } from '../context/AccountContext';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -65,6 +65,7 @@ function handleBalanceKeyInput(raw: string): string {
 export function Accounts() {
   const { accounts, loading, error, createAccount, updateAccount, updateAccountWithAdjustment, deleteAccount, setPrimaryAccount } = useAccounts();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [formData, setFormData] = useState({ name: '', type: 'Bank' as AccountType, balance: 0 });
@@ -80,6 +81,16 @@ export function Accounts() {
     newBalance: number;
     pendingSubmit: (() => Promise<void>) | null;
   }>({ open: false, diff: 0, newBalance: 0, pendingSubmit: null });
+
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('add') !== 'true') return;
+    setEditingAccount(null);
+    setFormData({ name: '', type: 'Bank', balance: 0 });
+    setBalanceDisplay('');
+    setBalanceError('');
+    setIsDialogOpen(true);
+    navigate('/accounts', { replace: true });
+  }, [location.search, navigate]);
 
   const closeConfirm = () => setConfirmState(DEFAULT_CONFIRM);
 
