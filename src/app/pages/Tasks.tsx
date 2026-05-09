@@ -13,7 +13,7 @@ import {
   Plus, AlertCircle, Clock, CheckCircle2, ArrowUpDown,
   ChevronLeft, ChevronRight, Filter, Paperclip,
   Search, X, Edit, Trash2, CalendarX,
-  LayoutGrid, List,
+  LayoutGrid, List, RotateCcw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
@@ -35,8 +35,10 @@ export function Tasks() {
   const [currentPage, setCurrentPage]         = useState(1);
   const [filterOpen, setFilterOpen]           = useState(false);
 
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
-  const [deleting, setDeleting]         = useState(false);
+  const [deleteTarget, setDeleteTarget]   = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting]           = useState(false);
+  const [toggleTarget, setToggleTarget]   = useState<{ id: string; title: string; completed: boolean } | null>(null);
+  const [toggling, setToggling]           = useState(false);
 
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -195,12 +197,20 @@ export function Tasks() {
     navigate(`/tasks/${id}`);
   };
 
-  const handleToggleComplete = async (e: React.MouseEvent, task: any) => {
+  const handleToggleComplete = (e: React.MouseEvent, task: any) => {
     e.stopPropagation();
-    const { success, error: err } = task.completed
-      ? await uncompleteTask(task.id)
-      : await completeTask(task.id);
+    setToggleTarget({ id: task.id, title: task.title, completed: task.completed });
+  };
+
+  const doToggleComplete = async () => {
+    if (!toggleTarget) return;
+    setToggling(true);
+    const { success, error: err } = toggleTarget.completed
+      ? await uncompleteTask(toggleTarget.id)
+      : await completeTask(toggleTarget.id);
     if (!success) toast.error(err || 'Failed to update task');
+    setToggling(false);
+    setToggleTarget(null);
   };
 
   if (loading) return (
@@ -230,6 +240,28 @@ export function Tasks() {
         loading={deleting}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
+      />
+      <ConfirmDialog
+        open={!!toggleTarget && !toggleTarget.completed}
+        title="Mark as Done?"
+        description={`"${toggleTarget?.title}" will be marked as completed.`}
+        confirmLabel="Mark Done"
+        variant="default"
+        icon={<CheckCircle2 size={20} />}
+        loading={toggling}
+        onConfirm={doToggleComplete}
+        onCancel={() => setToggleTarget(null)}
+      />
+      <ConfirmDialog
+        open={!!toggleTarget && !!toggleTarget.completed}
+        title="Reopen Task?"
+        description={`"${toggleTarget?.title}" will be marked as incomplete.`}
+        confirmLabel="Reopen"
+        variant="warning"
+        icon={<RotateCcw size={20} />}
+        loading={toggling}
+        onConfirm={doToggleComplete}
+        onCancel={() => setToggleTarget(null)}
       />
 
       <div className="flex-shrink-0 space-y-2">
@@ -421,7 +453,7 @@ export function Tasks() {
                       <tr key={task.id}
                         className={`group hover:bg-slate-50 dark:hover:bg-muted/40 cursor-pointer transition-colors ${task.completed ? 'opacity-60' : ''}`}
                         onClick={() => navigate(`/tasks/${task.id}`)}>
-                        <td className={`pl-4 pr-2 ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`} onClick={e => e.stopPropagation()}>
+                        <td className={`pl-4 pr-2 py-3`} onClick={e => e.stopPropagation()}>
                           <button
                             type="button"
                             onClick={(e) => handleToggleComplete(e, task)}
@@ -439,7 +471,7 @@ export function Tasks() {
                             )}
                           </button>
                         </td>
-                        <td className={`px-4 text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                        <td className={`px-4 text-center py-3`}>
                           <div className="relative inline-block">
                             <p className={`text-sm font-semibold leading-tight ${task.completed ? 'line-through text-slate-400' : 'text-foreground'}`}>
                               {task.title}
@@ -454,22 +486,22 @@ export function Tasks() {
                             )}
                           </div>
                         </td>
-                        <td className={`px-4 text-center whitespace-nowrap ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                        <td className={`px-4 text-center whitespace-nowrap py-3`}>
                           <span className="text-xs font-medium px-2.5 py-1 rounded-full border inline-block"
                             style={{ borderColor: getCategoryColor(task.categoryId, task.subcategoryId), color: getCategoryColor(task.categoryId, task.subcategoryId) }}>
                             {getCategoryName(task.categoryId, task.subcategoryId)}
                           </span>
                         </td>
-                        <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                        <td className={`px-4 whitespace-nowrap text-center py-3`}>
                           <p className="text-sm text-slate-500 dark:text-foreground/65">
                             {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                           </p>
                           <p className={`text-xs mt-0.5 ${daysInfo.color}`}>{daysInfo.label}</p>
                         </td>
-                        <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                        <td className={`px-4 whitespace-nowrap text-center py-3`}>
                           <StatusBadge task={task} />
                         </td>
-                        <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`} onClick={(e) => e.stopPropagation()}>
+                        <td className={`px-4 whitespace-nowrap text-center py-3`} onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-foreground"
                               onClick={(e) => handleEdit(e, task.id)}><Edit size={14} /></Button>
@@ -584,6 +616,12 @@ export function Tasks() {
         </div>
       )}
       {itemsPerPage !== 'all' && totalPages > 1 && <div className="h-16 flex-shrink-0" />}
+
+      <button type="button" onClick={() => navigate('/tasks/new')}
+        className="md:hidden fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all flex items-center justify-center"
+        aria-label="Add task">
+        <Plus size={24} />
+      </button>
     </div>
   );
 }

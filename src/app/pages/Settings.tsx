@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 function SettingRow({
   icon, label, description, onClick, disabled, badge, children,
@@ -60,12 +61,17 @@ export function Settings() {
   const { trashItems } = useTrash();
 
   /* ── Change Password ── */
-  const [sendingReset, setSendingReset] = useState(false);
-  const [resetSent, setResetSent]       = useState(false);
+  const [sendingReset, setSendingReset]       = useState(false);
+  const [resetSent, setResetSent]             = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  const handleChangePassword = async () => {
+  const handleChangePassword = () => {
     if (!user?.email) return;
-    if (!confirm(`Send password reset link to ${user.email}?`)) return;
+    setShowResetConfirm(true);
+  };
+
+  const doSendReset = async () => {
+    if (!user?.email) return;
     setSendingReset(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
@@ -78,6 +84,7 @@ export function Settings() {
       toast.error('Failed to send reset email. Please try again.');
     } finally {
       setSendingReset(false);
+      setShowResetConfirm(false);
     }
   };
 
@@ -116,6 +123,17 @@ export function Settings() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
+      <ConfirmDialog
+        open={showResetConfirm}
+        title="Send Password Reset?"
+        description={`A reset link will be sent to ${user?.email}. It expires in 1 hour.`}
+        confirmLabel="Send Link"
+        variant="default"
+        icon={<Mail size={20} />}
+        loading={sendingReset}
+        onConfirm={doSendReset}
+        onCancel={() => setShowResetConfirm(false)}
+      />
       <div className="flex-1 overflow-y-auto no-scrollbar">
         <div className="space-y-4 pb-6">
 

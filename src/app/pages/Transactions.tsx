@@ -21,8 +21,7 @@ import {
 import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-
-type PopupType = 'income' | 'expense' | 'transfer' | null;
+import { SummaryPopup, PopupType } from '../components/SummaryPopup';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('id-ID', {
@@ -38,101 +37,6 @@ const fmtShort = (n: number) => {
   if (n >= 1_000)         return `Rp ${(n / 1_000).toFixed(1)}rb`;
   return `Rp ${n.toLocaleString('id-ID')}`;
 };
-
-function SummaryPopup({
-  type, amount, txCount, percentage, onClose, onViewAll,
-}: {
-  type: PopupType;
-  amount: number;
-  txCount: number;
-  percentage?: string;
-  onClose: () => void;
-  onViewAll: () => void;
-}) {
-  if (!type) return null;
-
-  const config = {
-    income: {
-      label: 'Income',
-      icon: <TrendingUp size={18} />,
-      color: 'text-green-600 dark:text-green-400',
-      bg: 'bg-green-50 dark:bg-zinc-900',
-      border: 'border-green-200 dark:border-green-700',
-      iconBg: 'bg-green-100 dark:bg-green-900/60',
-      innerBg: 'bg-white dark:bg-zinc-800',
-      btnBg: 'bg-green-100 dark:bg-green-900/60 hover:bg-green-200 dark:hover:bg-green-900',
-    },
-    expense: {
-      label: 'Expense',
-      icon: <TrendingDown size={18} />,
-      color: 'text-red-600 dark:text-red-400',
-      bg: 'bg-red-50 dark:bg-zinc-900',
-      border: 'border-red-200 dark:border-red-700',
-      iconBg: 'bg-red-100 dark:bg-red-900/60',
-      innerBg: 'bg-white dark:bg-zinc-800',
-      btnBg: 'bg-red-100 dark:bg-red-900/60 hover:bg-red-200 dark:hover:bg-red-900',
-    },
-    transfer: {
-      label: 'Transfer',
-      icon: <ArrowLeftRight size={18} />,
-      color: 'text-blue-600 dark:text-blue-400',
-      bg: 'bg-blue-50 dark:bg-zinc-900',
-      border: 'border-blue-200 dark:border-blue-700',
-      iconBg: 'bg-blue-100 dark:bg-blue-900/60',
-      innerBg: 'bg-white dark:bg-zinc-800',
-      btnBg: 'bg-blue-100 dark:bg-blue-900/60 hover:bg-blue-200 dark:hover:bg-blue-900',
-    },
-  };
-
-  const c = config[type];
-
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-72 rounded-2xl border-2 ${c.border} ${c.bg} shadow-2xl p-5 animate-in fade-in zoom-in-95 duration-150`}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className={`w-9 h-9 rounded-full ${c.iconBg} flex items-center justify-center ${c.color}`}>
-              {c.icon}
-            </div>
-            <span className={`font-semibold text-base ${c.color}`}>{c.label}</span>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors"
-          >
-            <X size={14} />
-          </button>
-        </div>
-
-        <div className="mb-3">
-          <p className="text-xs text-muted-foreground mb-1">Total Amount</p>
-          <p className={`text-2xl font-bold tracking-tight ${c.color}`}>{fmt(amount)}</p>
-        </div>
-
-        <div className="flex items-center gap-3 mb-4">
-          <div className={`flex-1 ${c.innerBg} rounded-xl px-3 py-2 text-center`}>
-            <p className="text-xs text-muted-foreground">Transactions</p>
-            <p className="text-lg font-bold text-foreground">{txCount}</p>
-          </div>
-          {percentage && (
-            <div className={`flex-1 ${c.innerBg} rounded-xl px-3 py-2 text-center`}>
-              <p className="text-xs text-muted-foreground">Portion</p>
-              <p className={`text-lg font-bold ${c.color}`}>{percentage}%</p>
-            </div>
-          )}
-        </div>
-
-        <button
-          onClick={onViewAll}
-          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] ${c.btnBg} ${c.color} flex items-center justify-center gap-1.5`}
-        >
-          View All {c.label} <ChevronRight size={15} />
-        </button>
-      </div>
-    </>
-  );
-}
 
 export function Transactions() {
   const navigate = useNavigate();
@@ -733,7 +637,7 @@ export function Transactions() {
                     <tr key={t.id}
                       className="group hover:bg-slate-50 dark:hover:bg-muted/40 cursor-pointer transition-colors relative"
                       onClick={() => navigate(`/transactions/${t.id}`)}>
-                      <td className={`pl-0 pr-2 whitespace-nowrap ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                      <td className={`pl-0 pr-2 whitespace-nowrap py-3`}>
                         <div className="flex items-center gap-0">
                           <div className={`w-1 self-stretch rounded-r-full mr-3 ${
                             t.type === 'income' ? 'bg-green-400 dark:bg-green-600' :
@@ -745,7 +649,7 @@ export function Transactions() {
                           </div>
                         </div>
                       </td>
-                      <td className={`px-4 text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                      <td className={`px-4 text-center py-3`}>
                         <div className="relative inline-block">
                           {t.type === 'transfer' ? (
                             <span className="text-xs font-medium px-2.5 py-1 rounded-full border border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400 inline-block">
@@ -767,22 +671,27 @@ export function Transactions() {
                           )}
                         </div>
                       </td>
-                      <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                      <td className={`px-4 whitespace-nowrap text-center py-3`}>
                         <span className={`text-sm font-medium ${isDeletedAccount(t.accountId) ? 'text-muted-foreground italic' : 'text-foreground'}`}>
                           {getAccountName(t.accountId)}
                         </span>
                       </td>
-                      <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                      <td className={`px-4 whitespace-nowrap text-center py-3`}>
                         <span className="text-sm text-slate-500 dark:text-foreground/65">
                           {new Date(t.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </span>
                       </td>
-                      <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`}>
+                      <td className={`px-4 whitespace-nowrap text-center py-3`}>
                         <span className={`text-sm font-bold ${getAmountColor(t)}`}>
                           {getAmountPrefix(t)}{fmt(t.amount)}
                         </span>
+                        {t.attachments && t.attachments.length > 0 && (
+                          <span className="ml-1.5 inline-flex items-center gap-0.5 text-xs text-slate-400">
+                            <Paperclip size={10} />{t.attachments.length}
+                          </span>
+                        )}
                       </td>
-                      <td className={`px-4 whitespace-nowrap text-center ${itemsPerPage === 5 ? 'py-2' : 'py-4'}`} onClick={(e) => e.stopPropagation()}>
+                      <td className={`px-4 whitespace-nowrap text-center py-3`} onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-foreground"
                             onClick={(e) => handleEdit(e, t)}><Edit size={14} /></Button>
@@ -900,6 +809,12 @@ export function Transactions() {
         </div>
       )}
       {itemsPerPage !== 'all' && totalPages > 1 && <div className="h-16 flex-shrink-0" />}
+
+      <button type="button" onClick={() => navigate('/transactions/new')}
+        className="md:hidden fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all flex items-center justify-center"
+        aria-label="Add transaction">
+        <Plus size={24} />
+      </button>
     </div>
   );
 }

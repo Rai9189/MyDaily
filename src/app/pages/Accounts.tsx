@@ -80,7 +80,9 @@ export function Accounts() {
     diff: number;
     newBalance: number;
     pendingSubmit: (() => Promise<void>) | null;
-  }>({ open: false, diff: 0, newBalance: 0, pendingSubmit: null });
+    snapshotAccount: Account | null;
+    snapshotFormData: { name: string; type: AccountType; balance: number } | null;
+  }>({ open: false, diff: 0, newBalance: 0, pendingSubmit: null, snapshotAccount: null, snapshotFormData: null });
 
   useEffect(() => {
     if (new URLSearchParams(location.search).get('add') !== 'true') return;
@@ -115,7 +117,7 @@ export function Accounts() {
     if (account) {
       setEditingAccount(account);
       setFormData({ name: account.name, type: account.type, balance: account.balance });
-      setBalanceDisplay(account.balance > 0 ? formatBalanceDisplay(account.balance) : '');
+      setBalanceDisplay(account.balance === 0 ? '0' : formatBalanceDisplay(account.balance));
     } else {
       setEditingAccount(null);
       setFormData({ name: '', type: 'Bank', balance: 0 });
@@ -166,7 +168,7 @@ export function Accounts() {
 
       setIsDialogOpen(false);
       setTimeout(() => {
-        setAdjustConfirm({ open: true, diff, newBalance, pendingSubmit: doSubmit });
+        setAdjustConfirm({ open: true, diff, newBalance, pendingSubmit: doSubmit, snapshotAccount, snapshotFormData: snapshotForm });
       }, 150);
       return;
     }
@@ -237,7 +239,7 @@ export function Accounts() {
             <p className="text-sm font-medium text-foreground/65">Your Financial Accounts</p>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2" onClick={() => handleOpenDialog()}>
+                <Button className="gap-2 hidden md:inline-flex" onClick={() => handleOpenDialog()}>
                   <Plus size={16} /> Add Account
                 </Button>
               </DialogTrigger>
@@ -424,7 +426,8 @@ export function Accounts() {
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:bg-red-500 hover:text-white"
                             onClick={() => handleDelete(account.id, account.name)}
-                            disabled={isPrimary && accounts.length === 1}>
+                            disabled={isPrimary && accounts.length === 1}
+                            title={isPrimary && accounts.length === 1 ? 'Cannot delete the only account' : 'Delete account'}>
                             <Trash2 size={14} />
                           </Button>
                         </div>
@@ -480,7 +483,17 @@ export function Accounts() {
           setAdjustConfirm(prev => ({ ...prev, open: false }));
           if (adjustConfirm.pendingSubmit) await adjustConfirm.pendingSubmit();
         }}
-        onCancel={() => setAdjustConfirm({ open: false, diff: 0, newBalance: 0, pendingSubmit: null })}
+        onCancel={() => {
+          const { snapshotAccount, snapshotFormData } = adjustConfirm;
+          setAdjustConfirm({ open: false, diff: 0, newBalance: 0, pendingSubmit: null, snapshotAccount: null, snapshotFormData: null });
+          if (snapshotAccount && snapshotFormData) {
+            setEditingAccount(snapshotAccount);
+            setFormData(snapshotFormData);
+            setBalanceDisplay(snapshotFormData.balance === 0 ? '0' : formatBalanceDisplay(snapshotFormData.balance));
+            setBalanceError('');
+            setTimeout(() => setIsDialogOpen(true), 50);
+          }
+        }}
       />
     </div>
   );

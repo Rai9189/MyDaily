@@ -14,7 +14,7 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import {
   ChevronLeft, X, Loader2, FileText, Image as ImageIcon,
-  Save, CheckCircle2, CalendarX, AlertCircle, Clock, RotateCcw,
+  Save, CheckCircle2, CalendarX, AlertCircle, Clock, RotateCcw, Trash2,
 } from 'lucide-react';
 import { CategorySelect } from '../components/CategorySelect';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
@@ -90,8 +90,10 @@ export function TaskDetail() {
   const [submitting, setSubmitting]               = useState(false);
   const [completing, setCompleting]               = useState(false);
   const [uncompleting, setUncompleting]           = useState(false);
-  const [showNoAttachPopup, setShowNoAttachPopup] = useState(false);
-  const [showUnsubmitPopup, setShowUnsubmitPopup] = useState(false);
+  const [showNoAttachPopup, setShowNoAttachPopup]   = useState(false);
+  const [showUnsubmitPopup, setShowUnsubmitPopup]   = useState(false);
+  const [deleteAttachTarget, setDeleteAttachTarget] = useState<{ id: string; url: string } | null>(null);
+  const [deletingAttach, setDeletingAttach]         = useState(false);
 
   const isBusy       = submitting || isUploadingPending;
   const descLength   = stripHtml(formData.description).length;
@@ -160,15 +162,22 @@ export function TaskDetail() {
     e.target.value = '';
   };
 
-  const handleDeleteAttachment = async (attachmentId: string, url: string) => {
-    if (!confirm('Remove this attachment?')) return;
-    const { success, error } = await deleteAttachment(attachmentId, url);
+  const handleDeleteAttachment = (attachmentId: string, url: string) => {
+    setDeleteAttachTarget({ id: attachmentId, url });
+  };
+
+  const doDeleteAttachment = async () => {
+    if (!deleteAttachTarget) return;
+    setDeletingAttach(true);
+    const { success, error } = await deleteAttachment(deleteAttachTarget.id, deleteAttachTarget.url);
     if (success) {
-      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+      setAttachments(prev => prev.filter(a => a.id !== deleteAttachTarget.id));
       toast.success('Attachment removed');
     } else {
       toast.error(error || 'Failed to delete attachment');
     }
+    setDeletingAttach(false);
+    setDeleteAttachTarget(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -258,6 +267,19 @@ export function TaskDetail() {
           onConfirm={doUncomplete}
           onCancel={() => setShowUnsubmitPopup(false)}
           loading={uncompleting}
+        />
+      )}
+      {deleteAttachTarget && (
+        <ConfirmPopup
+          icon={<Trash2 size={20} className="text-red-600 dark:text-red-400" />}
+          iconBg="bg-red-100 dark:bg-red-900/30"
+          title="Remove attachment?"
+          description="This attachment will be permanently removed."
+          confirmLabel="Remove"
+          confirmClassName="bg-red-600 hover:bg-red-700 text-white"
+          onConfirm={doDeleteAttachment}
+          onCancel={() => setDeleteAttachTarget(null)}
+          loading={deletingAttach}
         />
       )}
 
@@ -402,7 +424,8 @@ export function TaskDetail() {
                           </div>
                           {!task?.completed && (
                             <Button type="button" variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive"
-                              onClick={() => handleDeleteAttachment(file.id, file.url)}>
+                              onClick={() => handleDeleteAttachment(file.id, file.url)}
+                              disabled={deletingAttach}>
                               <X size={14} />
                             </Button>
                           )}

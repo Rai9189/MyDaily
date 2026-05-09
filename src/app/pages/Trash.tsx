@@ -304,7 +304,7 @@ export function Trash() {
                     const isProcessing = isRestoring || isDeleting;
                     const deletedLabel = new Date(item.deleted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     return (
-                      <div key={item.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors">
+                      <div key={item.id} className={`flex items-center gap-3 px-4 py-3 transition-colors ${days <= 3 ? 'bg-red-50/60 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20' : 'hover:bg-muted/30'}`}>
                         <div className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer" onClick={() => setDetailItem(item)}>
                           <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 ${TABLE_COLORS[item.table]}`}>
                             {TABLE_ICONS[item.table]}

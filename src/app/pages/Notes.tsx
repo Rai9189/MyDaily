@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useNotes } from '../context/NoteContext';
 import { useCategories } from '../context/CategoryContext';
 import { useViewPreferences } from '../hooks/useViewPreferences';
+import { stripHtml } from '../components/RichTextEditor';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -18,10 +19,6 @@ import { ListPageSkeleton } from '../components/Skeletons';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 type SortOption = 'newest' | 'oldest' | 'az';
-
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-}
 
 export function Notes() {
   const navigate = useNavigate();
@@ -477,11 +474,21 @@ export function Notes() {
             <table className="w-full">
               <TableHeader />
               <tbody>
+                {pinnedNotes.length > 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-1.5 bg-amber-50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-900/30">
+                      <div className="flex items-center gap-1.5">
+                        <Pin size={11} className="text-amber-500" />
+                        <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">Pinned ({pinnedNotes.length})</span>
+                      </div>
+                    </td>
+                  </tr>
+                )}
                 {pinnedNotes.map((note) => (
                   <NoteTableRow key={note.id} note={note} isPinned={true} />
                 ))}
                 {pinnedNotes.length > 0 && paginatedNotes.length > 0 && (
-                  <tr><td colSpan={5} className="p-0 bg-amber-200/40 dark:bg-amber-900/20" style={{ height: '2px' }} /></tr>
+                  <tr><td colSpan={5} className="p-0 bg-border/60" style={{ height: '2px' }} /></tr>
                 )}
                 {paginatedNotes.map((note) => (
                   <NoteTableRow key={note.id} note={note} isPinned={false} />
@@ -522,6 +529,12 @@ export function Notes() {
         </div>
       )}
       {itemsPerPage !== 'all' && totalPages > 1 && <div className="h-16 flex-shrink-0" />}
+
+      <button type="button" onClick={() => navigate('/notes/new')}
+        className="md:hidden fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all flex items-center justify-center"
+        aria-label="Add note">
+        <Plus size={24} />
+      </button>
     </div>
   );
 }

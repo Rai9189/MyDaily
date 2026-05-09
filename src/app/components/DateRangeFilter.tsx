@@ -3,12 +3,12 @@ import { useState } from 'react';
 import {
   startOfDay, endOfDay, startOfWeek, endOfWeek,
   startOfMonth, endOfMonth, startOfYear, endOfYear,
-  format, isSameDay,
+  subDays, format, isSameDay,
 } from 'date-fns';
 import { Calendar, ChevronDown, X, Check } from 'lucide-react';
 import { DayPicker } from 'react-day-picker';
 
-export type RangePreset = 'today' | 'this_week' | 'this_month' | 'this_year' | 'custom';
+export type RangePreset = 'today' | 'this_week' | 'this_month' | 'last_30' | 'this_year' | 'custom';
 
 export interface DateRangeValue {
   preset: RangePreset;
@@ -22,10 +22,11 @@ interface DateRangeFilterProps {
 }
 
 const PRESETS: { key: Exclude<RangePreset, 'custom'>; label: string }[] = [
-  { key: 'today',      label: 'Today'      },
-  { key: 'this_week',  label: 'This Week'  },
-  { key: 'this_month', label: 'This Month' },
-  { key: 'this_year',  label: 'This Year'  },
+  { key: 'today',      label: 'Today'       },
+  { key: 'this_week',  label: 'This Week'   },
+  { key: 'this_month', label: 'This Month'  },
+  { key: 'last_30',    label: 'Last 30 Days'},
+  { key: 'this_year',  label: 'This Year'   },
 ];
 
 export function getPresetRange(preset: Exclude<RangePreset, 'custom'>): { start: Date; end: Date } {
@@ -34,6 +35,7 @@ export function getPresetRange(preset: Exclude<RangePreset, 'custom'>): { start:
     case 'today':      return { start: startOfDay(now),   end: endOfDay(now) };
     case 'this_week':  return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
     case 'this_month': return { start: startOfMonth(now), end: endOfMonth(now) };
+    case 'last_30':    return { start: startOfDay(subDays(now, 29)), end: endOfDay(now) };
     case 'this_year':  return { start: startOfYear(now),  end: endOfYear(now) };
   }
 }

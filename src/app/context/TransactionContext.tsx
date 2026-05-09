@@ -54,7 +54,7 @@ function mapToTransaction(row: any): Transaction {
 
 export function TransactionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const { updateBalanceLocally } = useAccounts();
+  const { updateBalanceLocally, accounts } = useAccounts();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -212,12 +212,21 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       if (updateError) throw updateError;
       setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
       if (oldTransaction && oldTransaction.type !== 'transfer') {
-        const oldDelta = oldTransaction.type === 'income' ? -oldTransaction.amount : oldTransaction.amount;
-        updateBalanceLocally(oldTransaction.accountId, oldDelta);
+        const oldDelta     = oldTransaction.type === 'income' ? -oldTransaction.amount : oldTransaction.amount;
         const newAccountId = updates.accountId ?? oldTransaction.accountId;
         const newAmount    = updates.amount    ?? oldTransaction.amount;
         const newType      = updates.type      ?? oldTransaction.type;
         const newDelta     = newType === 'income' ? newAmount : -newAmount;
+        if (oldTransaction.accountId === newAccountId) {
+          const acc = accounts.find(a => a.id === newAccountId);
+          if (acc) await supabase.from('accounts').update({ balance: acc.balance + oldDelta + newDelta }).eq('id', newAccountId);
+        } else {
+          const oldAcc = accounts.find(a => a.id === oldTransaction.accountId);
+          const newAcc = accounts.find(a => a.id === newAccountId);
+          if (oldAcc) await supabase.from('accounts').update({ balance: oldAcc.balance + oldDelta }).eq('id', oldTransaction.accountId);
+          if (newAcc) await supabase.from('accounts').update({ balance: newAcc.balance + newDelta }).eq('id', newAccountId);
+        }
+        updateBalanceLocally(oldTransaction.accountId, oldDelta);
         updateBalanceLocally(newAccountId, newDelta);
       }
       return { success: true, error: null };
@@ -244,6 +253,21 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       const inTx = transactions.find(t =>
         t.transferPairId === outTx.transferPairId && t.id !== id
       );
+
+      // Compute net balance delta per account and update DB before touching local state
+      const transferDeltas = new Map<string, number>();
+      const addTransferDelta = (accId: string, d: number) =>
+        transferDeltas.set(accId, (transferDeltas.get(accId) ?? 0) + d);
+      addTransferDelta(outTx.accountId, outTx.amount);
+      if (inTx) addTransferDelta(inTx.accountId, -inTx.amount);
+      addTransferDelta(updates.fromAccountId, -updates.amount);
+      addTransferDelta(updates.toAccountId, updates.amount);
+      for (const [accId, delta] of transferDeltas) {
+        if (delta !== 0) {
+          const acc = accounts.find(a => a.id === accId);
+          if (acc) await supabase.from('accounts').update({ balance: acc.balance + delta }).eq('id', accId);
+        }
+      }
 
       updateBalanceLocally(outTx.accountId, outTx.amount);
       if (inTx) updateBalanceLocally(inTx.accountId, -inTx.amount);
@@ -312,9 +336,17 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         setTransactions(prev => prev.filter(t => t.transferPairId !== transaction.transferPairId));
 
         if (transaction.toAccountId) {
+          const fromAcc = accounts.find(a => a.id === transaction.accountId);
+          const toAcc   = pairTx ? accounts.find(a => a.id === pairTx.accountId) : null;
+          if (fromAcc) await supabase.from('accounts').update({ balance: fromAcc.balance + transaction.amount }).eq('id', transaction.accountId);
+          if (toAcc && pairTx) await supabase.from('accounts').update({ balance: toAcc.balance - pairTx.amount }).eq('id', pairTx.accountId);
           updateBalanceLocally(transaction.accountId, transaction.amount);
           if (pairTx) updateBalanceLocally(pairTx.accountId, -pairTx.amount);
         } else {
+          const toAcc   = accounts.find(a => a.id === transaction.accountId);
+          const fromAcc = pairTx ? accounts.find(a => a.id === pairTx.accountId) : null;
+          if (toAcc) await supabase.from('accounts').update({ balance: toAcc.balance - transaction.amount }).eq('id', transaction.accountId);
+          if (fromAcc && pairTx) await supabase.from('accounts').update({ balance: fromAcc.balance + pairTx.amount }).eq('id', pairTx.accountId);
           updateBalanceLocally(transaction.accountId, -transaction.amount);
           if (pairTx) updateBalanceLocally(pairTx.accountId, pairTx.amount);
         }
@@ -327,6 +359,8 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         setTransactions(prev => prev.filter(t => t.id !== id));
         if (transaction) {
           const delta = transaction.type === 'income' ? -transaction.amount : transaction.amount;
+          const acc = accounts.find(a => a.id === transaction.accountId);
+          if (acc) await supabase.from('accounts').update({ balance: acc.balance + delta }).eq('id', transaction.accountId);
           updateBalanceLocally(transaction.accountId, delta);
         }
       }

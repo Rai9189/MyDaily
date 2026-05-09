@@ -16,12 +16,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../components/ui/badge';
 import {
   ChevronLeft, X, Loader2, FileText, Image as ImageIcon,
-  Save, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ArrowLeftRight, Star,
+  Save, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ArrowLeftRight, Star, Trash2,
 } from 'lucide-react';
 import { CategorySelect } from '../components/CategorySelect';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { DetailPageSkeleton } from '../components/Skeletons';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 const MAX_AMOUNT = 1_000_000_000;
 const MAX_DESC   = 10_000;
@@ -81,6 +82,17 @@ export function TransactionDetail() {
   const isTransfer          = transaction?.type === 'transfer';
   const originalAcctDeleted = !isNew && transaction && transaction.accountId === null;
 
+  const outgoingTransfer = useMemo(() => {
+    if (!transaction || transaction.toAccountId || transaction.type !== 'transfer') return null;
+    return transactions.find(t =>
+      t.id !== transaction.id &&
+      t.type === 'transfer' &&
+      t.toAccountId === transaction.accountId &&
+      t.amount === transaction.amount &&
+      t.date === transaction.date
+    ) ?? null;
+  }, [transaction, transactions]);
+
   // ✅ Auto-select primary account saat new transaction
   const primaryAccount = useMemo(() => accounts.find(a => a.is_primary) ?? accounts[0] ?? null, [accounts]);
 
@@ -100,6 +112,8 @@ export function TransactionDetail() {
   const [uploading, setUploading]           = useState(false);
   const [submitting, setSubmitting]         = useState(false);
   const [amountError, setAmountError]       = useState('');
+  const [deleteAttachTarget, setDeleteAttachTarget] = useState<{ id: string; url: string } | null>(null);
+  const [deletingAttach, setDeletingAttach] = useState(false);
 
   const allCategoriesForType = useMemo(() => {
     if (!formData.type || formData.type === 'transfer') return [];
@@ -214,15 +228,22 @@ export function TransactionDetail() {
     e.target.value = '';
   };
 
-  const handleDeleteAttachment = async (attachmentId: string, url: string) => {
-    if (!confirm('Remove this attachment?')) return;
-    const { success, error } = await deleteAttachment(attachmentId, url);
+  const handleDeleteAttachment = (attachmentId: string, url: string) => {
+    setDeleteAttachTarget({ id: attachmentId, url });
+  };
+
+  const doDeleteAttachment = async () => {
+    if (!deleteAttachTarget) return;
+    setDeletingAttach(true);
+    const { success, error } = await deleteAttachment(deleteAttachTarget.id, deleteAttachTarget.url);
     if (success) {
-      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+      setAttachments(prev => prev.filter(a => a.id !== deleteAttachTarget.id));
       toast.success('Attachment removed');
     } else {
       toast.error(error || 'Failed to delete attachment');
     }
+    setDeletingAttach(false);
+    setDeleteAttachTarget(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -306,8 +327,43 @@ export function TransactionDetail() {
     );
   }
 
+  if (!isNew && !txLoading && !transaction) {
+    return (
+      <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+          <div className="space-y-4 pb-6">
+            <div className="flex items-center justify-between">
+              <button type="button" onClick={() => navigate(-1)}
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <ChevronLeft size={16} /> Back
+              </button>
+            </div>
+            <Card className="border-2 border-slate-200 dark:border-border bg-white dark:bg-card shadow-sm">
+              <CardContent className="py-16 text-center">
+                <p className="text-muted-foreground font-medium">Transaction not found</p>
+                <p className="text-sm text-muted-foreground/60 mt-1">This transaction may have been deleted or doesn't exist.</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
+      <ConfirmDialog
+        open={!!deleteAttachTarget}
+        title="Remove Attachment?"
+        description="This attachment will be permanently removed."
+        confirmLabel="Remove"
+        variant="danger"
+        icon={<Trash2 size={20} />}
+        loading={deletingAttach}
+        onConfirm={doDeleteAttachment}
+        onCancel={() => setDeleteAttachTarget(null)}
+      />
+
       <div className="flex-1 overflow-y-auto no-scrollbar">
         <div className="space-y-4 pb-6">
 
@@ -331,9 +387,18 @@ export function TransactionDetail() {
           {!isNew && isTransfer && !transaction?.toAccountId && (
             <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800">
               <ArrowLeftRight size={15} className="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-blue-700 dark:text-blue-300">
-                This is the <strong>incoming</strong> side of a transfer. To edit or delete, open the outgoing transaction.
-              </p>
+              <div className="flex-1">
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  This is the <strong>incoming</strong> side of a transfer. To edit or delete, open the outgoing transaction.
+                </p>
+                {outgoingTransfer && (
+                  <button type="button"
+                    onClick={() => navigate(`/transactions/${outgoingTransfer.id}`)}
+                    className="mt-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 hover:underline flex items-center gap-1">
+                    <ArrowLeftRight size={11} /> Open Outgoing Transaction →
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

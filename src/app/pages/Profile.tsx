@@ -13,6 +13,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { DetailPageSkeleton } from '../components/Skeletons';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export function Profile() {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ export function Profile() {
   const [submitting, setSubmitting]           = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [signingOut, setSigningOut]           = useState(false);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -68,8 +70,7 @@ export function Profile() {
     }
   };
 
-  const handleLogout = async () => {
-    if (!confirm('Are you sure you want to sign out?')) return;
+  const doLogout = async () => {
     setSigningOut(true);
     sessionStorage.removeItem('pinUnlocked');
     await signOut();
@@ -116,6 +117,17 @@ export function Profile() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
+      <ConfirmDialog
+        open={showSignOutConfirm}
+        title="Sign Out?"
+        description="You'll need to enter your PIN again when you come back."
+        confirmLabel="Sign Out"
+        variant="warning"
+        icon={<LogOut size={20} />}
+        loading={signingOut}
+        onConfirm={doLogout}
+        onCancel={() => setShowSignOutConfirm(false)}
+      />
       <div className="flex-1 overflow-y-auto no-scrollbar">
         <div className="space-y-4 pb-6">
 
@@ -203,7 +215,7 @@ export function Profile() {
           {/* Sign Out (mobile only) */}
           <Card className="border-2 border-red-200 dark:border-red-900/40 bg-white dark:bg-card shadow-sm rounded-xl md:hidden">
             <CardContent className="pt-4 pb-4 px-4">
-              <Button variant="destructive" className="w-full gap-2" onClick={handleLogout} disabled={signingOut} type="button">
+              <Button variant="destructive" className="w-full gap-2" onClick={() => setShowSignOutConfirm(true)} disabled={signingOut} type="button">
                 {signingOut ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing out...</> : <><LogOut size={14} /> Sign Out</>}
               </Button>
             </CardContent>

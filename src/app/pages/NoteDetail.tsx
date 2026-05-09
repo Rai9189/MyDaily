@@ -13,11 +13,12 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import {
   ChevronLeft, Pin, X, Loader2, FileText,
-  Image as ImageIcon, Save,
+  Image as ImageIcon, Save, Trash2,
 } from 'lucide-react';
 import { CategorySelect } from '../components/CategorySelect';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 const MAX_TITLE   = 100;
 const MAX_CONTENT = 10_000;
@@ -103,6 +104,8 @@ export function NoteDetail() {
   const [submitting, setSubmitting]         = useState(false);
   const [togglingPin, setTogglingPin]       = useState(false);
   const [attachsLoading, setAttachsLoading] = useState(false);
+  const [deleteAttachTarget, setDeleteAttachTarget] = useState<{ id: string; url: string } | null>(null);
+  const [deletingAttach, setDeletingAttach] = useState(false);
 
   const isBusy = submitting || isUploadingPending;
 
@@ -158,15 +161,22 @@ export function NoteDetail() {
     e.target.value = '';
   };
 
-  const handleDeleteAttachment = async (attachmentId: string, url: string) => {
-    if (!confirm('Remove this attachment?')) return;
-    const { success, error } = await deleteAttachment(attachmentId, url);
+  const handleDeleteAttachment = (attachmentId: string, url: string) => {
+    setDeleteAttachTarget({ id: attachmentId, url });
+  };
+
+  const doDeleteAttachment = async () => {
+    if (!deleteAttachTarget) return;
+    setDeletingAttach(true);
+    const { success, error } = await deleteAttachment(deleteAttachTarget.id, deleteAttachTarget.url);
     if (success) {
-      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+      setAttachments(prev => prev.filter(a => a.id !== deleteAttachTarget.id));
       toast.success('Attachment removed');
     } else {
       toast.error(error || 'Failed to delete attachment');
     }
+    setDeletingAttach(false);
+    setDeleteAttachTarget(null);
   };
 
   const handleTogglePin = async () => {
@@ -221,6 +231,27 @@ export function NoteDetail() {
       <div className="flex flex-col flex-1 min-h-0">
         <div className="flex-1 overflow-y-auto no-scrollbar">
           <NoteDetailSkeleton />
+        </div>
+      </div>
+    );
+  }
+
+  if (!isNew && !notesLoading && !note) {
+    return (
+      <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+          <div className="space-y-4 pb-6">
+            <button type="button" onClick={() => navigate(-1)}
+              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <ChevronLeft size={16} /> Back
+            </button>
+            <Card className="bg-white dark:bg-card border-2 border-slate-200 dark:border-border shadow-sm rounded-xl">
+              <CardContent className="py-16 text-center">
+                <p className="text-muted-foreground font-medium">Note not found</p>
+                <p className="text-sm text-muted-foreground/60 mt-1">It may have been deleted or moved to trash.</p>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     );
@@ -391,7 +422,8 @@ export function NoteDetail() {
                           </div>
                           <Button type="button" variant="ghost" size="icon"
                             className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive"
-                            onClick={() => handleDeleteAttachment(file.id, file.url)}>
+                            onClick={() => handleDeleteAttachment(file.id, file.url)}
+                            disabled={deletingAttach}>
                             <X size={14} />
                           </Button>
                         </div>
@@ -419,6 +451,18 @@ export function NoteDetail() {
 
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!deleteAttachTarget}
+        title="Remove Attachment?"
+        description="This attachment will be permanently removed."
+        confirmLabel="Remove"
+        variant="danger"
+        icon={<Trash2 size={20} />}
+        loading={deletingAttach}
+        onConfirm={doDeleteAttachment}
+        onCancel={() => setDeleteAttachTarget(null)}
+      />
     </div>
   );
 }

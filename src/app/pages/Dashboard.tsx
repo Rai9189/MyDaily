@@ -1,5 +1,5 @@
 // src/app/pages/Dashboard.tsx
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAccounts } from '../context/AccountContext';
@@ -10,11 +10,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import {
   AlertCircle, Wallet, TrendingUp, TrendingDown,
   CalendarX, CheckCircle2, Clock, CalendarClock, ChevronRight, ChevronDown, BarChart2,
-  Info, ArrowLeftRight, X, CalendarDays,
+  Info, ArrowLeftRight, CalendarDays,
 } from 'lucide-react';
+import { SummaryPopup, PopupType } from '../components/SummaryPopup';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { isWithinInterval, format } from 'date-fns';
-import { DateRangeFilter, defaultDateRange, type DateRangeValue } from '../components/DateRangeFilter';
+import { DateRangeFilter, defaultDateRange, getPresetRange, type DateRangeValue } from '../components/DateRangeFilter';
 import { DashboardSkeleton } from '../components/Skeletons';
 
 const fmt = (n: number) =>
@@ -36,8 +37,6 @@ const inRange = (dateStr: string, start: Date, end: Date) =>
   isWithinInterval(new Date(dateStr), { start, end });
 
 type PieMode = 'income' | 'expense' | 'both';
-type PopupType = 'income' | 'expense' | 'transfer' | null;
-
 function CustomPieTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
   return (
@@ -60,110 +59,21 @@ function EmptyState({ label }: { label: string }) {
   );
 }
 
-function SummaryPopup({
-  type, amount, txCount, percentage, onClose, onViewAll,
-}: {
-  type: PopupType;
-  amount: number;
-  txCount: number;
-  percentage?: string;
-  onClose: () => void;
-  onViewAll: () => void;
-}) {
-  if (!type) return null;
-
-  const config = {
-    income: {
-      label: 'Income',
-      icon: <TrendingUp size={18} />,
-      color: 'text-green-600 dark:text-green-400',
-      bg: 'bg-green-50 dark:bg-zinc-900',
-      border: 'border-green-200 dark:border-green-700',
-      iconBg: 'bg-green-100 dark:bg-green-900/60',
-      innerBg: 'bg-white dark:bg-zinc-800',
-      btnBg: 'bg-green-100 dark:bg-green-900/60 hover:bg-green-200 dark:hover:bg-green-900',
-    },
-    expense: {
-      label: 'Expense',
-      icon: <TrendingDown size={18} />,
-      color: 'text-red-600 dark:text-red-400',
-      bg: 'bg-red-50 dark:bg-zinc-900',
-      border: 'border-red-200 dark:border-red-700',
-      iconBg: 'bg-red-100 dark:bg-red-900/60',
-      innerBg: 'bg-white dark:bg-zinc-800',
-      btnBg: 'bg-red-100 dark:bg-red-900/60 hover:bg-red-200 dark:hover:bg-red-900',
-    },
-    transfer: {
-      label: 'Transfer',
-      icon: <ArrowLeftRight size={18} />,
-      color: 'text-blue-600 dark:text-blue-400',
-      bg: 'bg-blue-50 dark:bg-zinc-900',
-      border: 'border-blue-200 dark:border-blue-700',
-      iconBg: 'bg-blue-100 dark:bg-blue-900/60',
-      innerBg: 'bg-white dark:bg-zinc-800',
-      btnBg: 'bg-blue-100 dark:bg-blue-900/60 hover:bg-blue-200 dark:hover:bg-blue-900',
-    },
-  };
-
-  const c = config[type];
-
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-72 rounded-2xl border-2 ${c.border} ${c.bg} shadow-2xl p-5 animate-in fade-in zoom-in-95 duration-150`}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className={`w-9 h-9 rounded-full ${c.iconBg} flex items-center justify-center ${c.color}`}>
-              {c.icon}
-            </div>
-            <span className={`font-semibold text-base ${c.color}`}>{c.label}</span>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors"
-          >
-            <X size={14} />
-          </button>
-        </div>
-
-        <div className="mb-3">
-          <p className="text-xs text-muted-foreground mb-1">Total Amount</p>
-          <p className={`text-2xl font-bold tracking-tight ${c.color}`}>{fmt(amount)}</p>
-        </div>
-
-        <div className="flex items-center gap-3 mb-4">
-          <div className={`flex-1 ${c.innerBg} rounded-xl px-3 py-2 text-center`}>
-            <p className="text-xs text-muted-foreground">Transactions</p>
-            <p className="text-lg font-bold text-foreground">{txCount}</p>
-          </div>
-          {percentage && (
-            <div className={`flex-1 ${c.innerBg} rounded-xl px-3 py-2 text-center`}>
-              <p className="text-xs text-muted-foreground">Portion</p>
-              <p className={`text-lg font-bold ${c.color}`}>{percentage}%</p>
-            </div>
-          )}
-        </div>
-
-        <button
-          onClick={onViewAll}
-          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] ${c.btnBg} ${c.color} flex items-center justify-center gap-1.5`}
-        >
-          View All {c.label} <ChevronRight size={15} />
-        </button>
-      </div>
-    </>
-  );
-}
-
 export function Dashboard() {
   const navigate = useNavigate();
   const { accounts, loading: aL } = useAccounts();
   const { transactions, loading: tL } = useTransactions();
-  const { tasks, loading: tkL, completeTask } = useTasks();
+  const { tasks, loading: tkL, completeTask, refreshTasks } = useTasks();
   const { categories } = useCategories();
 
   const [range, setRange] = useState<DateRangeValue>(defaultDateRange());
   const [pieMode, setPieMode] = useState<PieMode>('both');
+
+  useEffect(() => {
+    const handler = () => { if (document.visibilityState === 'visible') refreshTasks(); };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, []);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
   const [activePopup, setActivePopup] = useState<PopupType>(null);
@@ -348,6 +258,27 @@ export function Dashboard() {
             </div>
           </div>
 
+          {/* ── Quick preset chips ── */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {([
+              { key: 'today',      label: 'Today'    },
+              { key: 'this_week',  label: 'This Week'},
+              { key: 'this_month', label: 'This Month'},
+              { key: 'last_30',    label: 'Last 30d' },
+              { key: 'this_year',  label: 'This Year'},
+            ] as const).map(({ key, label }) => (
+              <button key={key} type="button"
+                onClick={() => setRange({ preset: key, ...getPresetRange(key) })}
+                className={`px-2.5 py-1 text-xs rounded-full border font-medium transition-colors ${
+                  range.preset === key
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}>
+                {label}
+              </button>
+            ))}
+          </div>
+
           {/* ── Balance Card ── */}
           <Card className="bg-primary text-primary-foreground border-0 shadow-lg rounded-xl overflow-hidden">
             <CardContent className="pt-4 pb-4 px-4">
@@ -515,11 +446,11 @@ export function Dashboard() {
             <CardContent className="px-4 pb-4 pt-3">
               {pieData.length === 0 ? (
                 <EmptyState
-                  label={`No ${
-                    pieMode === 'income' ? 'income'
-                    : pieMode === 'expense' ? 'expense'
-                    : ''
-                  } transactions in ${rangeLabel}.`}
+                  label={
+                    pieMode === 'both'
+                      ? `No transactions in ${rangeLabel}.`
+                      : `No ${pieMode} transactions in ${rangeLabel}.`
+                  }
                 />
               ) : pieMode === 'both' ? (
                 /* ── Mode "vs": surplus info + donut kiri, legend kanan ── */

@@ -6,11 +6,16 @@ import { TextAlign } from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import { Extension } from '@tiptap/core';
+import { TaskList } from '@tiptap/extension-task-list';
+import { TaskItem } from '@tiptap/extension-task-item';
+import Picker from '@emoji-mart/react';
+import data from '@emoji-mart/data';
 import {
   Bold, Italic, Underline as UnderlineIcon,
-  List, ListOrdered, Palette, Type,
+  List, ListOrdered, Palette, Type, CheckSquare, Smile,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 // ─── FontSize extension ───────────────────────────────────────────────────────
 const FontSize = Extension.create({
@@ -149,6 +154,70 @@ function SizeSelector({ onSelect }: { onSelect: (s: string) => void }) {
   );
 }
 
+// ─── Emoji Picker Button ──────────────────────────────────────────────────────
+function EmojiPickerButton({ onSelect }: { onSelect: (emoji: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (!open) return;
+    const btn = btnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const pickerWidth = 352;
+    const viewportWidth = window.innerWidth;
+    const left = rect.left + pickerWidth > viewportWidth
+      ? Math.max(8, viewportWidth - pickerWidth - 8)
+      : rect.left;
+    setPos({ top: rect.bottom + 4, left });
+  }, [open]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!open) return;
+      if (btnRef.current?.contains(e.target as Node)) return;
+      if (pickerRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const isDark = document.documentElement.classList.contains('dark');
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        title="Insert emoji"
+        onMouseDown={(e) => { e.preventDefault(); setOpen(o => !o); }}
+        className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+      >
+        <Smile size={14} />
+      </button>
+      {open && createPortal(
+        <div
+          ref={pickerRef}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+        >
+          <Picker
+            data={data}
+            theme={isDark ? 'dark' : 'light'}
+            onEmojiSelect={(emoji: any) => {
+              onSelect(emoji.native);
+              setOpen(false);
+            }}
+          />
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
 // ─── Divider ──────────────────────────────────────────────────────────────────
 function Divider() {
   return <div className="w-px h-5 bg-border mx-0.5 self-center" />;
@@ -159,10 +228,12 @@ function Toolbar({
   editor,
   onColorSelect,
   currentColor,
+  onEmojiSelect,
 }: {
   editor: ReturnType<typeof useEditor>;
   onColorSelect: (c: string) => void;
   currentColor: string;
+  onEmojiSelect: (emoji: string) => void;
 }) {
   const editorState = useEditorState({
     editor,
@@ -172,6 +243,7 @@ function Toolbar({
       underline:   ctx.editor.isActive('underline'),
       bulletList:  ctx.editor.isActive('bulletList'),
       orderedList: ctx.editor.isActive('orderedList'),
+      taskList:    ctx.editor.isActive('taskList'),
     }),
   });
 
@@ -218,6 +290,15 @@ function Toolbar({
         className={btnClass(editorState.orderedList)}>
         <ListOrdered size={14} />
       </button>
+      <button type="button" title="Checklist"
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleTaskList().run(); }}
+        className={btnClass(editorState.taskList)}>
+        <CheckSquare size={14} />
+      </button>
+
+      <Divider />
+
+      <EmojiPickerButton onSelect={onEmojiSelect} />
     </div>
   );
 }
@@ -237,9 +318,10 @@ export function RichTextEditor({
   maxLength, minHeight = 160,
 }: RichTextEditorProps) {
   const [currentColor, setCurrentColor] = useState('#000000');
-
-  // ✅ FIX: Track apakah editor punya konten (termasuk saat list aktif tapi belum ada teks)
   const [hasContent, setHasContent] = useState(false);
+
+  const editorHasContent = (html: string) =>
+    html !== '' && html !== '<p></p>';
 
   const editor = useEditor({
     extensions: [
@@ -249,54 +331,46 @@ export function RichTextEditor({
       Color,
       FontSize,
       TextAlign.configure({ types: ['paragraph'] }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
     ],
     content: value || '',
     editable: !disabled,
     onUpdate({ editor }) {
-      const html   = editor.getHTML();
-      const text   = editor.getText();
-      const isInList = editor.isActive('bulletList') || editor.isActive('orderedList');
-
-      // ✅ Placeholder hilang saat: ada teks ATAU sedang di dalam list node
-      setHasContent(text.trim().length > 0 || isInList);
-
+      const html = editor.getHTML();
+      const text = editor.getText();
+      setHasContent(editorHasContent(html));
       if (maxLength && text.length > maxLength) return;
       onChange(html);
     },
     onSelectionUpdate({ editor }) {
-      const text     = editor.getText();
-      const isInList = editor.isActive('bulletList') || editor.isActive('orderedList');
-      setHasContent(text.trim().length > 0 || isInList);
+      setHasContent(editorHasContent(editor.getHTML()));
     },
     editorProps: {
-      attributes: {
-        class: 'outline-none',
-      },
+      attributes: { class: 'outline-none' },
     },
   }, [disabled]);
 
-  // Sync value dari luar
   useEffect(() => {
     if (!editor) return;
     if (editor.getHTML() !== value) {
       editor.commands.setContent(value || '');
-      // Update hasContent setelah set
-      const text     = editor.getText();
-      const isInList = editor.isActive('bulletList') || editor.isActive('orderedList');
-      setHasContent(text.trim().length > 0 || isInList);
+      setHasContent(editorHasContent(editor.getHTML()));
     }
   }, [value, editor]);
 
-  // Set hasContent saat pertama load
   useEffect(() => {
     if (!editor) return;
-    const text = editor.getText();
-    setHasContent(text.trim().length > 0);
+    setHasContent(editorHasContent(editor.getHTML()));
   }, [editor]);
 
   const handleColorSelect = (color: string) => {
     setCurrentColor(color);
     editor?.chain().focus().setColor(color).run();
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    editor?.chain().focus().insertContent(emoji).run();
   };
 
   if (!editor) return null;
@@ -308,6 +382,7 @@ export function RichTextEditor({
           editor={editor}
           onColorSelect={handleColorSelect}
           currentColor={currentColor}
+          onEmojiSelect={handleEmojiSelect}
         />
       )}
 
@@ -323,11 +398,17 @@ export function RichTextEditor({
           .rte-content ol { list-style-type: decimal !important; padding-left: 1.5rem !important; margin: 0.5rem 0 !important; }
           .rte-content li { margin: 0.2rem 0 !important; display: list-item !important; }
           .rte-content li p { margin: 0 !important; }
+          .rte-content ul[data-type="taskList"] { list-style: none !important; padding-left: 0.25rem !important; }
+          .rte-content ul[data-type="taskList"] li { display: flex !important; align-items: flex-start !important; gap: 0.5rem; }
+          .rte-content ul[data-type="taskList"] li > label { display: flex; align-items: center; margin-top: 0.2rem; flex-shrink: 0; }
+          .rte-content ul[data-type="taskList"] li > label input[type="checkbox"] { accent-color: hsl(var(--primary)); width: 14px; height: 14px; cursor: pointer; }
+          .rte-content ul[data-type="taskList"] li[data-checked="true"] > div { text-decoration: line-through; opacity: 0.55; }
+          .rte-content ul[data-type="taskList"] li > div { flex: 1; }
+          .rte-content ul[data-type="taskList"] li > div p { margin: 0 !important; }
         `}</style>
 
         <EditorContent editor={editor} className="rte-content" />
 
-        {/* ✅ FIX: Sembunyikan placeholder kalau ada konten ATAU sedang di list */}
         {!hasContent && (
           <p className="absolute top-3 left-3 text-sm text-muted-foreground pointer-events-none select-none">
             {placeholder}
@@ -338,7 +419,7 @@ export function RichTextEditor({
   );
 }
 
-// ─── Helper: strip HTML untuk char count ─────────────────────────────────────
+// ─── Helper: strip HTML for char count ───────────────────────────────────────
 export function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
 }

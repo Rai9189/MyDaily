@@ -208,7 +208,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         const categoryId = await getAdjustmentCategoryId(type);
 
         if (categoryId) {
-          await supabase.from('transactions').insert({
+          const { error: insertError } = await supabase.from('transactions').insert({
             user_id: user.id,
             account_id: id,
             category_id: categoryId,
@@ -218,9 +218,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             description: `Balance adjustment (${oldBalance.toLocaleString('id-ID')} → ${newBalance.toLocaleString('id-ID')})`,
           });
 
-          // ✅ Emit event agar TransactionContext refresh daftar transaksi
-          // tapi JANGAN panggil updateBalanceLocally — balance sudah benar di Step 2
-          trashEvents.emitTransactionCreated();
+          if (!insertError) trashEvents.emitTransactionCreated();
         }
       }
 
