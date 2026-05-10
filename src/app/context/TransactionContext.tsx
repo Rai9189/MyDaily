@@ -44,7 +44,7 @@ function mapToTransaction(row: any): Transaction {
     amount: row.amount,
     type: row.type,
     date: row.date,
-    createdAt: row.created_at ?? null,   // ✅ map created_at dari DB
+    createdAt: row.created_at ?? null,
     description: row.description || '',
     attachments: row.attachments || [],
     transferPairId: row.transfer_pair_id ?? null,
@@ -54,7 +54,8 @@ function mapToTransaction(row: any): Transaction {
 
 export function TransactionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const { updateBalanceLocally, accounts } = useAccounts();
+  // ✅ Hanya ambil refreshAccounts — tidak ada lagi manual balance update
+  const { refreshAccounts } = useAccounts();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,8 +70,6 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         .select('*')
         .eq('user_id', user.id)
         .is('deleted_at', null)
-        // ✅ Sort by date desc, lalu created_at desc sebagai tiebreaker
-        // Transaksi di hari yang sama tampil berdasarkan urutan dibuat
         .order('date', { ascending: false })
         .order('created_at', { ascending: false });
       if (fetchError) throw fetchError;
@@ -98,10 +97,16 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
   const getTransactionById = (id: string) => transactions.find(t => t.id === id);
 
+  // ============================================================
+  // CREATE TRANSACTION
+  // ✅ Trigger DB otomatis update balance di Supabase.
+  //    Kita cukup refresh accounts untuk sync local state.
+  // ============================================================
   const createTransaction = async (transaction: Omit<Transaction, 'id'>) => {
     try {
       setError(null);
       if (!user) throw new Error('User not authenticated');
+
       const { data, error: insertError } = await supabase
         .from('transactions')
         .insert({
@@ -117,11 +122,13 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         .select()
         .single();
       if (insertError) throw insertError;
+
       const mapped = mapToTransaction(data);
-      // ✅ Insert di posisi paling atas (paling baru)
       setTransactions(prev => [mapped, ...prev]);
-      const delta = transaction.type === 'income' ? transaction.amount : -transaction.amount;
-      updateBalanceLocally(transaction.accountId, delta);
+
+      // ✅ Trigger sudah update balance di DB — refresh untuk sync local state
+      await refreshAccounts();
+
       return { success: true, data: mapped, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -130,6 +137,11 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ============================================================
+  // CREATE TRANSFER
+  // ✅ Trigger DB otomatis update balance kedua akun.
+  //    Tidak perlu manual updateBalanceLocally sama sekali.
+  // ============================================================
   const createTransfer = async ({
     fromAccountId, toAccountId, amount, date, description, categoryId,
   }: {
@@ -184,8 +196,8 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       const mappedIn  = mapToTransaction(inData);
       setTransactions(prev => [mappedOut, mappedIn, ...prev]);
 
-      updateBalanceLocally(fromAccountId, -amount);
-      updateBalanceLocally(toAccountId, amount);
+      // ✅ Trigger sudah handle balance kedua akun — refresh untuk sync
+      await refreshAccounts();
 
       return { success: true, error: null };
     } catch (err) {
@@ -195,11 +207,18 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ============================================================
+  // UPDATE TRANSACTION
+  // ✅ FIX UTAMA: Hapus semua manual balance update.
+  //    Trigger DB (Case 3: normal edit) sudah rollback old
+  //    dan apply new secara otomatis saat UPDATE di tabel transactions.
+  //    Kita cukup refresh accounts setelah update berhasil.
+  // ============================================================
   const updateTransaction = async (id: string, updates: Partial<Transaction>) => {
     try {
       setError(null);
       if (!id || id === 'new') throw new Error('Invalid transaction ID');
-      const oldTransaction = transactions.find(t => t.id === id);
+
       const dbUpdates: any = {};
       if (updates.accountId     !== undefined) dbUpdates.account_id     = updates.accountId;
       if (updates.categoryId    !== undefined) dbUpdates.category_id    = updates.categoryId;
@@ -208,27 +227,19 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       if (updates.type          !== undefined) dbUpdates.type           = updates.type;
       if (updates.date          !== undefined) dbUpdates.date           = updates.date;
       if (updates.description   !== undefined) dbUpdates.description    = updates.description;
-      const { error: updateError } = await supabase.from('transactions').update(dbUpdates).eq('id', id);
+
+      const { error: updateError } = await supabase
+        .from('transactions')
+        .update(dbUpdates)
+        .eq('id', id);
       if (updateError) throw updateError;
+
+      // Update local transaction list
       setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
-      if (oldTransaction && oldTransaction.type !== 'transfer') {
-        const oldDelta     = oldTransaction.type === 'income' ? -oldTransaction.amount : oldTransaction.amount;
-        const newAccountId = updates.accountId ?? oldTransaction.accountId;
-        const newAmount    = updates.amount    ?? oldTransaction.amount;
-        const newType      = updates.type      ?? oldTransaction.type;
-        const newDelta     = newType === 'income' ? newAmount : -newAmount;
-        if (oldTransaction.accountId === newAccountId) {
-          const acc = accounts.find(a => a.id === newAccountId);
-          if (acc) await supabase.from('accounts').update({ balance: acc.balance + oldDelta + newDelta }).eq('id', newAccountId);
-        } else {
-          const oldAcc = accounts.find(a => a.id === oldTransaction.accountId);
-          const newAcc = accounts.find(a => a.id === newAccountId);
-          if (oldAcc) await supabase.from('accounts').update({ balance: oldAcc.balance + oldDelta }).eq('id', oldTransaction.accountId);
-          if (newAcc) await supabase.from('accounts').update({ balance: newAcc.balance + newDelta }).eq('id', newAccountId);
-        }
-        updateBalanceLocally(oldTransaction.accountId, oldDelta);
-        updateBalanceLocally(newAccountId, newDelta);
-      }
+
+      // ✅ Trigger DB sudah update balance — refresh untuk sync local state
+      await refreshAccounts();
+
       return { success: true, error: null };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
@@ -237,6 +248,12 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ============================================================
+  // UPDATE TRANSFER
+  // ✅ FIX: Hapus semua manual supabase accounts update
+  //    dan manual updateBalanceLocally.
+  //    Trigger DB handle balance saat UPDATE kedua transaksi.
+  // ============================================================
   const updateTransfer = async (id: string, updates: {
     fromAccountId: string;
     toAccountId: string;
@@ -254,24 +271,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         t.transferPairId === outTx.transferPairId && t.id !== id
       );
 
-      // Compute net balance delta per account and update DB before touching local state
-      const transferDeltas = new Map<string, number>();
-      const addTransferDelta = (accId: string, d: number) =>
-        transferDeltas.set(accId, (transferDeltas.get(accId) ?? 0) + d);
-      addTransferDelta(outTx.accountId, outTx.amount);
-      if (inTx) addTransferDelta(inTx.accountId, -inTx.amount);
-      addTransferDelta(updates.fromAccountId, -updates.amount);
-      addTransferDelta(updates.toAccountId, updates.amount);
-      for (const [accId, delta] of transferDeltas) {
-        if (delta !== 0) {
-          const acc = accounts.find(a => a.id === accId);
-          if (acc) await supabase.from('accounts').update({ balance: acc.balance + delta }).eq('id', accId);
-        }
-      }
-
-      updateBalanceLocally(outTx.accountId, outTx.amount);
-      if (inTx) updateBalanceLocally(inTx.accountId, -inTx.amount);
-
+      // Update outgoing transaction
       const { error: outError } = await supabase
         .from('transactions')
         .update({
@@ -285,6 +285,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         .eq('id', id);
       if (outError) throw outError;
 
+      // Update incoming transaction
       if (inTx) {
         const { error: inError } = await supabase
           .from('transactions')
@@ -299,14 +300,30 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         if (inError) throw inError;
       }
 
+      // Update local transaction list
       setTransactions(prev => prev.map(t => {
-        if (t.id === id) return { ...t, accountId: updates.fromAccountId, toAccountId: updates.toAccountId, amount: updates.amount, date: updates.date, description: updates.description || '', categoryId: updates.categoryId };
-        if (inTx && t.id === inTx.id) return { ...t, accountId: updates.toAccountId, amount: updates.amount, date: updates.date, description: updates.description || '', categoryId: updates.categoryId };
+        if (t.id === id) return {
+          ...t,
+          accountId: updates.fromAccountId,
+          toAccountId: updates.toAccountId,
+          amount: updates.amount,
+          date: updates.date,
+          description: updates.description || '',
+          categoryId: updates.categoryId,
+        };
+        if (inTx && t.id === inTx.id) return {
+          ...t,
+          accountId: updates.toAccountId,
+          amount: updates.amount,
+          date: updates.date,
+          description: updates.description || '',
+          categoryId: updates.categoryId,
+        };
         return t;
       }));
 
-      updateBalanceLocally(updates.fromAccountId, -updates.amount);
-      updateBalanceLocally(updates.toAccountId, updates.amount);
+      // ✅ Trigger DB sudah handle balance kedua akun — refresh untuk sync
+      await refreshAccounts();
 
       return { success: true, error: null };
     } catch (err) {
@@ -316,16 +333,20 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ============================================================
+  // DELETE TRANSACTION
+  // ✅ FIX: Hapus semua manual supabase accounts update
+  //    dan manual updateBalanceLocally.
+  //    Trigger DB (Case 1: soft delete) sudah rollback balance
+  //    otomatis saat deleted_at di-set.
+  // ============================================================
   const deleteTransaction = async (id: string) => {
     try {
       setError(null);
       const transaction = transactions.find(t => t.id === id);
 
       if (transaction?.type === 'transfer' && transaction.transferPairId) {
-        const pairTx = transactions.find(t =>
-          t.transferPairId === transaction.transferPairId && t.id !== id
-        );
-
+        // Soft delete kedua sisi transfer sekaligus
         const now = new Date().toISOString();
         const { error: deleteError } = await supabase
           .from('transactions')
@@ -333,37 +354,22 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
           .eq('transfer_pair_id', transaction.transferPairId);
         if (deleteError) throw deleteError;
 
-        setTransactions(prev => prev.filter(t => t.transferPairId !== transaction.transferPairId));
-
-        if (transaction.toAccountId) {
-          const fromAcc = accounts.find(a => a.id === transaction.accountId);
-          const toAcc   = pairTx ? accounts.find(a => a.id === pairTx.accountId) : null;
-          if (fromAcc) await supabase.from('accounts').update({ balance: fromAcc.balance + transaction.amount }).eq('id', transaction.accountId);
-          if (toAcc && pairTx) await supabase.from('accounts').update({ balance: toAcc.balance - pairTx.amount }).eq('id', pairTx.accountId);
-          updateBalanceLocally(transaction.accountId, transaction.amount);
-          if (pairTx) updateBalanceLocally(pairTx.accountId, -pairTx.amount);
-        } else {
-          const toAcc   = accounts.find(a => a.id === transaction.accountId);
-          const fromAcc = pairTx ? accounts.find(a => a.id === pairTx.accountId) : null;
-          if (toAcc) await supabase.from('accounts').update({ balance: toAcc.balance - transaction.amount }).eq('id', transaction.accountId);
-          if (fromAcc && pairTx) await supabase.from('accounts').update({ balance: fromAcc.balance + pairTx.amount }).eq('id', pairTx.accountId);
-          updateBalanceLocally(transaction.accountId, -transaction.amount);
-          if (pairTx) updateBalanceLocally(pairTx.accountId, pairTx.amount);
-        }
+        setTransactions(prev =>
+          prev.filter(t => t.transferPairId !== transaction.transferPairId)
+        );
       } else {
+        // Soft delete transaksi biasa
         const { error: deleteError } = await supabase
           .from('transactions')
           .update({ deleted_at: new Date().toISOString() })
           .eq('id', id);
         if (deleteError) throw deleteError;
+
         setTransactions(prev => prev.filter(t => t.id !== id));
-        if (transaction) {
-          const delta = transaction.type === 'income' ? -transaction.amount : transaction.amount;
-          const acc = accounts.find(a => a.id === transaction.accountId);
-          if (acc) await supabase.from('accounts').update({ balance: acc.balance + delta }).eq('id', transaction.accountId);
-          updateBalanceLocally(transaction.accountId, delta);
-        }
       }
+
+      // ✅ Trigger DB sudah rollback balance — refresh untuk sync local state
+      await refreshAccounts();
 
       trashEvents.emit();
       return { success: true, error: null };
@@ -382,6 +388,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     updateTransaction, updateTransfer,
     deleteTransaction, getTransactionById, refreshTransactions,
   };
+
   return <TransactionContext.Provider value={value}>{children}</TransactionContext.Provider>;
 }
 
