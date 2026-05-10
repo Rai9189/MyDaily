@@ -1,5 +1,5 @@
 // src/app/pages/Accounts.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAccounts } from '../context/AccountContext';
 import { Card, CardContent } from '../components/ui/card';
@@ -36,12 +36,9 @@ function formatBalanceDisplay(value: number): string {
 }
 
 function parseBalanceInput(display: string): number {
-  // Format Indonesia: titik = ribuan, koma = desimal
-  // "50.000"     → "50000"     → 50000
-  // "300.010,50" → "300010.50" → 300010.50
   const normalized = display
-    .replace(/\./g, '')  // hapus semua titik (pemisah ribuan)
-    .replace(',', '.');  // ganti koma desimal ke titik (JS standard)
+    .replace(/\./g, '')
+    .replace(',', '.');
   const parsed = parseFloat(normalized);
   return isNaN(parsed) ? 0 : parsed;
 }
@@ -74,6 +71,9 @@ export function Accounts() {
   const [balanceDisplay, setBalanceDisplay] = useState('');
   const [balanceError, setBalanceError] = useState('');
   const [confirmState, setConfirmState] = useState<ConfirmState>(DEFAULT_CONFIRM);
+
+  // ✅ Guard ref untuk mencegah double call pada adjustConfirm
+  const isAdjustSubmitting = useRef(false);
 
   const [adjustConfirm, setAdjustConfirm] = useState<{
     open: boolean;
@@ -152,6 +152,9 @@ export function Accounts() {
       const snapshotForm = { ...formData };
 
       const doSubmit = async () => {
+        // ✅ Guard: cegah double call jika user tap confirm 2x cepat
+        if (isAdjustSubmitting.current) return;
+        isAdjustSubmitting.current = true;
         setSubmitting(true);
         try {
           const { success, error } = await updateAccountWithAdjustment(
@@ -163,12 +166,20 @@ export function Accounts() {
           else toast.error(error || 'Failed to update account');
         } finally {
           setSubmitting(false);
+          isAdjustSubmitting.current = false;
         }
       };
 
       setIsDialogOpen(false);
       setTimeout(() => {
-        setAdjustConfirm({ open: true, diff, newBalance, pendingSubmit: doSubmit, snapshotAccount, snapshotFormData: snapshotForm });
+        setAdjustConfirm({
+          open: true,
+          diff,
+          newBalance,
+          pendingSubmit: doSubmit,
+          snapshotAccount,
+          snapshotFormData: snapshotForm,
+        });
       }, 150);
       return;
     }
@@ -199,7 +210,6 @@ export function Accounts() {
     setSettingPrimaryId(null);
   };
 
-  // ✅ FIX: closeConfirm() selalu dipanggil setelah delete, sukses maupun gagal
   const handleDelete = (id: string, name: string) => {
     setConfirmState({
       open: true,
@@ -480,8 +490,11 @@ export function Accounts() {
         variant="default"
         icon={adjustConfirm.diff > 0 ? <ArrowUpCircle size={20} /> : <ArrowDownCircle size={20} />}
         onConfirm={async () => {
-          setAdjustConfirm(prev => ({ ...prev, open: false }));
-          if (adjustConfirm.pendingSubmit) await adjustConfirm.pendingSubmit();
+          // ✅ Clear pendingSubmit dulu sebelum dieksekusi
+          // agar jika ada re-render, tidak bisa dipanggil lagi
+          const submit = adjustConfirm.pendingSubmit;
+          setAdjustConfirm({ open: false, diff: 0, newBalance: 0, pendingSubmit: null, snapshotAccount: null, snapshotFormData: null });
+          if (submit) await submit();
         }}
         onCancel={() => {
           const { snapshotAccount, snapshotFormData } = adjustConfirm;

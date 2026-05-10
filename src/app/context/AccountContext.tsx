@@ -179,29 +179,25 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setError(null);
       if (!user) throw new Error('User not authenticated');
 
-      // ✅ FIX: newBalance adalah nilai ABSOLUT yang diinginkan user (misal 50.000)
-      // bukan hasil kalkulasi — pastikan kita pakai nilai ini langsung ke DB
       const newBalance = updates.balance ?? oldBalance;
-
-      // ✅ diff hanya untuk menentukan amount & type transaksi adjustment
-      // diff = 50.000 - 99.000 = -49.000 → expense 49.000
       const diff = newBalance - oldBalance;
 
-      // ✅ Step 1: Set balance account langsung ke newBalance di DB
-      const { error: updateError } = await supabase
-        .from('accounts')
-        .update(updates)
-        .eq('id', id);
-      if (updateError) throw updateError;
+      // ✅ Step 1: Update nama/type akun (NON-balance fields) langsung ke DB
+      // Pisahkan balance dari updates — balance akan dihandle oleh trigger
+      // setelah transaksi adjustment di-insert
+      const { balance: _ignored, ...nonBalanceUpdates } = updates as any;
+      if (Object.keys(nonBalanceUpdates).length > 0) {
+        const { error: nameUpdateError } = await supabase
+          .from('accounts')
+          .update(nonBalanceUpdates)
+          .eq('id', id);
+        if (nameUpdateError) throw nameUpdateError;
+        setAccounts(prev => prev.map(acc => acc.id === id ? { ...acc, ...nonBalanceUpdates } : acc));
+      }
 
-      // ✅ Step 2: Update local state langsung ke nilai absolut (bukan delta)
-      // Ini mencegah double-hit dari updateBalanceLocally
-      setAccounts(prev => prev.map(acc => (acc.id === id ? { ...acc, ...updates } : acc)));
-
-      // ✅ Step 3: Catat transaksi adjustment sebesar Math.abs(diff)
-      // Transaksi ini HANYA sebagai catatan historis — balance sudah di-set di Step 1
-      // Kita INSERT langsung ke Supabase tanpa memanggil createTransaction()
-      // agar tidak ada updateBalanceLocally yang ikut jalan
+      // ✅ Step 2: Insert transaksi adjustment sebesar Math.abs(diff)
+      // Trigger DB (update_account_balance) akan otomatis update balance
+      // sebesar diff — tidak perlu set balance manual ke DB
       if (diff !== 0) {
         const type = diff > 0 ? 'income' : 'expense';
         const amount = Math.abs(diff);
@@ -217,10 +213,24 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             date: new Date().toISOString().split('T')[0],
             description: `Balance adjustment (${oldBalance.toLocaleString('id-ID')} → ${newBalance.toLocaleString('id-ID')})`,
           });
+          if (insertError) throw insertError;
 
-          if (!insertError) trashEvents.emitTransactionCreated();
+          // ✅ TIDAK memanggil trashEvents.emitTransactionCreated() di sini
+          // karena itu yang menyebabkan updateAccountWithAdjustment dipanggil 2x:
+          // emitTransactionCreated → fetchTransactions → re-render → double insert
+        } else {
+          // Fallback: tidak ada kategori → set balance manual langsung
+          const { error: balanceUpdateError } = await supabase
+            .from('accounts')
+            .update({ balance: newBalance })
+            .eq('id', id);
+          if (balanceUpdateError) throw balanceUpdateError;
         }
       }
+
+      // ✅ Step 3: Refresh accounts dari DB untuk sync local state
+      // Balance sudah diupdate oleh trigger — ambil nilai terbaru
+      await fetchAccounts();
 
       return { success: true, error: null };
     } catch (err) {
