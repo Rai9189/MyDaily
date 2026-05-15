@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../components/ui/badge';
 import {
   ChevronLeft, X, Loader2, FileText, Image as ImageIcon,
-  Save, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ArrowLeftRight, Star, Trash2,
+  Save, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ArrowLeftRight, Star, Trash2, Receipt,
 } from 'lucide-react';
 import { CategorySelect } from '../components/CategorySelect';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
@@ -74,7 +74,7 @@ export function TransactionDetail() {
 
   const { transactions, loading: txLoading, getTransactionById, createTransaction, createTransfer, updateTransaction, updateTransfer } = useTransactions();
   const { accounts }   = useAccounts();
-  const { categories } = useCategories();
+  const { categories, createCategory } = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
   const { pendingFiles, addFiles, removeFile: removePendingFile, uploadAllPending, isUploading: isUploadingPending } = usePendingAttachments();
 
@@ -115,6 +115,13 @@ export function TransactionDetail() {
   const [deleteAttachTarget, setDeleteAttachTarget] = useState<{ id: string; url: string } | null>(null);
   const [deletingAttach, setDeletingAttach] = useState(false);
 
+  // Tax state
+  const [taxEnabled, setTaxEnabled]           = useState(false);
+  const [taxType, setTaxType]                 = useState<'percent' | 'nominal'>('percent');
+  const [taxValueDisplay, setTaxValueDisplay] = useState('');
+  const [taxValue, setTaxValue]               = useState(0);
+  const [taxCategoryId, setTaxCategoryId]     = useState('');
+
   const allCategoriesForType = useMemo(() => {
     if (!formData.type || formData.type === 'transfer') return [];
     const parents = categories.filter(c => c.type === 'transaction' && !c.parentId && c.subtype === formData.type);
@@ -129,8 +136,16 @@ export function TransactionDetail() {
   const selectedAccount   = accounts.find(a => a.id === formData.accountId);
   const selectedToAccount = accounts.find(a => a.id === formData.toAccountId);
 
+  const taxAmount = useMemo(() => {
+    if (!taxEnabled || taxValue <= 0 || formData.amount <= 0) return 0;
+    if (taxType === 'nominal') return taxValue;
+    return Math.round((taxValue / 100) * formData.amount * 100) / 100;
+  }, [taxEnabled, taxType, taxValue, formData.amount]);
+
+  const taxNominalExceedsAmount = taxEnabled && taxType === 'nominal' && taxValue > 0 && formData.amount > 0 && taxValue > formData.amount;
+
   const isOverBalance = formData.type === 'expense' && formData.accountId !== '' && formData.amount > 0
-    && selectedAccount !== undefined && formData.amount > selectedAccount.balance;
+    && selectedAccount !== undefined && (formData.amount + (taxEnabled ? taxAmount : 0)) > selectedAccount.balance;
 
   const isTransferOverBalance = formData.type === 'transfer' && formData.accountId !== '' && formData.amount > 0
     && selectedAccount !== undefined && formData.amount > selectedAccount.balance;
@@ -146,6 +161,19 @@ export function TransactionDetail() {
     );
     return other?.id ?? categories.find(c => c.type === 'transaction' && !c.parentId)?.id ?? '';
   }, [categories]);
+
+  const defaultTaxCategory = useMemo(() =>
+    categories.find(c =>
+      c.type === 'transaction' && !c.parentId && c.subtype === 'expense' &&
+      c.name.toLowerCase() === 'tax'
+    ),
+    [categories]
+  );
+
+  const expenseCategories = useMemo(() =>
+    categories.filter(c => c.type === 'transaction' && !c.parentId && c.subtype === 'expense'),
+    [categories]
+  );
 
   useEffect(() => {
     if (isNew) {
@@ -180,6 +208,12 @@ export function TransactionDetail() {
     if (!isNew && id) loadAttachments();
   }, [id]);
 
+  useEffect(() => {
+    if (defaultTaxCategory && !taxCategoryId) {
+      setTaxCategoryId(defaultTaxCategory.id);
+    }
+  }, [defaultTaxCategory?.id]);
+
   const loadAttachments = async () => {
     if (!id) return;
     setAttachsLoading(true);
@@ -210,6 +244,22 @@ export function TransactionDetail() {
 
   const handleTypeChange = (v: 'income' | 'expense' | 'transfer') => {
     setFormData(prev => ({ ...prev, type: v, categoryId: '', subcategoryId: null, toAccountId: '' }));
+    setTaxEnabled(false);
+    setTaxValueDisplay('');
+    setTaxValue(0);
+  };
+
+  const handleTaxValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (taxType === 'percent') {
+      const raw = e.target.value.replace(/[^\d.]/g, '');
+      const num = parseFloat(raw);
+      setTaxValueDisplay(raw);
+      setTaxValue(isNaN(num) ? 0 : Math.min(num, 100));
+    } else {
+      const formatted = handleAmountKeyInput(e.target.value);
+      setTaxValueDisplay(formatted);
+      setTaxValue(parseAmountInput(formatted));
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -262,13 +312,39 @@ export function TransactionDetail() {
       }
     } else {
       if (!formData.categoryId) { toast.warning('Please select a category.'); return; }
-      if (formData.type === 'expense' && selectedAccount && formData.amount > selectedAccount.balance) {
-        toast.error(`Insufficient balance! Account: ${selectedAccount.name} · Balance: ${fmt(selectedAccount.balance)} · Expense: ${fmt(formData.amount)}`);
+      if (formData.type === 'expense' && selectedAccount && (formData.amount + taxAmount) > selectedAccount.balance) {
+        const totalNeeded = formData.amount + taxAmount;
+        toast.error(`Insufficient balance! ${selectedAccount.name}: ${fmt(selectedAccount.balance)} · Dibutuhkan: ${fmt(totalNeeded)}${taxAmount > 0 ? ` (incl. pajak ${fmt(taxAmount)})` : ''}`);
         return;
       }
     }
 
     setSubmitting(true);
+
+    // Helper: resolve tax category (auto-create "Tax" if needed) then create tax expense
+    const saveTaxTransaction = async (accountId: string, date: string, description: string): Promise<boolean> => {
+      if (!taxEnabled || taxAmount <= 0) return true;
+      let catId = taxCategoryId;
+      if (!catId) {
+        const { success: ok, data: cd } = await createCategory({
+          name: 'Tax', type: 'transaction', subtype: 'expense', color: '#f59e0b',
+        });
+        if (ok && cd) { catId = cd.id; setTaxCategoryId(cd.id); }
+      }
+      if (!catId) return false;
+      const mainDesc = stripHtml(description).trim();
+      const { success } = await createTransaction({
+        accountId,
+        amount: taxAmount,
+        type: 'expense',
+        date,
+        categoryId: catId,
+        subcategoryId: null,
+        description: mainDesc ? `Pajak dari ${mainDesc}` : `Pajak dari transaksi ${date}`,
+      });
+      return success;
+    };
+
     try {
       if (isNew) {
         if (formData.type === 'transfer') {
@@ -281,7 +357,13 @@ export function TransactionDetail() {
             categoryId: transferCategoryId,
           });
           if (!success) { toast.error(error || 'Failed to create transfer'); return; }
-          toast.success('Transfer recorded!');
+          const taxOk = await saveTaxTransaction(formData.accountId, formData.date, formData.description);
+          if (taxEnabled && taxAmount > 0) {
+            if (taxOk) toast.success(`Transfer & pajak ${fmt(taxAmount)} berhasil dicatat!`);
+            else toast.warning('Transfer berhasil, tapi gagal mencatat pajak.');
+          } else {
+            toast.success('Transfer recorded!');
+          }
           navigate('/transactions');
         } else {
           const { success, data, error } = await createTransaction(formData as any);
@@ -290,7 +372,13 @@ export function TransactionDetail() {
             const { error: uploadError } = await uploadAllPending('transaction', data.id);
             if (uploadError) toast.warning('Transaction saved, but some attachments failed.');
           }
-          toast.success('Transaction saved!');
+          const taxOk = await saveTaxTransaction(formData.accountId, formData.date, formData.description);
+          if (taxEnabled && taxAmount > 0) {
+            if (taxOk) toast.success(`Transaksi & pajak ${fmt(taxAmount)} berhasil dicatat!`);
+            else toast.warning('Transaksi tersimpan, tapi gagal mencatat pajak.');
+          } else {
+            toast.success('Transaction saved!');
+          }
           navigate('/transactions');
         }
       } else {
@@ -496,7 +584,10 @@ export function TransactionDetail() {
                   {(isOverBalance || isTransferOverBalance) && (
                     <div className="flex items-center gap-1.5 text-xs text-destructive">
                       <AlertCircle size={12} />
-                      <span>Exceeds balance. Shortfall: {fmt(formData.amount - selectedAccount!.balance)}</span>
+                      <span>
+                        Exceeds balance. Shortfall: {fmt((formData.amount + (taxEnabled ? taxAmount : 0)) - selectedAccount!.balance)}
+                        {taxEnabled && taxAmount > 0 && <span className="opacity-70 ml-1">(incl. pajak {fmt(taxAmount)})</span>}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -614,6 +705,125 @@ export function TransactionDetail() {
                     minHeight={100}
                   />
                 </div>
+
+                {/* ── Tax Section — hanya untuk transaksi baru non-transfer ── */}
+                {isNew && formData.type !== 'transfer' && (
+                  <div className="border-t border-border/50 pt-3 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={taxEnabled}
+                        onClick={() => setTaxEnabled(v => !v)}
+                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                          taxEnabled ? 'bg-primary' : 'bg-input'
+                        }`}
+                      >
+                        <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                          taxEnabled ? 'translate-x-4' : 'translate-x-0.5'
+                        }`} />
+                      </button>
+                      <Label
+                        className="cursor-pointer select-none"
+                        onClick={() => setTaxEnabled(v => !v)}
+                      >
+                        Tambah Pajak{' '}
+                        <span className="font-normal text-xs text-muted-foreground">(Opsional)</span>
+                      </Label>
+                    </div>
+
+                    {taxEnabled && (
+                      <div className="space-y-3 pl-4 border-l-2 border-primary/20">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label>Tipe Pajak</Label>
+                            <Select
+                              value={taxType}
+                              onValueChange={(v) => {
+                                setTaxType(v as 'percent' | 'nominal');
+                                setTaxValueDisplay('');
+                                setTaxValue(0);
+                              }}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="percent">Persentase (%)</SelectItem>
+                                <SelectItem value="nominal">Nominal (Rp)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Nilai</Label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none select-none">
+                                {taxType === 'percent' ? '%' : 'Rp'}
+                              </span>
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                value={taxValueDisplay}
+                                onChange={handleTaxValueChange}
+                                placeholder="0"
+                                className="pl-8"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {taxNominalExceedsAmount && (
+                          <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                            <AlertCircle size={12} />
+                            <span>Nominal pajak melebihi jumlah transaksi ({fmt(formData.amount)})</span>
+                          </div>
+                        )}
+
+                        <div className="space-y-1.5">
+                          <Label>Kategori Pajak</Label>
+                          <Select value={taxCategoryId} onValueChange={setTaxCategoryId}>
+                            <SelectTrigger>
+                              <SelectValue placeholder={expenseCategories.length === 0 ? 'Auto: "Tax"' : 'Pilih kategori'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {expenseCategories.map(cat => (
+                                <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {!defaultTaxCategory && expenseCategories.length > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              Belum ada kategori "Tax". Akan dibuat otomatis saat menyimpan.
+                            </p>
+                          )}
+                        </div>
+
+                        {taxAmount > 0 && (
+                          <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                            <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+                              <Receipt size={12} />
+                              <span>Nominal pajak yang dicatat:</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">{fmt(taxAmount)}</span>
+                              {taxType === 'percent' && taxValue > 0 && (
+                                <span className="block text-[10px] text-amber-600/70 dark:text-amber-400/70">
+                                  {taxValue}% dari {fmt(formData.amount)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Edit mode: info bahwa pajak dicatat terpisah ── */}
+                {!isNew && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border border-border text-xs text-muted-foreground">
+                    <Receipt size={12} className="flex-shrink-0" />
+                    <span>Pajak (jika ada) telah dicatat sebagai transaksi expense terpisah.</span>
+                  </div>
+                )}
 
                 {isNew && formData.type !== 'transfer' && (
                   <PendingAttachmentPicker pendingFiles={pendingFiles} onAddFiles={addFiles}

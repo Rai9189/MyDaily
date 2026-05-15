@@ -106,6 +106,8 @@ Filenames are always replaced with `{timestamp}-{random}.{ext}` before upload.
 
 ## Rules
 
+- Gunakan bahasa Indonesia dalam percakapan ini
 - Setiap perubahan kode harus konfirmasi ke saya terlebih dahulu sebelum dieksekusi
 - Setiap commit harus konfirmasi ke saya terlebih dahulu
 - Jika ada pertanyaan terkait UI/UX, jawab dari perspektif sebagai user/pengguna
+- jika sudah melakukan perubahan jangan lupa update version pada package.json dan settings.tsx
