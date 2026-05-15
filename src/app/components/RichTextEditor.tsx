@@ -376,17 +376,19 @@ export function RichTextEditor({
   if (!editor) return null;
 
   return (
-    <div className={`rounded-md border border-input bg-background overflow-hidden transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
+    <div className={`rounded-md border border-input bg-background transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
       {!disabled && (
-        <Toolbar
-          editor={editor}
-          onColorSelect={handleColorSelect}
-          currentColor={currentColor}
-          onEmojiSelect={handleEmojiSelect}
-        />
+        <div className="sticky top-0 z-10 rounded-t-md overflow-hidden">
+          <Toolbar
+            editor={editor}
+            onColorSelect={handleColorSelect}
+            currentColor={currentColor}
+            onEmojiSelect={handleEmojiSelect}
+          />
+        </div>
       )}
 
-      <div className="relative" style={{ minHeight: `${minHeight}px` }}>
+      <div className="relative overflow-hidden rounded-b-md" style={{ minHeight: `${minHeight}px` }}>
         <style>{`
           .rte-content { outline: none; padding: 12px; min-height: ${minHeight}px; font-size: 14px; line-height: 1.6; color: inherit; }
           .rte-content p { margin: 0.25rem 0; }

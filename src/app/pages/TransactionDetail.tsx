@@ -148,7 +148,7 @@ export function TransactionDetail() {
     && selectedAccount !== undefined && (formData.amount + (taxEnabled ? taxAmount : 0)) > selectedAccount.balance;
 
   const isTransferOverBalance = formData.type === 'transfer' && formData.accountId !== '' && formData.amount > 0
-    && selectedAccount !== undefined && formData.amount > selectedAccount.balance;
+    && selectedAccount !== undefined && (formData.amount + (taxEnabled ? taxAmount : 0)) > selectedAccount.balance;
 
   const isBusy       = submitting || isUploadingPending;
   const typeSelected = formData.type !== '';
@@ -306,8 +306,9 @@ export function TransactionDetail() {
       if (!formData.toAccountId) { toast.warning('Please select a destination account.'); return; }
       if (formData.toAccountId === formData.accountId) { toast.warning('Source and destination accounts must be different.'); return; }
       if (accounts.length < 2) { toast.warning('You need at least 2 accounts to make a transfer.'); return; }
-      if (selectedAccount && formData.amount > selectedAccount.balance) {
-        toast.error(`Insufficient balance! ${selectedAccount.name}: ${fmt(selectedAccount.balance)}`);
+      if (selectedAccount && (formData.amount + taxAmount) > selectedAccount.balance) {
+        const totalNeeded = formData.amount + taxAmount;
+        toast.error(`Insufficient balance! ${selectedAccount.name}: ${fmt(selectedAccount.balance)} · Dibutuhkan: ${fmt(totalNeeded)}${taxAmount > 0 ? ` (incl. pajak ${fmt(taxAmount)})` : ''}`);
         return;
       }
     } else {
@@ -619,7 +620,7 @@ export function TransactionDetail() {
                     </Select>
                   </div>
 
-                  {/* Category — hanya untuk income/expense, spacer saat transfer */}
+                  {/* Kolom kanan: Category (income/expense) atau To Account (transfer) */}
                   {formData.type !== 'transfer' ? (
                     <div className="space-y-1.5">
                       <Label htmlFor="category">Category <span className="text-destructive">*</span></Label>
@@ -634,54 +635,51 @@ export function TransactionDetail() {
                       />
                     </div>
                   ) : (
-                    <div className="hidden md:block" />
+                    <div className="space-y-1.5">
+                      <Label htmlFor="toAccount">To Account <span className="text-destructive">*</span></Label>
+                      <Select value={formData.toAccountId} onValueChange={(v) => setFormData({ ...formData, toAccountId: v })}>
+                        <SelectTrigger id="toAccount">
+                          {selectedToAccount ? (
+                            <div className="flex items-center justify-between w-full pr-1">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="truncate">{selectedToAccount.name}</span>
+                                {selectedToAccount.is_primary && (
+                                  <Star size={11} className="text-amber-500 fill-amber-500 flex-shrink-0" />
+                                )}
+                              </div>
+                              <span className="text-xs font-medium ml-2 text-muted-foreground flex-shrink-0">
+                                {fmt(selectedToAccount.balance)}
+                              </span>
+                            </div>
+                          ) : <SelectValue placeholder="Select destination account" />}
+                        </SelectTrigger>
+                        <SelectContent>
+                          {toAccountOptions.map(acc => (
+                            <SelectItem key={acc.id} value={acc.id}>
+                              <div className="flex items-center gap-2">
+                                <span>{acc.name}</span>
+                                {acc.is_primary && (
+                                  <Star size={11} className="text-amber-500 fill-amber-500 flex-shrink-0" />
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
                 </div>
 
-                {/* ── To Account — hanya saat transfer ── */}
-                {formData.type === 'transfer' && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="toAccount">To Account <span className="text-destructive">*</span></Label>
-                    <Select value={formData.toAccountId} onValueChange={(v) => setFormData({ ...formData, toAccountId: v })}>
-                      <SelectTrigger id="toAccount">
-                        {selectedToAccount ? (
-                          <div className="flex items-center justify-between w-full pr-1">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="truncate">{selectedToAccount.name}</span>
-                              {selectedToAccount.is_primary && (
-                                <Star size={11} className="text-amber-500 fill-amber-500 flex-shrink-0" />
-                              )}
-                            </div>
-                            <span className="text-xs font-medium ml-2 text-muted-foreground flex-shrink-0">
-                              {fmt(selectedToAccount.balance)}
-                            </span>
-                          </div>
-                        ) : <SelectValue placeholder="Select destination account" />}
-                      </SelectTrigger>
-                      <SelectContent>
-                        {toAccountOptions.map(acc => (
-                          <SelectItem key={acc.id} value={acc.id}>
-                            <div className="flex items-center gap-2">
-                              <span>{acc.name}</span>
-                              {acc.is_primary && (
-                                <Star size={11} className="text-amber-500 fill-amber-500 flex-shrink-0" />
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {formData.accountId && formData.toAccountId && (
-                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
-                        <ArrowLeftRight size={12} />
-                        <span>
-                          <strong>{getAccountName(formData.accountId)}</strong>
-                          {' → '}
-                          <strong>{getAccountName(formData.toAccountId)}</strong>
-                          {formData.amount > 0 && <span className="ml-1">· {fmt(formData.amount)}</span>}
-                        </span>
-                      </div>
-                    )}
+                {/* ── Transfer route info ── */}
+                {formData.type === 'transfer' && formData.accountId && formData.toAccountId && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+                    <ArrowLeftRight size={12} />
+                    <span>
+                      <strong>{getAccountName(formData.accountId)}</strong>
+                      {' → '}
+                      <strong>{getAccountName(formData.toAccountId)}</strong>
+                      {formData.amount > 0 && <span className="ml-1">· {fmt(formData.amount)}</span>}
+                    </span>
                   </div>
                 )}
 
@@ -706,8 +704,8 @@ export function TransactionDetail() {
                   />
                 </div>
 
-                {/* ── Tax Section — hanya untuk transaksi baru non-transfer ── */}
-                {isNew && formData.type !== 'transfer' && (
+                {/* ── Tax Section — hanya untuk transaksi baru ── */}
+                {isNew && (
                   <div className="border-t border-border/50 pt-3 space-y-3">
                     <div className="flex items-center gap-3">
                       <button
