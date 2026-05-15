@@ -86,8 +86,12 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     const unsubRestore = trashEvents.subscribeRestore((table) => {
       if (table === 'transactions') fetchTransactions();
     });
+    const unsubCreated = trashEvents.subscribeTransactionCreated(() => {
+      fetchTransactions();
+    });
     return () => {
       unsubRestore();
+      unsubCreated();
     };
   }, [user]);
 

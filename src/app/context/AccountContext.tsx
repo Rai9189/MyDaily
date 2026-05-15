@@ -215,9 +215,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           });
           if (insertError) throw insertError;
 
-          // ✅ TIDAK memanggil trashEvents.emitTransactionCreated() di sini
-          // karena itu yang menyebabkan updateAccountWithAdjustment dipanggil 2x:
-          // emitTransactionCreated → fetchTransactions → re-render → double insert
+          // Notify TransactionContext agar refresh list — aman karena fetchTransactions
+          // hanya read-only, tidak ada side effect yang bisa trigger double insert
+          trashEvents.emitTransactionCreated();
         } else {
           // Fallback: tidak ada kategori → set balance manual langsung
           const { error: balanceUpdateError } = await supabase

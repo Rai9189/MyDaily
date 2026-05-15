@@ -4,6 +4,7 @@ type RestoreListener = (table: string) => void;
 
 const deleteListeners: Listener[] = [];
 const restoreListeners: RestoreListener[] = [];
+const transactionCreatedListeners: Listener[] = [];
 
 export const trashEvents = {
   // Dipanggil setelah soft delete
@@ -23,6 +24,17 @@ export const trashEvents = {
     return () => {
       const idx = restoreListeners.indexOf(fn);
       if (idx > -1) restoreListeners.splice(idx, 1);
+    };
+  },
+
+  // Dipanggil setelah AccountContext insert transaksi adjustment
+  // agar TransactionContext bisa refresh list tanpa re-render loop
+  emitTransactionCreated: () => transactionCreatedListeners.forEach(fn => fn()),
+  subscribeTransactionCreated: (fn: Listener) => {
+    transactionCreatedListeners.push(fn);
+    return () => {
+      const idx = transactionCreatedListeners.indexOf(fn);
+      if (idx > -1) transactionCreatedListeners.splice(idx, 1);
     };
   },
 };
