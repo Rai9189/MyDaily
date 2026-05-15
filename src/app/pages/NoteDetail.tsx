@@ -356,6 +356,7 @@ export function NoteDetail() {
                     disabled={isBusy}
                     maxLength={MAX_CONTENT}
                     minHeight={200}
+                    maxHeight={480}
                   />
                 </div>
 

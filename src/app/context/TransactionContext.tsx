@@ -55,7 +55,7 @@ function mapToTransaction(row: any): Transaction {
 export function TransactionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   // ✅ Hanya ambil refreshAccounts — tidak ada lagi manual balance update
-  const { refreshAccounts } = useAccounts();
+  const { refreshAccounts, updateBalanceLocally } = useAccounts();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -139,8 +139,8 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
   // ============================================================
   // CREATE TRANSFER
-  // ✅ Trigger DB otomatis update balance kedua akun.
-  //    Tidak perlu manual updateBalanceLocally sama sekali.
+  // ✅ Optimistic update dulu untuk feedback instan,
+  //    lalu refreshAccounts() untuk sinkronisasi nilai dari DB.
   // ============================================================
   const createTransfer = async ({
     fromAccountId, toAccountId, amount, date, description, categoryId,
@@ -155,6 +155,10 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       if (!user) throw new Error('User not authenticated');
+
+      // Optimistic update — balance langsung berubah di UI tanpa nunggu DB
+      updateBalanceLocally(fromAccountId, -amount);
+      updateBalanceLocally(toAccountId, +amount);
 
       const pairId = crypto.randomUUID();
 
@@ -201,6 +205,8 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
       return { success: true, error: null };
     } catch (err) {
+      // Revert optimistic update jika INSERT gagal
+      await refreshAccounts();
       const errorMessage = handleSupabaseError(err);
       setError(errorMessage);
       return { success: false, error: errorMessage };

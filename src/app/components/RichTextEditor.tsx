@@ -311,11 +311,12 @@ interface RichTextEditorProps {
   disabled?: boolean;
   maxLength?: number;
   minHeight?: number;
+  maxHeight?: number;
 }
 
 export function RichTextEditor({
   value, onChange, placeholder = 'Write here...', disabled = false,
-  maxLength, minHeight = 160,
+  maxLength, minHeight = 160, maxHeight,
 }: RichTextEditorProps) {
   const [currentColor, setCurrentColor] = useState('#000000');
   const [hasContent, setHasContent] = useState(false);
@@ -378,7 +379,7 @@ export function RichTextEditor({
   return (
     <div className={`rounded-md border border-input bg-background transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
       {!disabled && (
-        <div className="sticky top-0 z-10 rounded-t-md overflow-hidden">
+        <div className="rounded-t-md overflow-hidden border-b border-border">
           <Toolbar
             editor={editor}
             onColorSelect={handleColorSelect}
@@ -388,7 +389,10 @@ export function RichTextEditor({
         </div>
       )}
 
-      <div className="relative overflow-hidden rounded-b-md" style={{ minHeight: `${minHeight}px` }}>
+      <div
+        className={`relative rounded-b-md ${maxHeight ? 'overflow-y-auto overflow-x-hidden' : 'overflow-hidden'}`}
+        style={{ minHeight: `${minHeight}px`, ...(maxHeight ? { maxHeight: `${maxHeight}px` } : {}) }}
+      >
         <style>{`
           .rte-content { outline: none; padding: 12px; min-height: ${minHeight}px; font-size: 14px; line-height: 1.6; color: inherit; }
           .rte-content p { margin: 0.25rem 0; }
