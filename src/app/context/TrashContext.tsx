@@ -63,12 +63,15 @@ export function TrashProvider({ children }: { children: ReactNode }) {
         meta: { deadline: t.deadline },
       }));
 
-      (notes.data || []).forEach(n => items.push({
-        id: n.id, table: 'notes',
-        name: n.title,
-        description: n.content?.slice(0, 60) + (n.content?.length > 60 ? '...' : ''),
-        deleted_at: n.deleted_at,
-      }));
+      (notes.data || []).forEach(n => {
+        const plain = (n.content || '').replace(/<[^>]*>/g, '').trim();
+        items.push({
+          id: n.id, table: 'notes',
+          name: n.title,
+          description: plain.length > 0 ? plain.slice(0, 60) + (plain.length > 60 ? '...' : '') : undefined,
+          deleted_at: n.deleted_at,
+        });
+      });
 
       (categories.data || []).forEach(c => items.push({
         id: c.id, table: 'categories',

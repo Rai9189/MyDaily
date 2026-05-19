@@ -66,6 +66,7 @@ export interface Note {
   title: string;
   content: string;
   timestamp: string;
+  updatedAt?: string | null;
   pinned: boolean;
   categoryId: string;
   subcategoryId?: string | null;

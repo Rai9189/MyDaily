@@ -144,8 +144,9 @@ export async function deleteFiles(
 export function generateUniqueFileName(originalName: string): string {
   const timestamp = Date.now();
   const randomString = Math.random().toString(36).substring(2, 15);
-  const extension = originalName.split('.').pop();
-  return `${timestamp}-${randomString}.${extension}`;
+  const parts = originalName.split('.');
+  const extension = parts.length > 1 ? parts.pop() : null;
+  return extension ? `${timestamp}-${randomString}.${extension}` : `${timestamp}-${randomString}`;
 }
 
 export function getFileExtension(filename: string): string {

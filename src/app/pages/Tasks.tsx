@@ -146,7 +146,7 @@ export function Tasks() {
     return result;
   }, [tasks, searchQuery, filterStatus, filterCategory, filterCompleted, sortBy, sortOrder]);
 
-  useMemo(() => { setCurrentPage(1); }, [searchQuery, filterStatus, filterCategory, filterCompleted, itemsPerPage]);
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, filterStatus, filterCategory, filterCompleted, itemsPerPage, sortBy, sortOrder]);
 
   const totalPages = useMemo(() => {
     if (itemsPerPage === 'all') return 1;

@@ -219,13 +219,15 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
         .map(cat => orderMap.has(cat.id) ? { ...cat, sortOrder: orderMap.get(cat.id)! } : cat)
         .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
     });
-    for (let i = 0; i < orderedIds.length; i++) {
-      await supabase
-        .from('categories')
-        .update({ sort_order: i + 1 })
-        .eq('id', orderedIds[i])
-        .eq('user_id', user.id);
-    }
+    await Promise.all(
+      orderedIds.map((id, i) =>
+        supabase
+          .from('categories')
+          .update({ sort_order: i + 1 })
+          .eq('id', id)
+          .eq('user_id', user.id)
+      )
+    );
   };
 
   // ✅ FIX: resetCategoryOrder tidak lagi memanggil fetchCategories() sendiri

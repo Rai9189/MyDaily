@@ -51,6 +51,21 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Silent refresh — dipakai oleh TransactionContext agar tidak ada loading flash
+  const fetchAccountsSilent = async () => {
+    if (!user) return;
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('accounts')
+        .select('*')
+        .eq('user_id', user.id)
+        .is('deleted_at', null)
+        .order('is_primary', { ascending: false })
+        .order('created_at', { ascending: false });
+      if (!fetchError) setAccounts(data || []);
+    } catch { /* silent */ }
+  };
+
   useEffect(() => {
     fetchAccounts();
     const unsub = trashEvents.subscribeRestore((table) => {
@@ -91,7 +106,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const updateAccount = async (id: string, updates: Partial<Account>) => {
     try {
       setError(null);
-      const { error: updateError } = await supabase.from('accounts').update(updates).eq('id', id);
+      if (!user) throw new Error('User not authenticated');
+      const { error: updateError } = await supabase.from('accounts').update(updates).eq('id', id).eq('user_id', user.id);
       if (updateError) throw updateError;
       setAccounts(prev => prev.map(acc => (acc.id === id ? { ...acc, ...updates } : acc)));
       return { success: true, error: null };
@@ -230,7 +246,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
       // ✅ Step 3: Refresh accounts dari DB untuk sync local state
       // Balance sudah diupdate oleh trigger — ambil nilai terbaru
-      await fetchAccounts();
+      await fetchAccountsSilent();
 
       return { success: true, error: null };
     } catch (err) {
@@ -247,7 +263,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       const { error: deleteError } = await supabase
         .from('accounts')
         .update({ deleted_at: new Date().toISOString(), is_primary: false })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', user!.id);
       if (deleteError) throw deleteError;
 
       const remaining = accounts.filter(acc => acc.id !== id);
@@ -266,7 +283,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refreshAccounts = async () => { await fetchAccounts(); };
+  const refreshAccounts = async () => { await fetchAccountsSilent(); };
 
   const updateBalanceLocally = (accountId: string, delta: number) => {
     setAccounts(prev =>

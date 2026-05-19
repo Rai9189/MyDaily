@@ -141,6 +141,17 @@ export function Notes() {
 
   const NoteCardView = ({ note }: { note: any }) => {
     const plainContent = stripHtml(note.content);
+    const displaySnippet = useMemo(() => {
+      if (!searchQuery) return plainContent;
+      const q = searchQuery.toLowerCase();
+      if (note.title.toLowerCase().includes(q)) return plainContent;
+      const idx = plainContent.toLowerCase().indexOf(q);
+      if (idx === -1) return plainContent;
+      const start = Math.max(0, idx - 40);
+      const end = Math.min(plainContent.length, idx + q.length + 80);
+      return (start > 0 ? '…' : '') + plainContent.slice(start, end) + (end < plainContent.length ? '…' : '');
+    }, [plainContent, note.title, searchQuery]);
+
     return (
       <Card className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer ${note.pinned ? 'border-2 border-amber-400 dark:border-amber-500' : 'border-2 border-blue-200 dark:border-blue-900/50'}`}>
         <CardContent className="p-4">
@@ -164,8 +175,8 @@ export function Notes() {
                 )}
               </div>
               <h3 className="text-sm font-semibold text-foreground line-clamp-1 mt-2">{note.title}</h3>
-              <p className="text-sm text-slate-500 dark:text-muted-foreground line-clamp-3 mt-1">{plainContent}</p>
-              {plainContent.length > 200 && <p className="text-xs text-muted-foreground/50 mt-1 italic">Read more...</p>}
+              <p className="text-sm text-slate-500 dark:text-muted-foreground line-clamp-3 mt-1">{displaySnippet}</p>
+              {!searchQuery && plainContent.length > 200 && <p className="text-xs text-muted-foreground/50 mt-1 italic">Read more...</p>}
               <div className="flex items-center justify-between mt-3">
                 <span className="text-xs text-slate-400">
                   {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -208,6 +219,16 @@ export function Notes() {
 
   const NoteTableRow = ({ note, isPinned }: { note: any; isPinned: boolean }) => {
     const plainContent = stripHtml(note.content);
+    const tooltipSnippet = useMemo(() => {
+      if (!searchQuery) return plainContent;
+      const q = searchQuery.toLowerCase();
+      if (note.title.toLowerCase().includes(q)) return plainContent;
+      const idx = plainContent.toLowerCase().indexOf(q);
+      if (idx === -1) return plainContent;
+      const start = Math.max(0, idx - 40);
+      const end = Math.min(plainContent.length, idx + q.length + 80);
+      return (start > 0 ? '…' : '') + plainContent.slice(start, end) + (end < plainContent.length ? '…' : '');
+    }, [plainContent, note.title, searchQuery]);
     return (
       <tr
         className={`group cursor-pointer transition-colors border-b ${
@@ -229,10 +250,10 @@ export function Notes() {
                 </span>
               )}
             </div>
-            {plainContent && (
+            {tooltipSnippet && (
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover:block pointer-events-none">
                 <div className="bg-foreground text-background text-xs rounded-lg px-3 py-1.5 whitespace-nowrap max-w-[260px] truncate shadow-lg">
-                  {plainContent}
+                  {tooltipSnippet}
                 </div>
                 <div className="w-2 h-2 bg-foreground rotate-45 mx-auto -mt-1" />
               </div>
@@ -324,7 +345,7 @@ export function Notes() {
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-            <Input placeholder="Search notes..." value={searchQuery}
+            <Input placeholder="Search by title or content..." value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="pl-10 border border-border shadow-sm" />
           </div>

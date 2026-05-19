@@ -182,6 +182,7 @@ export function Categories() {
   const [formData, setFormData] = useState({ name: '', type: 'transaction' as TabType, subtype: '' as Subtype, color: '#3b82f6' });
   const [submitting, setSubmitting]       = useState(false);
   const [resetting, setResetting]         = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
   const [subtypeFilter, setSubtypeFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [hexInput, setHexInput]           = useState('3B82F6');
   const [confirmState, setConfirmState]   = useState<ConfirmState>(DEFAULT_CONFIRM);
@@ -274,9 +275,12 @@ export function Categories() {
     setConfirmState({
       open: true, title: 'Delete Category?', description,
       onConfirm: async () => {
+        setConfirmLoading(true);
         const { success, error } = await deleteCategory(category.id);
         if (success) toast.success('Category deleted');
         else toast.error(error || 'Failed to delete category');
+        setConfirmLoading(false);
+        closeConfirm();
       },
     });
   };
@@ -681,6 +685,7 @@ export function Categories() {
           confirmLabel={confirmState.title === 'Reset Order?' ? 'Yes, Reset' : 'Delete'}
           variant={confirmState.title === 'Reset Order?' ? 'warning' : 'danger'}
           icon={confirmState.title === 'Reset Order?' ? <RotateCcw size={20} /> : <Trash2 size={20} />}
+          loading={confirmLoading}
           onConfirm={confirmState.onConfirm}
           onCancel={closeConfirm}
         />

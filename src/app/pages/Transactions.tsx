@@ -136,7 +136,7 @@ export function Transactions() {
       return sortOrder === 'desc' ? b.amount - a.amount : a.amount - b.amount;
     });
     return result;
-  }, [transactions, searchQuery, filterAccount, filterType, filterCategory, sortBy, sortOrder, dateRangeEnabled, dateRange]);
+  }, [transactions, accounts, categories, searchQuery, filterAccount, filterType, filterCategory, sortBy, sortOrder, dateRangeEnabled, dateRange]);
 
   useEffect(() => { setCurrentPage(1); }, [searchQuery, filterAccount, filterType, filterCategory, dateRangeEnabled, dateRange, itemsPerPage, sortBy, sortOrder]);
 

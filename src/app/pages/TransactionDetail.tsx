@@ -16,8 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../components/ui/badge';
 import {
   ChevronLeft, X, Loader2, FileText, Image as ImageIcon,
-  Save, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ArrowLeftRight, Star, Trash2, Receipt,
+  Save, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ArrowLeftRight, Star, Trash2, Receipt, Bookmark,
 } from 'lucide-react';
+import { useTransactionTemplates } from '../hooks/useTransactionTemplates';
 import { CategorySelect } from '../components/CategorySelect';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 import { toast } from 'sonner';
@@ -75,6 +76,7 @@ export function TransactionDetail() {
   const { transactions, loading: txLoading, getTransactionById, createTransaction, createTransfer, updateTransaction, updateTransfer } = useTransactions();
   const { accounts }   = useAccounts();
   const { categories, createCategory } = useCategories();
+  const { templates, saveTemplate, deleteTemplate } = useTransactionTemplates();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
   const { pendingFiles, addFiles, removeFile: removePendingFile, uploadAllPending, isUploading: isUploadingPending } = usePendingAttachments();
 
@@ -114,6 +116,10 @@ export function TransactionDetail() {
   const [amountError, setAmountError]       = useState('');
   const [deleteAttachTarget, setDeleteAttachTarget] = useState<{ id: string; url: string } | null>(null);
   const [deletingAttach, setDeletingAttach] = useState(false);
+
+  // Template state
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName]         = useState('');
 
   // Tax state
   const [taxEnabled, setTaxEnabled]           = useState(false);
@@ -264,6 +270,42 @@ export function TransactionDetail() {
     setTaxEnabled(false);
     setTaxValueDisplay('');
     setTaxValue(0);
+  };
+
+  const applyTemplate = (tpl: typeof templates[0]) => {
+    const accountExists  = accounts.find(a => a.id === tpl.accountId);
+    const categoryExists = categories.find(c => c.id === tpl.categoryId);
+    setFormData(prev => ({
+      ...prev,
+      ...(accountExists  ? { accountId: tpl.accountId }   : {}),
+      type:          tpl.type,
+      amount:        tpl.amount,
+      categoryId:    categoryExists ? tpl.categoryId              : '',
+      subcategoryId: categoryExists ? (tpl.subcategoryId ?? null) : null,
+      description:   tpl.description || '',
+    }));
+    setAmountDisplay(formatAmountDisplay(tpl.amount));
+    setTaxEnabled(false);
+    setTaxValueDisplay('');
+    setTaxValue(0);
+    if (!accountExists)  toast.warning('Akun template sudah dihapus. Akun tidak diterapkan.');
+    if (!categoryExists) toast.warning('Kategori template sudah dihapus. Kategori tidak diterapkan.');
+    toast.success(`Template "${tpl.name}" diterapkan!`);
+  };
+
+  const handleSaveTemplate = () => {
+    if (!templateName.trim() || !formData.type || formData.type === 'transfer') return;
+    saveTemplate(templateName.trim(), {
+      accountId:    formData.accountId,
+      type:         formData.type as 'income' | 'expense',
+      amount:       formData.amount,
+      categoryId:   formData.categoryId,
+      subcategoryId: formData.subcategoryId,
+      description:  formData.description,
+    });
+    toast.success(`Template "${templateName.trim()}" disimpan!`);
+    setShowSaveTemplate(false);
+    setTemplateName('');
   };
 
   const handleTaxValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -480,6 +522,32 @@ export function TransactionDetail() {
               <ChevronLeft size={16} /> Back
             </button>
           </div>
+
+          {/* Template Bar — hanya saat new transaction */}
+          {isNew && templates.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="flex items-center gap-1 text-xs text-muted-foreground font-medium flex-shrink-0">
+                <Bookmark size={12} /> Templates:
+              </span>
+              {templates.map(tpl => (
+                <div key={tpl.id} className="flex items-center rounded-full border border-border bg-muted/40 overflow-hidden">
+                  <button type="button" onClick={() => applyTemplate(tpl)}
+                    className="flex items-center gap-1.5 text-xs px-2.5 py-1 hover:bg-muted transition-colors max-w-[160px]">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${tpl.type === 'income' ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <span className="truncate font-medium">{tpl.name}</span>
+                    <span className="text-muted-foreground flex-shrink-0 text-[10px]">
+                      {new Intl.NumberFormat('id-ID', { notation: 'compact', maximumFractionDigits: 1 }).format(tpl.amount)}
+                    </span>
+                  </button>
+                  <button type="button" onClick={() => deleteTemplate(tpl.id)}
+                    className="px-1.5 py-1 text-muted-foreground hover:text-destructive hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    title="Hapus template">
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
           {originalAcctDeleted && (
             <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800">
@@ -720,6 +788,40 @@ export function TransactionDetail() {
                     minHeight={100}
                   />
                 </div>
+
+                {/* ── Save Template — hanya saat new & income/expense ── */}
+                {isNew && formData.type && formData.type !== 'transfer' && formData.amount > 0 && formData.categoryId && (
+                  <div className="border-t border-border/30 pt-3">
+                    {!showSaveTemplate ? (
+                      <button type="button" onClick={() => setShowSaveTemplate(true)}
+                        className="flex items-center gap-1.5 text-xs text-primary hover:underline">
+                        <Bookmark size={12} /> Simpan sebagai Template
+                      </button>
+                    ) : (
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          placeholder="Nama template (mis: Gaji Bulanan)"
+                          value={templateName}
+                          onChange={e => setTemplateName(e.target.value.slice(0, 40))}
+                          className="text-sm h-8 flex-1"
+                          autoFocus
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.preventDefault(); handleSaveTemplate(); }
+                            if (e.key === 'Escape') { setShowSaveTemplate(false); setTemplateName(''); }
+                          }}
+                        />
+                        <Button type="button" size="sm" className="h-8 text-xs px-3"
+                          onClick={handleSaveTemplate} disabled={!templateName.trim()}>
+                          Simpan
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" className="h-8 text-xs"
+                          onClick={() => { setShowSaveTemplate(false); setTemplateName(''); }}>
+                          Batal
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* ── Tax Section — hanya untuk transaksi baru ── */}
                 {isNew && (

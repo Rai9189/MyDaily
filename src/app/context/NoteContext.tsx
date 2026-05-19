@@ -1,7 +1,7 @@
 // src/app/context/NoteContext.tsx
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase, handleSupabaseError } from '../../lib/supabase';
-import { Note } from '../types';
+import { Note, Attachment } from '../types';
 import { useAuth } from './AuthContext';
 import { trashEvents } from '../../lib/trashEvents';
 
@@ -28,6 +28,7 @@ function mapToNote(row: any): Note {
     content: row.content,
     pinned: row.pinned,
     timestamp: row.created_at,
+    updatedAt: row.updated_at ?? null,
   };
 }
 
@@ -50,7 +51,22 @@ export function NoteProvider({ children }: { children: ReactNode }) {
         .order('pinned', { ascending: false })
         .order('created_at', { ascending: false });
       if (fetchError) throw fetchError;
-      setNotes((data || []).map(mapToNote));
+
+      const noteList = data || [];
+      let attMap: Record<string, Attachment[]> = {};
+      if (noteList.length > 0) {
+        const { data: attData } = await supabase
+          .from('attachments')
+          .select('id, name, type, url, attachable_id')
+          .eq('attachable_type', 'note')
+          .in('attachable_id', noteList.map(n => n.id));
+        (attData || []).forEach(att => {
+          if (!attMap[att.attachable_id]) attMap[att.attachable_id] = [];
+          attMap[att.attachable_id].push({ id: att.id, name: att.name, type: att.type, url: att.url });
+        });
+      }
+
+      setNotes(noteList.map(row => ({ ...mapToNote(row), attachments: attMap[row.id] || [] })));
     } catch (err) {
       setError(handleSupabaseError(err));
     } finally {
@@ -85,7 +101,7 @@ export function NoteProvider({ children }: { children: ReactNode }) {
         .select()
         .single();
       if (insertError) throw insertError;
-      const mapped = mapToNote(data);
+      const mapped: Note = { ...mapToNote(data), attachments: [] };
       setNotes(prev => [mapped, ...prev]);
       return { success: true, data: mapped, error: null };
     } catch (err) {

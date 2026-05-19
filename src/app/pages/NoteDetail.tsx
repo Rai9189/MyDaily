@@ -368,12 +368,14 @@ export function NoteDetail() {
                         day: 'numeric', month: 'long', year: 'numeric',
                       })}
                     </span>
-                    <span>
-                      Updated: {new Date(note.timestamp).toLocaleString('en-US', {
-                        day: 'numeric', month: 'short', year: 'numeric',
-                        hour: '2-digit', minute: '2-digit',
-                      })}
-                    </span>
+                    {note.updatedAt && note.updatedAt !== note.timestamp && (
+                      <span>
+                        Updated: {new Date(note.updatedAt).toLocaleString('en-US', {
+                          day: 'numeric', month: 'short', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
+                        })}
+                      </span>
+                    )}
                   </div>
                 )}
 
