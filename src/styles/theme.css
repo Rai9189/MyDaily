@@ -56,37 +56,34 @@
 }
 
 .dark {
-  --background: #0e1c2a;
+  --background: #0b1622;
   --foreground: #daeef8;
 
-  --card: #1c2f44;
+  --card: #16243a;
   --card-foreground: #daeef8;
 
-  --popover: #1c2f44;
+  --popover: #16243a;
   --popover-foreground: #daeef8;
 
   --primary: #3b9fd8;
   --primary-foreground: #ffffff;
 
-  --secondary: #1a3048;
+  --secondary: #0f1d2e;
   --secondary-foreground: #daeef8;
 
-  /* Lighter than card so muted areas are visually distinct, not sunken */
-  --muted: #243a52;
+  --muted: #1a2d40;
   --muted-foreground: #95c2d8;
 
   --accent: #a07810;
   --accent-foreground: #ffffff;
 
-  /* Bright enough to be visible as text and button backgrounds */
   --destructive: #c0392b;
   --destructive-foreground: #ffffff;
 
-  /* Stronger border so cards are clearly separated from the page */
-  --border: rgba(80, 140, 180, 0.28);
+  --border: rgba(255, 255, 255, 0.06);
 
   --input: rgba(80, 140, 180, 0.1);
-  --input-background: #1a3048;
+  --input-background: #0f1d2e;
   --switch-background: #3b9fd8;
 
   --ring: #3b9fd8;
@@ -100,13 +97,13 @@
   --chart-4: #e0a820;
   --chart-5: #12a07e;
 
-  --sidebar: #1c2f44;
+  --sidebar: #111d2c;
   --sidebar-foreground: #daeef8;
   --sidebar-primary: #3b9fd8;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #243a52;
+  --sidebar-accent: #1a2d40;
   --sidebar-accent-foreground: #daeef8;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-border: rgba(255, 255, 255, 0.06);
   --sidebar-ring: #3b9fd8;
 }
 

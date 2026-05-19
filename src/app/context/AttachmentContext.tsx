@@ -56,7 +56,7 @@ export function AttachmentProvider({ children }: { children: ReactNode }) {
           user_id: user.id,
           attachable_type: attachableType,
           attachable_id: attachableId,
-          name: file.name, // Original name for display
+          name: file.name,
           original_name: file.name,
           type: fileType,
           url: url,
@@ -65,7 +65,11 @@ export function AttachmentProvider({ children }: { children: ReactNode }) {
         .select()
         .single();
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        // Hapus file dari storage agar tidak orphan
+        await deleteFile('attachments', path);
+        throw dbError;
+      }
 
       return { success: true, data: data as Attachment, error: null };
     } catch (err) {
@@ -74,14 +78,23 @@ export function AttachmentProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  function extractStoragePath(urlOrPath: string): string {
+    if (!urlOrPath.startsWith('http')) return urlOrPath;
+    try {
+      const parsed = new URL(urlOrPath);
+      const marker = '/object/public/attachments/';
+      const idx = parsed.pathname.indexOf(marker);
+      if (idx !== -1) return decodeURIComponent(parsed.pathname.slice(idx + marker.length));
+    } catch {
+      // fallback
+    }
+    return urlOrPath;
+  }
+
   // Delete attachment
   const deleteAttachment = async (id: string, storagePath: string) => {
     try {
-      // Extract path from URL if full URL is provided
-      let actualPath = storagePath;
-      if (storagePath.includes('/storage/v1/object/public/attachments/')) {
-        actualPath = storagePath.split('/storage/v1/object/public/attachments/')[1];
-      }
+      const actualPath = extractStoragePath(storagePath);
 
       // Delete from storage
       const { error: storageError } = await deleteFile('attachments', actualPath);
@@ -141,12 +154,7 @@ export function AttachmentProvider({ children }: { children: ReactNode }) {
       }
 
       // Extract storage paths
-      const storagePaths = attachments.map(att => {
-        if (att.url.includes('/storage/v1/object/public/attachments/')) {
-          return att.url.split('/storage/v1/object/public/attachments/')[1];
-        }
-        return att.url;
-      });
+      const storagePaths = attachments.map(att => extractStoragePath(att.url));
 
       // Delete from storage
       await deleteFiles('attachments', storagePaths);

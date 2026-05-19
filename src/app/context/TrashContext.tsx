@@ -134,6 +134,7 @@ export function TrashProvider({ children }: { children: ReactNode }) {
 
   const hardDeleteAll = async () => {
     try {
+      if (!user) throw new Error('User not authenticated');
       await Promise.all([
         supabase.from('transactions').delete().eq('user_id', user!.id).not('deleted_at', 'is', null),
         supabase.from('tasks').delete().eq('user_id', user!.id).not('deleted_at', 'is', null),

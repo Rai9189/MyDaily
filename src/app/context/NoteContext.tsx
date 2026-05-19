@@ -55,11 +55,12 @@ export function NoteProvider({ children }: { children: ReactNode }) {
       const noteList = data || [];
       let attMap: Record<string, Attachment[]> = {};
       if (noteList.length > 0) {
-        const { data: attData } = await supabase
+        const { data: attData, error: attError } = await supabase
           .from('attachments')
           .select('id, name, type, url, attachable_id')
           .eq('attachable_type', 'note')
           .in('attachable_id', noteList.map(n => n.id));
+        if (attError) console.warn('Failed to load note attachments:', attError.message);
         (attData || []).forEach(att => {
           if (!attMap[att.attachable_id]) attMap[att.attachable_id] = [];
           attMap[att.attachable_id].push({ id: att.id, name: att.name, type: att.type, url: att.url });

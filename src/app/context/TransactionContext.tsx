@@ -208,12 +208,11 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
       return { success: true, error: null };
     } catch (err) {
-      // Revert optimistic update jika INSERT gagal
-      await refreshAccounts();
-      // Soft-delete outgoing transaction agar trigger DB rollback balance otomatis
+      // Soft-delete dulu agar trigger DB rollback balance, baru refresh
       if (insertedOutId) {
         await supabase.from('transactions').update({ deleted_at: new Date().toISOString() }).eq('id', insertedOutId);
       }
+      await refreshAccounts();
       const errorMessage = handleSupabaseError(err);
       setError(errorMessage);
       return { success: false, error: errorMessage };

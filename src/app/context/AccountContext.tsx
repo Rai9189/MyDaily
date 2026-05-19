@@ -259,6 +259,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const deleteAccount = async (id: string) => {
     try {
       setError(null);
+      if (!user) throw new Error('User not authenticated');
       const accountToDelete = accounts.find(a => a.id === id);
       const { error: deleteError } = await supabase
         .from('accounts')

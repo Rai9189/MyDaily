@@ -44,7 +44,8 @@ export function useTransactionTemplates() {
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) console.warn('Failed to load templates:', error.message);
         setTemplates((data || []).map(mapTemplate));
         setLoading(false);
       });
@@ -74,17 +75,16 @@ export function useTransactionTemplates() {
     if (error || !inserted) return null;
 
     const mapped = mapTemplate(inserted);
-    setTemplates(prev => {
-      const updated = [mapped, ...prev];
-      if (updated.length > MAX_TEMPLATES) {
-        // Hapus yang paling lama dari DB (fire and forget)
-        updated.slice(MAX_TEMPLATES).forEach(t =>
-          supabase.from('transaction_templates').delete().eq('id', t.id)
-        );
-        return updated.slice(0, MAX_TEMPLATES);
-      }
-      return updated;
-    });
+
+    // Cek apakah perlu prune sebelum update state
+    const toDelete = [mapped, ...templates].slice(MAX_TEMPLATES);
+    if (toDelete.length > 0) {
+      Promise.all(
+        toDelete.map(t => supabase.from('transaction_templates').delete().eq('id', t.id))
+      ).catch(err => console.warn('Failed to prune old templates:', err));
+    }
+
+    setTemplates(prev => [mapped, ...prev].slice(0, MAX_TEMPLATES));
     return mapped;
   }, [user]);
 

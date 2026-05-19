@@ -169,6 +169,7 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
   const updateCategory = async (id: string, updates: Partial<Category>) => {
     try {
       setError(null);
+      if (!user) throw new Error('User not authenticated');
       const dbUpdates: any = {};
       if (updates.name      !== undefined) dbUpdates.name       = updates.name;
       if (updates.color     !== undefined) dbUpdates.color      = updates.color;
@@ -193,6 +194,7 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
   const deleteCategory = async (id: string) => {
     try {
       setError(null);
+      if (!user) throw new Error('User not authenticated');
       const now = new Date().toISOString();
       const { error: deleteError } = await supabase
         .from('categories')
