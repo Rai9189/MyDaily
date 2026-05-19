@@ -29,7 +29,7 @@ export function PINSetup() {
     if (!authLoading && user && hasPin() && !isForgotPin) {
       navigate('/pin-lock', { replace: true });
     }
-  }, [authLoading, user]);
+  }, [authLoading, user, isForgotPin]);
 
   const handlePinTypeChange = (value: 'pin4' | 'pin6' | 'password') => {
     setPinType(value);

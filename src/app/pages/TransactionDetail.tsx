@@ -144,11 +144,28 @@ export function TransactionDetail() {
 
   const taxNominalExceedsAmount = taxEnabled && taxType === 'nominal' && taxValue > 0 && formData.amount > 0 && taxValue > formData.amount;
 
+  // Saat edit, saldo akun sudah mencerminkan transaksi asli.
+  // Sesuaikan saldo efektif berdasarkan efek transaksi asli agar validasi akurat.
+  const availableBalance = useMemo(() => {
+    if (!selectedAccount) return 0;
+    if (isNew) return selectedAccount.balance;
+    const sameAccount = transaction?.accountId === formData.accountId;
+    if (sameAccount && transaction) {
+      const wasDeducting = transaction.type === 'expense' || transaction.type === 'transfer';
+      // expense/transfer: mengurangi saldo → kembalikan jumlahnya
+      // income: menambah saldo → kurangi jumlahnya (agar rollback income tercermin)
+      return wasDeducting
+        ? selectedAccount.balance + transaction.amount
+        : selectedAccount.balance - transaction.amount;
+    }
+    return selectedAccount.balance;
+  }, [selectedAccount, isNew, transaction, formData.accountId]);
+
   const isOverBalance = formData.type === 'expense' && formData.accountId !== '' && formData.amount > 0
-    && selectedAccount !== undefined && (formData.amount + (taxEnabled ? taxAmount : 0)) > selectedAccount.balance;
+    && selectedAccount !== undefined && (formData.amount + (taxEnabled ? taxAmount : 0)) > availableBalance;
 
   const isTransferOverBalance = formData.type === 'transfer' && formData.accountId !== '' && formData.amount > 0
-    && selectedAccount !== undefined && (formData.amount + (taxEnabled ? taxAmount : 0)) > selectedAccount.balance;
+    && selectedAccount !== undefined && (formData.amount + (taxEnabled ? taxAmount : 0)) > availableBalance;
 
   const isBusy       = submitting || isUploadingPending;
   const typeSelected = formData.type !== '';
@@ -306,16 +323,16 @@ export function TransactionDetail() {
       if (!formData.toAccountId) { toast.warning('Please select a destination account.'); return; }
       if (formData.toAccountId === formData.accountId) { toast.warning('Source and destination accounts must be different.'); return; }
       if (accounts.length < 2) { toast.warning('You need at least 2 accounts to make a transfer.'); return; }
-      if (selectedAccount && (formData.amount + taxAmount) > selectedAccount.balance) {
+      if (selectedAccount && (formData.amount + taxAmount) > availableBalance) {
         const totalNeeded = formData.amount + taxAmount;
-        toast.error(`Insufficient balance! ${selectedAccount.name}: ${fmt(selectedAccount.balance)} · Dibutuhkan: ${fmt(totalNeeded)}${taxAmount > 0 ? ` (incl. pajak ${fmt(taxAmount)})` : ''}`);
+        toast.error(`Insufficient balance! ${selectedAccount.name}: ${fmt(availableBalance)} · Dibutuhkan: ${fmt(totalNeeded)}${taxAmount > 0 ? ` (incl. pajak ${fmt(taxAmount)})` : ''}`);
         return;
       }
     } else {
       if (!formData.categoryId) { toast.warning('Please select a category.'); return; }
-      if (formData.type === 'expense' && selectedAccount && (formData.amount + taxAmount) > selectedAccount.balance) {
+      if (formData.type === 'expense' && selectedAccount && (formData.amount + taxAmount) > availableBalance) {
         const totalNeeded = formData.amount + taxAmount;
-        toast.error(`Insufficient balance! ${selectedAccount.name}: ${fmt(selectedAccount.balance)} · Dibutuhkan: ${fmt(totalNeeded)}${taxAmount > 0 ? ` (incl. pajak ${fmt(taxAmount)})` : ''}`);
+        toast.error(`Insufficient balance! ${selectedAccount.name}: ${fmt(availableBalance)} · Dibutuhkan: ${fmt(totalNeeded)}${taxAmount > 0 ? ` (incl. pajak ${fmt(taxAmount)})` : ''}`);
         return;
       }
     }
@@ -586,7 +603,7 @@ export function TransactionDetail() {
                     <div className="flex items-center gap-1.5 text-xs text-destructive">
                       <AlertCircle size={12} />
                       <span>
-                        Exceeds balance. Shortfall: {fmt((formData.amount + (taxEnabled ? taxAmount : 0)) - selectedAccount!.balance)}
+                        Exceeds balance. Shortfall: {fmt((formData.amount + (taxEnabled ? taxAmount : 0)) - availableBalance)}
                         {taxEnabled && taxAmount > 0 && <span className="opacity-70 ml-1">(incl. pajak {fmt(taxAmount)})</span>}
                       </span>
                     </div>

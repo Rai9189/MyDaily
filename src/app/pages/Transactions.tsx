@@ -99,6 +99,7 @@ export function Transactions() {
     if (t.toAccountId) {
       return `Transfer → ${getAccountName(t.toAccountId)}`;
     } else {
+      if (!t.transferPairId) return 'Transfer ← Unknown';
       const pair = transactions.find(tx => tx.transferPairId === t.transferPairId && tx.id !== t.id);
       return `Transfer ← ${pair ? getAccountName(pair.accountId) : 'Unknown'}`;
     }
@@ -137,7 +138,7 @@ export function Transactions() {
     return result;
   }, [transactions, searchQuery, filterAccount, filterType, filterCategory, sortBy, sortOrder, dateRangeEnabled, dateRange]);
 
-  useMemo(() => { setCurrentPage(1); }, [searchQuery, filterAccount, filterType, filterCategory, dateRangeEnabled, dateRange, itemsPerPage]);
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, filterAccount, filterType, filterCategory, dateRangeEnabled, dateRange, itemsPerPage, sortBy, sortOrder]);
 
   const summaryIncome   = useMemo(() => filteredTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),   [filteredTransactions]);
   const summaryExpense  = useMemo(() => filteredTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),  [filteredTransactions]);
@@ -201,7 +202,7 @@ export function Transactions() {
 
   const handleEdit = (e: React.MouseEvent, t: any) => {
     e.stopPropagation();
-    if (t.type === 'transfer' && !t.toAccountId) {
+    if (t.type === 'transfer' && !t.toAccountId && t.transferPairId) {
       const outTx = transactions.find(tx => tx.transferPairId === t.transferPairId && tx.toAccountId);
       if (outTx) { navigate(`/transactions/${outTx.id}`); return; }
     }

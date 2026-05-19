@@ -83,7 +83,7 @@ export function Notes() {
     return result;
   }, [notes, searchQuery, filterCategory, filterPinned, sortBy]);
 
-  useMemo(() => { setCurrentPage(1); }, [searchQuery, filterCategory, filterPinned, sortBy, itemsPerPage]);
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, filterCategory, filterPinned, sortBy, itemsPerPage]);
 
   const pinnedNotes  = useMemo(() => filterPinned === 'all' ? filteredNotes.filter(n =>  n.pinned) : [], [filteredNotes, filterPinned]);
   const regularNotes = useMemo(() => filterPinned === 'all' ? filteredNotes.filter(n => !n.pinned) : filteredNotes, [filteredNotes, filterPinned]);
@@ -471,6 +471,7 @@ export function Notes() {
           </div>
         ) : (
           <div className="rounded-xl overflow-hidden w-full bg-white dark:bg-card border-2 border-slate-300 dark:border-border shadow-sm">
+            <div className="overflow-x-auto">
             <table className="w-full">
               <TableHeader />
               <tbody>
@@ -495,6 +496,7 @@ export function Notes() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

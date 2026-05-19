@@ -444,7 +444,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const hasPin = () => !!(user?.pin_hash);
+  const hasPin = () => typeof user?.pin_hash === 'string' && user.pin_hash.length > 0;
 
   const value = {
     user, session, loading, profileLoading, error,

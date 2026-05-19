@@ -125,8 +125,10 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     if (subcategoryId) {
       const sub = categories.find(c => c.id === subcategoryId);
       if (sub?.color) return sub.color;
-      const parent = categories.find(c => c.id === sub?.parentId);
-      if (parent?.color) return parent.color;
+      if (sub?.parentId) {
+        const parent = categories.find(c => c.id === sub.parentId);
+        if (parent?.color) return parent.color;
+      }
     }
     return categories.find(c => c.id === categoryId)?.color ?? '#6b7280';
   };

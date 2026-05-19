@@ -46,7 +46,7 @@ function mapToTransaction(row: any): Transaction {
     date: row.date,
     createdAt: row.created_at ?? null,
     description: row.description || '',
-    attachments: row.attachments || [],
+    attachments: Array.isArray(row.attachments) ? row.attachments : [],
     transferPairId: row.transfer_pair_id ?? null,
     toAccountId: row.to_account_id ?? null,
   };
@@ -152,9 +152,11 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     description?: string;
     categoryId: string;
   }) => {
+    let insertedOutId: string | null = null;
     try {
       setError(null);
       if (!user) throw new Error('User not authenticated');
+      if (fromAccountId === toAccountId) throw new Error('Source and destination accounts must be different.');
 
       // Optimistic update — balance langsung berubah di UI tanpa nunggu DB
       updateBalanceLocally(fromAccountId, -amount);
@@ -178,6 +180,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         .select()
         .single();
       if (outError) throw outError;
+      insertedOutId = outData.id;
 
       const { data: inData, error: inError } = await supabase
         .from('transactions')
@@ -207,6 +210,10 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       // Revert optimistic update jika INSERT gagal
       await refreshAccounts();
+      // Hapus outgoing transaction jika sudah berhasil di-insert tapi incoming gagal
+      if (insertedOutId) {
+        await supabase.from('transactions').delete().eq('id', insertedOutId);
+      }
       const errorMessage = handleSupabaseError(err);
       setError(errorMessage);
       return { success: false, error: errorMessage };

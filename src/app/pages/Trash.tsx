@@ -144,6 +144,7 @@ export function Trash() {
   const [clearingAll, setClearingAll]   = useState(false);
   const [detailItem, setDetailItem]     = useState<TrashItem | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(DEFAULT_CONFIRM);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   const closeConfirm = () => setConfirmState(DEFAULT_CONFIRM);
 
@@ -173,10 +174,13 @@ export function Trash() {
       variant: 'default',
       icon: <RotateCcw size={20} />,
       onConfirm: async () => {
+        setConfirmLoading(true);
         setRestoringAll(true);
         for (const item of filtered) await restoreItem(item);
         toast.success('All items restored!');
         setRestoringAll(false);
+        setConfirmLoading(false);
+        closeConfirm();
       },
     });
   };
@@ -190,11 +194,14 @@ export function Trash() {
       variant: 'danger',
       icon: <Trash2 size={20} />,
       onConfirm: async () => {
+        setConfirmLoading(true);
         setProcessingId(item.id + '_delete');
         const { success, error } = await hardDeleteItem(item);
         if (success) toast.success('Permanently deleted');
         else toast.error(error || 'Failed to delete');
         setProcessingId(null);
+        setConfirmLoading(false);
+        closeConfirm();
       },
     });
   };
@@ -208,11 +215,14 @@ export function Trash() {
       variant: 'danger',
       icon: <Trash2 size={20} />,
       onConfirm: async () => {
+        setConfirmLoading(true);
         setClearingAll(true);
         const { success, error } = await hardDeleteAll();
         if (success) toast.success('Trash emptied');
         else toast.error(error || 'Failed to clear trash');
         setClearingAll(false);
+        setConfirmLoading(false);
+        closeConfirm();
       },
     });
   };
@@ -375,6 +385,7 @@ export function Trash() {
         confirmLabel={confirmState.confirmLabel}
         variant={confirmState.variant}
         icon={confirmState.icon}
+        loading={confirmLoading}
         onConfirm={confirmState.onConfirm}
         onCancel={closeConfirm}
       />

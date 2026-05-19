@@ -1,5 +1,5 @@
 // src/app/hooks/usePendingAttachments.ts
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAttachments } from '../context/AttachmentContext';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 
@@ -27,6 +27,17 @@ export function usePendingAttachments(): UsePendingAttachmentsReturn {
   const { uploadAttachment } = useAttachments();
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const pendingFilesRef = useRef(pendingFiles);
+  pendingFilesRef.current = pendingFiles;
+
+  // Revoke all object URLs on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      pendingFilesRef.current.forEach(f => {
+        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+      });
+    };
+  }, []);
 
   const addFiles = useCallback((files: FileList | File[]) => {
     const fileArray = Array.from(files);
