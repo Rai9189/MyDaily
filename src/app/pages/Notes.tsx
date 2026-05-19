@@ -159,7 +159,7 @@ export function Notes() {
             <div className="flex-1 min-w-0" onClick={() => navigate(`/notes/${note.id}`)}>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                  style={{ borderColor: getCategoryColor(note.categoryId, note.subcategoryId), color: getCategoryColor(note.categoryId, note.subcategoryId) }}>
+                  style={{ borderColor: getCategoryColor(note.categoryId, note.subcategoryId) || undefined, color: getCategoryColor(note.categoryId, note.subcategoryId) || undefined }}>
                   {getCategoryName(note.categoryId, note.subcategoryId)}
                 </span>
                 {note.pinned && (
@@ -170,31 +170,31 @@ export function Notes() {
                     disabled={pinningId === note.id}
                     className="text-amber-500 hover:text-amber-600 transition-colors leading-none disabled:opacity-50"
                   >
-                    {pinningId === note.id ? <Loader2 size={12} className="animate-spin" /> : <Pin size={13} />}
+                    {pinningId === note.id ? <Loader2 size={13} className="animate-spin" /> : <Pin size={13} />}
                   </button>
                 )}
               </div>
               <h3 className="text-sm font-semibold text-foreground line-clamp-1 mt-2">{note.title}</h3>
-              <p className="text-sm text-slate-500 dark:text-muted-foreground line-clamp-3 mt-1">{displaySnippet}</p>
+              <p className="text-sm text-muted-foreground line-clamp-3 mt-1">{displaySnippet}</p>
               {!searchQuery && plainContent.length > 200 && <p className="text-xs text-muted-foreground/50 mt-1 italic">Read more...</p>}
               <div className="flex items-center justify-between mt-3">
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-muted-foreground/70">
                   {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </span>
                 {note.attachments && note.attachments.length > 0 && (
-                  <span className="flex items-center gap-1 text-xs text-slate-400"><Paperclip size={11} /> {note.attachments.length}</span>
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground/60"><Paperclip size={11} /> {note.attachments.length}</span>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-0 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               <Button variant="ghost" size="icon"
-                className={`h-8 w-8 ${note.pinned ? 'text-amber-500 hover:text-amber-600' : 'text-slate-400 hover:text-foreground'}`}
+                className={`h-8 w-8 ${note.pinned ? 'text-amber-500 hover:text-amber-600' : 'text-muted-foreground/60 hover:text-foreground'}`}
                 onClick={(e) => handlePin(e, note)} disabled={pinningId === note.id}>
                 {pinningId === note.id ? <Loader2 size={15} className="animate-spin" /> : <Pin size={15} />}
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-foreground"
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/60 hover:text-foreground"
                 onClick={(e) => handleEdit(e, note.id)}><Edit size={15} /></Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:bg-red-500 hover:text-white"
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/60 hover:bg-red-500 hover:text-white"
                 onClick={(e) => handleDeleteRequest(e, note)}>
                 <Trash2 size={15} />
               </Button>
@@ -238,14 +238,14 @@ export function Notes() {
         }`}
         onClick={() => navigate(`/notes/${note.id}`)}>
         <td className="pl-4 pr-2 py-3.5 w-8 text-center">
-          <Pin size={14} className={isPinned ? 'text-amber-500 mx-auto' : 'text-slate-200 dark:text-slate-700 mx-auto'} />
+          <Pin size={14} className={isPinned ? 'text-amber-500 mx-auto' : 'text-muted-foreground/20 mx-auto'} />
         </td>
         <td className="px-4 py-3.5 text-center">
           <div className="relative inline-block">
             <div className="flex items-center justify-center gap-2">
               <p className="text-sm font-semibold text-foreground line-clamp-1">{note.title}</p>
               {note.attachments && note.attachments.length > 0 && (
-                <span className="flex items-center gap-0.5 text-xs text-slate-400 flex-shrink-0">
+                <span className="flex items-center gap-0.5 text-xs text-muted-foreground/60 flex-shrink-0">
                   <Paperclip size={11} />{note.attachments.length}
                 </span>
               )}
@@ -262,7 +262,7 @@ export function Notes() {
         </td>
         <td className="px-4 py-3.5 whitespace-nowrap text-center">
           <span className="text-xs font-medium px-2.5 py-1 rounded-full border inline-block"
-            style={{ borderColor: getCategoryColor(note.categoryId, note.subcategoryId), color: getCategoryColor(note.categoryId, note.subcategoryId) }}>
+            style={{ borderColor: getCategoryColor(note.categoryId, note.subcategoryId) || undefined, color: getCategoryColor(note.categoryId, note.subcategoryId) || undefined }}>
             {getCategoryName(note.categoryId, note.subcategoryId)}
           </span>
         </td>
@@ -274,13 +274,13 @@ export function Notes() {
         <td className="px-4 py-3.5 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-center gap-1">
             <Button variant="ghost" size="icon"
-              className={`h-8 w-8 ${isPinned ? 'text-amber-500 hover:text-amber-600' : 'text-slate-400 hover:text-foreground'}`}
+              className={`h-8 w-8 ${isPinned ? 'text-amber-500 hover:text-amber-600' : 'text-muted-foreground/60 hover:text-foreground'}`}
               onClick={(e) => handlePin(e, note)} disabled={pinningId === note.id}>
               {pinningId === note.id ? <Loader2 size={14} className="animate-spin" /> : <Pin size={14} />}
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-foreground"
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/60 hover:text-foreground"
               onClick={(e) => { e.stopPropagation(); navigate(`/notes/${note.id}`); }}><Edit size={14} /></Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:bg-red-500 hover:text-white"
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/60 hover:bg-red-500 hover:text-white"
               onClick={(e) => handleDeleteRequest(e, note)}>
               <Trash2 size={14} />
             </Button>
@@ -350,7 +350,7 @@ export function Notes() {
               className="pl-10 border border-border shadow-sm" />
           </div>
           <div className="relative" ref={filterRef}>
-            <Button variant="outline" className="gap-2 relative" onClick={() => setFilterOpen(prev => !prev)}>
+            <Button variant="outline" className={`gap-2 relative ${filterOpen ? 'border-primary bg-primary/5 text-primary' : ''}`} onClick={() => setFilterOpen(prev => !prev)}>
               <Filter size={18} />
               <span className="hidden sm:inline">Filter & Sort</span>
               {activeFilterCount > 0 && (
@@ -447,7 +447,7 @@ export function Notes() {
           </div>
           <span className="text-sm font-medium text-foreground/65 ml-auto">
             {itemsPerPage === 'all'
-              ? `Showing All ${filteredNotes.length} Notes`
+              ? `Showing all ${filteredNotes.length} notes`
               : pinnedNotes.length > 0
                 ? `Page ${currentPage} of ${totalPages} · ${regularNotes.length} regular + ${pinnedNotes.length} pinned`
                 : `Page ${currentPage} of ${totalPages} (${filteredNotes.length} total)`

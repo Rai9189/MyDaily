@@ -49,7 +49,7 @@ export function TrashProvider({ children }: { children: ReactNode }) {
 
       (transactions.data || []).forEach(t => items.push({
         id: t.id, table: 'transactions',
-        name: `${t.type === 'income' ? '+' : '-'} ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(t.amount)}`,
+        name: `${t.type === 'income' ? '+' : t.type === 'transfer' ? '↔' : '-'} ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(t.amount)}`,
         description: t.description || t.date,
         deleted_at: t.deleted_at,
         meta: { amount: t.amount, type: t.type, date: t.date, account_id: t.account_id },

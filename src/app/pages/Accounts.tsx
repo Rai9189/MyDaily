@@ -1,5 +1,5 @@
 // src/app/pages/Accounts.tsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAccounts } from '../context/AccountContext';
 import { Card, CardContent } from '../components/ui/card';
@@ -12,13 +12,40 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
   Plus, Edit, Trash2, Loader2, Wallet, Smartphone, Banknote,
   CreditCard, ArrowUpCircle, ArrowDownCircle, Star,
+  TrendingUp, TrendingDown, BarChart2, ChevronRight,
 } from 'lucide-react';
 import { Account, AccountType } from '../types';
+import { useTransactions } from '../context/TransactionContext';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { subDays } from 'date-fns';
 import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
 
 const MAX_BALANCE = 1_000_000_000;
 const MAX_NAME = 100;
+
+const fmtY = (n: number) => {
+  if (Math.abs(n) >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000_000)     return `${(n / 1_000_000).toFixed(1)}jt`;
+  if (Math.abs(n) >= 1_000)         return `${(n / 1_000).toFixed(0)}rb`;
+  return n.toLocaleString('id-ID');
+};
+
+function BalanceTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const { date, balance } = payload[0].payload;
+  const d = date.split('-');
+  const label = new Date(Number(d[0]), Number(d[1]) - 1, Number(d[2]))
+    .toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  return (
+    <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-lg text-xs">
+      <p className="text-muted-foreground mb-0.5">{label}</p>
+      <p className="font-semibold text-foreground">
+        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(balance)}
+      </p>
+    </div>
+  );
+}
 
 interface ConfirmState {
   open: boolean;
@@ -61,6 +88,7 @@ function handleBalanceKeyInput(raw: string): string {
 
 export function Accounts() {
   const { accounts, loading, error, createAccount, updateAccount, updateAccountWithAdjustment, deleteAccount, setPrimaryAccount } = useAccounts();
+  const { transactions } = useTransactions();
   const navigate = useNavigate();
   const location = useLocation();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -71,6 +99,8 @@ export function Accounts() {
   const [balanceDisplay, setBalanceDisplay] = useState('');
   const [balanceError, setBalanceError] = useState('');
   const [confirmState, setConfirmState] = useState<ConfirmState>(DEFAULT_CONFIRM);
+  const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
+  const [chartDays, setChartDays] = useState<number>(30);
 
   // ✅ Guard ref untuk mencegah double call pada adjustConfirm
   const isAdjustSubmitting = useRef(false);
@@ -83,6 +113,62 @@ export function Accounts() {
     snapshotAccount: Account | null;
     snapshotFormData: { name: string; type: AccountType; balance: number } | null;
   }>({ open: false, diff: 0, newBalance: 0, pendingSubmit: null, snapshotAccount: null, snapshotFormData: null });
+
+  const balanceHistory = useMemo(() => {
+    if (!expandedAccountId) return [];
+    const account = accounts.find(a => a.id === expandedAccountId);
+    if (!account) return [];
+
+    const accountTxs = transactions
+      .filter(t => t.accountId === expandedAccountId)
+      .sort((a, b) => {
+        const d = new Date(a.date).getTime() - new Date(b.date).getTime();
+        if (d !== 0) return d;
+        return new Date((a as any).createdAt || 0).getTime() - new Date((b as any).createdAt || 0).getTime();
+      });
+
+    const getEffect = (t: typeof accountTxs[number]) => {
+      if (t.type === 'income')   return t.amount;
+      if (t.type === 'expense')  return -t.amount;
+      if (t.type === 'transfer') return (t as any).toAccountId ? -t.amount : t.amount;
+      return 0;
+    };
+
+    const totalEffect    = accountTxs.reduce((sum, t) => sum + getEffect(t), 0);
+    const initialBalance = account.balance - totalEffect;
+    let running = initialBalance;
+
+    // Build end-of-day balance per date
+    const byDate = new Map<string, number>();
+    for (const t of accountTxs) {
+      running += getEffect(t);
+      byDate.set(t.date, running);
+    }
+
+    const allPoints = [...byDate.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, balance]) => ({ date, balance }));
+
+    if (allPoints.length === 0) return [];
+    if (chartDays === 0) return allPoints;
+
+    const cutoff     = subDays(new Date(), chartDays).toISOString().split('T')[0];
+    const inRange    = allPoints.filter(p => p.date >= cutoff);
+    const lastBefore = [...allPoints].reverse().find(p => p.date < cutoff);
+    const startBal   = lastBefore?.balance ?? initialBalance;
+
+    if (inRange.length === 0) {
+      const today = new Date().toISOString().split('T')[0];
+      return [{ date: cutoff, balance: startBal }, { date: today, balance: account.balance }];
+    }
+    return inRange[0].date === cutoff
+      ? inRange
+      : [{ date: cutoff, balance: startBal }, ...inRange];
+  }, [expandedAccountId, accounts, transactions, chartDays]);
+
+  useEffect(() => {
+    if (expandedAccountId) setChartDays(30);
+  }, [expandedAccountId]);
 
   useEffect(() => {
     if (new URLSearchParams(location.search).get('add') !== 'true') return;
@@ -400,7 +486,7 @@ export function Accounts() {
                         ? 'border-2 border-amber-400 dark:border-amber-500'
                         : cfg.cardBorder
                     }`}
-                    onClick={() => navigate(`/transactions?accountId=${account.id}`)}>
+                    onClick={() => setExpandedAccountId(account.id)}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -448,7 +534,9 @@ export function Accounts() {
                           <p className="text-xs text-muted-foreground mb-0.5">Current Balance</p>
                           <p className="text-lg font-bold text-foreground">{formatCurrency(account.balance)}</p>
                         </div>
-                        <span className="text-xs text-muted-foreground/60 pb-0.5">Tap to view →</span>
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground/60 pb-0.5" title="View balance history">
+                          <BarChart2 size={12} />
+                        </span>
                       </div>
                     </CardContent>
                   </Card>
@@ -462,8 +550,125 @@ export function Accounts() {
               Tap <Star size={10} className="inline" /> on an account to set it as the default for new transactions
             </p>
           )}
+
         </div>
       </div>
+
+      {/* Balance History Chart Dialog */}
+      {(() => {
+        const account = expandedAccountId ? accounts.find(a => a.id === expandedAccountId) : null;
+        const cfg = account ? getTypeConfig(account.type) : null;
+        const first = balanceHistory[0]?.balance;
+        const last  = balanceHistory[balanceHistory.length - 1]?.balance;
+        const diff  = balanceHistory.length >= 2 ? last - first : 0;
+        return (
+          <Dialog open={!!expandedAccountId} onOpenChange={(open) => { if (!open) setExpandedAccountId(null); }}>
+            <DialogContent className="bg-card border border-border sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 pr-6">
+                  {cfg && account && (
+                    <>
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+                        {cfg.icon}{account.type}
+                      </span>
+                      <span className="text-base font-semibold text-foreground truncate">{account.name}</span>
+                    </>
+                  )}
+                </DialogTitle>
+              </DialogHeader>
+
+              {account && cfg && (
+                <div className="space-y-3">
+                  {/* Balance + View Transactions */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xl font-bold text-foreground">{formatCurrency(account.balance)}</span>
+                    <button type="button"
+                      onClick={() => { setExpandedAccountId(null); navigate(`/transactions?accountId=${account.id}`); }}
+                      className="flex items-center gap-0.5 text-xs text-primary hover:text-primary/80 font-medium transition-colors">
+                      View Transactions <ChevronRight size={13} />
+                    </button>
+                  </div>
+
+                  {/* Range filter chips */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {([
+                      { days: 7,   label: '7D'  },
+                      { days: 30,  label: '30D' },
+                      { days: 90,  label: '3M'  },
+                      { days: 180, label: '6M'  },
+                      { days: 0,   label: 'All' },
+                    ] as const).map(({ days, label }) => (
+                      <button key={label} type="button"
+                        onClick={() => setChartDays(days)}
+                        className={`px-2.5 py-1 text-xs rounded-full border font-medium transition-colors ${
+                          chartDays === days
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+                        }`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Chart or empty state */}
+                  {balanceHistory.length < 2 ? (
+                    <div className="flex flex-col items-center justify-center h-36 gap-2">
+                      <BarChart2 size={28} className="text-muted-foreground/30" />
+                      <p className="text-sm text-muted-foreground">Belum ada riwayat transaksi dalam periode ini</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${
+                        diff >= 0
+                          ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                          : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                      }`}>
+                        {diff >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                        <span>{diff >= 0 ? '+' : ''}{formatCurrency(diff)} dalam periode ini</span>
+                      </div>
+                      <div style={{ height: 220 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={balanceHistory} margin={{ top: 5, right: 8, left: 0, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.1} />
+                            <XAxis
+                              dataKey="date"
+                              tickFormatter={(d: string) => {
+                                const p = d.split('-');
+                                return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]))
+                                  .toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+                              }}
+                              tick={{ fontSize: 10 }}
+                              stroke="currentColor"
+                              strokeOpacity={0.3}
+                              interval="preserveStartEnd"
+                            />
+                            <YAxis
+                              tickFormatter={fmtY}
+                              tick={{ fontSize: 10 }}
+                              stroke="currentColor"
+                              strokeOpacity={0.3}
+                              width={52}
+                            />
+                            <Tooltip content={<BalanceTooltip />} />
+                            <Line
+                              type="monotone"
+                              dataKey="balance"
+                              stroke="var(--color-primary)"
+                              strokeWidth={2}
+                              dot={balanceHistory.length <= 30}
+                              activeDot={{ r: 5 }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* Confirm Delete Dialog */}
       <ConfirmDialog

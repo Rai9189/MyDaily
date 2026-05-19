@@ -86,6 +86,9 @@ export function TransactionDetail() {
 
   const outgoingTransfer = useMemo(() => {
     if (!transaction || transaction.toAccountId || transaction.type !== 'transfer') return null;
+    if (transaction.transferPairId) {
+      return transactions.find(t => t.transferPairId === transaction.transferPairId && t.id !== transaction.id) ?? null;
+    }
     return transactions.find(t =>
       t.id !== transaction.id &&
       t.type === 'transfer' &&
@@ -224,6 +227,10 @@ export function TransactionDetail() {
         description: transaction.description || '',
       });
       setAmountDisplay(formatAmountDisplay(transaction.amount));
+      setTaxEnabled(false);
+      setTaxType('percent');
+      setTaxValue(0);
+      setTaxValueDisplay('');
     }
   }, [isNew, transaction?.id, primaryAccount?.id]);
 
@@ -293,17 +300,18 @@ export function TransactionDetail() {
     toast.success(`Template "${tpl.name}" diterapkan!`);
   };
 
-  const handleSaveTemplate = () => {
+  const handleSaveTemplate = async () => {
     if (!templateName.trim() || !formData.type || formData.type === 'transfer') return;
-    saveTemplate(templateName.trim(), {
-      accountId:    formData.accountId,
-      type:         formData.type as 'income' | 'expense',
-      amount:       formData.amount,
-      categoryId:   formData.categoryId,
+    const result = await saveTemplate(templateName.trim(), {
+      accountId:     formData.accountId,
+      type:          formData.type as 'income' | 'expense',
+      amount:        formData.amount,
+      categoryId:    formData.categoryId,
       subcategoryId: formData.subcategoryId,
-      description:  formData.description,
+      description:   formData.description,
     });
-    toast.success(`Template "${templateName.trim()}" disimpan!`);
+    if (result) toast.success(`Template "${templateName.trim()}" disimpan!`);
+    else toast.error('Gagal menyimpan template. Coba lagi.');
     setShowSaveTemplate(false);
     setTemplateName('');
   };

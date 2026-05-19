@@ -59,20 +59,20 @@
   --background: #0e1c2a;
   --foreground: #daeef8;
 
-  --card: #162435;
+  --card: #1c2f44;
   --card-foreground: #daeef8;
 
-  --popover: #162435;
+  --popover: #1c2f44;
   --popover-foreground: #daeef8;
 
-  --primary: #1f5680;
-  --primary-foreground: #e8f4fd;
+  --primary: #3b9fd8;
+  --primary-foreground: #ffffff;
 
   --secondary: #1a3048;
   --secondary-foreground: #daeef8;
 
   /* Lighter than card so muted areas are visually distinct, not sunken */
-  --muted: #1c3350;
+  --muted: #243a52;
   --muted-foreground: #95c2d8;
 
   --accent: #a07810;
@@ -87,9 +87,9 @@
 
   --input: rgba(80, 140, 180, 0.1);
   --input-background: #1a3048;
-  --switch-background: #1f5680;
+  --switch-background: #3b9fd8;
 
-  --ring: #2471a3;
+  --ring: #3b9fd8;
 
   --font-weight-medium: 500;
   --font-weight-normal: 400;
@@ -100,14 +100,14 @@
   --chart-4: #e0a820;
   --chart-5: #12a07e;
 
-  --sidebar: #162435;
+  --sidebar: #1c2f44;
   --sidebar-foreground: #daeef8;
-  --sidebar-primary: #1f5680;
-  --sidebar-primary-foreground: #e8f4fd;
-  --sidebar-accent: #1c3350;
+  --sidebar-primary: #3b9fd8;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #243a52;
   --sidebar-accent-foreground: #daeef8;
   --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: #2471a3;
+  --sidebar-ring: #3b9fd8;
 }
 
 @theme inline {

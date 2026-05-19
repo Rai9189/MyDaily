@@ -385,7 +385,7 @@ export function Transactions() {
           </div>
 
           <div className="relative" ref={filterRef}>
-            <Button variant="outline" className="gap-2 relative" onClick={() => setFilterOpen(prev => !prev)}>
+            <Button variant="outline" className={`gap-2 relative ${filterOpen ? 'border-primary bg-primary/5 text-primary' : ''}`} onClick={() => setFilterOpen(prev => !prev)}>
               <Filter size={18} />
               <span className="hidden sm:inline">Filter & Sort</span>
               {activeFilterCount > 0 && (
@@ -553,8 +553,8 @@ export function Transactions() {
 
           <span className="text-sm font-medium text-foreground/65 ml-auto">
             {itemsPerPage === 'all'
-              ? `Showing All ${filteredTransactions.length} Transactions`
-              : `Page ${currentPage} Of ${totalPages} (${filteredTransactions.length} Total)`
+              ? `Showing all ${filteredTransactions.length} transactions`
+              : `Page ${currentPage} of ${totalPages} (${filteredTransactions.length} total)`
             }
           </span>
         </div>
@@ -658,7 +658,7 @@ export function Transactions() {
                             </span>
                           ) : (
                             <span className="text-xs font-medium px-2.5 py-1 rounded-full border inline-block cursor-default"
-                              style={{ borderColor: getCategoryColor(t.categoryId, t.subcategoryId), color: getCategoryColor(t.categoryId, t.subcategoryId) }}>
+                              style={{ borderColor: getCategoryColor(t.categoryId, t.subcategoryId) || undefined, color: getCategoryColor(t.categoryId, t.subcategoryId) || undefined }}>
                               {getCategoryName(t.categoryId, t.subcategoryId)}
                             </span>
                           )}
@@ -687,16 +687,16 @@ export function Transactions() {
                           {getAmountPrefix(t)}{fmt(t.amount)}
                         </span>
                         {t.attachments && t.attachments.length > 0 && (
-                          <span className="ml-1.5 inline-flex items-center gap-0.5 text-xs text-slate-400">
+                          <span className="ml-1.5 inline-flex items-center gap-0.5 text-xs text-muted-foreground/60">
                             <Paperclip size={10} />{t.attachments.length}
                           </span>
                         )}
                       </td>
                       <td className={`px-4 whitespace-nowrap text-center py-3`} onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-foreground"
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
                             onClick={(e) => handleEdit(e, t)}><Edit size={14} /></Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:bg-red-500 hover:text-white"
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white"
                             onClick={(e) => handleDeleteRequest(e, t)}>
                             <Trash2 size={14} />
                           </Button>
@@ -727,15 +727,15 @@ export function Transactions() {
                         </span>
                       ) : (
                         <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                          style={{ borderColor: getCategoryColor(t.categoryId, t.subcategoryId), color: getCategoryColor(t.categoryId, t.subcategoryId) }}>
+                          style={{ borderColor: getCategoryColor(t.categoryId, t.subcategoryId) || undefined, color: getCategoryColor(t.categoryId, t.subcategoryId) || undefined }}>
                           {getCategoryName(t.categoryId, t.subcategoryId)}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-0" onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-foreground"
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
                         onClick={(e) => handleEdit(e, t)}><Edit size={13} /></Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:bg-red-500 hover:text-white"
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-red-500 hover:text-white"
                         onClick={(e) => handleDeleteRequest(e, t)}>
                         <Trash2 size={13} />
                       </Button>
@@ -766,7 +766,7 @@ export function Transactions() {
                     {t.attachments && t.attachments.length > 0 && (
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">Attachments</span>
-                        <span className="flex items-center gap-1 text-slate-400">
+                        <span className="flex items-center gap-1 text-muted-foreground/60">
                           <Paperclip size={11} /> {t.attachments.length}
                         </span>
                       </div>

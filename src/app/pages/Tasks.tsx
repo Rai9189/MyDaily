@@ -83,7 +83,7 @@ export function Tasks() {
   };
 
   const getDotColor = (task: any) => {
-    if (task.completed) return 'bg-gray-400';
+    if (task.completed) return 'bg-muted-foreground/40';
     switch (task.status) {
       case 'overdue':  return 'bg-red-600';
       case 'urgent':   return 'bg-orange-500';
@@ -305,7 +305,7 @@ export function Tasks() {
           </div>
 
           <div className="relative" ref={filterRef}>
-            <Button variant="outline" className="gap-2 relative" onClick={() => setFilterOpen(prev => !prev)}>
+            <Button variant="outline" className={`gap-2 relative ${filterOpen ? 'border-primary bg-primary/5 text-primary' : ''}`} onClick={() => setFilterOpen(prev => !prev)}>
               <Filter size={18} />
               <span className="hidden sm:inline">Filter & Sort</span>
               {activeFilterCount > 0 && (
@@ -419,7 +419,7 @@ export function Tasks() {
               title="Card View"><LayoutGrid size={16} /></button>
           </div>
           <span className="text-sm font-medium text-foreground/65 ml-auto">
-            {itemsPerPage === 'all' ? `Showing All ${filteredTasks.length} Tasks` : `Page ${currentPage} Of ${totalPages} (${filteredTasks.length} Total)`}
+            {itemsPerPage === 'all' ? `Showing all ${filteredTasks.length} tasks` : `Page ${currentPage} of ${totalPages} (${filteredTasks.length} total)`}
           </span>
         </div>
       </div>
@@ -428,8 +428,8 @@ export function Tasks() {
         {filteredTasks.length === 0 ? (
           <Card className="border-2 border-slate-200 dark:border-border bg-white dark:bg-card shadow-sm">
             <CardContent className="py-16 text-center">
-              <p className="text-muted-foreground">No Tasks Found</p>
-              <p className="text-sm text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
+              <p className="text-muted-foreground">{searchQuery || activeFilterCount > 0 ? 'No Tasks Found' : 'No Tasks Yet'}</p>
+              <p className="text-sm text-muted-foreground/60 mt-1">{searchQuery || activeFilterCount > 0 ? 'Try adjusting your search or filters' : 'Create your first task'}</p>
             </CardContent>
           </Card>
         ) : viewMode === 'list' ? (
@@ -460,7 +460,7 @@ export function Tasks() {
                             title={task.completed ? 'Mark incomplete' : 'Mark complete'}
                             className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${
                               task.completed
-                                ? 'bg-gray-400 border-gray-400'
+                                ? 'bg-muted-foreground/40 border-muted-foreground/40'
                                 : `bg-transparent ${task.status === 'overdue' ? 'border-red-600' : task.status === 'urgent' ? 'border-orange-500' : task.status === 'upcoming' ? 'border-amber-500' : 'border-blue-500'}`
                             }`}
                           >
@@ -473,7 +473,7 @@ export function Tasks() {
                         </td>
                         <td className={`px-4 text-center py-3`}>
                           <div className="relative inline-block">
-                            <p className={`text-sm font-semibold leading-tight ${task.completed ? 'line-through text-slate-400' : 'text-foreground'}`}>
+                            <p className={`text-sm font-semibold leading-tight ${task.completed ? 'line-through text-muted-foreground/60' : 'text-foreground'}`}>
                               {task.title}
                             </p>
                             {task.description && (
@@ -488,7 +488,7 @@ export function Tasks() {
                         </td>
                         <td className={`px-4 text-center whitespace-nowrap py-3`}>
                           <span className="text-xs font-medium px-2.5 py-1 rounded-full border inline-block"
-                            style={{ borderColor: getCategoryColor(task.categoryId, task.subcategoryId), color: getCategoryColor(task.categoryId, task.subcategoryId) }}>
+                            style={{ borderColor: getCategoryColor(task.categoryId, task.subcategoryId) || undefined, color: getCategoryColor(task.categoryId, task.subcategoryId) || undefined }}>
                             {getCategoryName(task.categoryId, task.subcategoryId)}
                           </span>
                         </td>
@@ -503,9 +503,9 @@ export function Tasks() {
                         </td>
                         <td className={`px-4 whitespace-nowrap text-center py-3`} onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-foreground"
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/60 hover:text-foreground"
                               onClick={(e) => handleEdit(e, task.id)}><Edit size={14} /></Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:bg-red-500 hover:text-white"
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/60 hover:bg-red-500 hover:text-white"
                               onClick={(e) => handleDeleteRequest(e, task)}>
                               <Trash2 size={14} />
                             </Button>
@@ -532,7 +532,7 @@ export function Tasks() {
                         title={task.completed ? 'Mark incomplete' : 'Mark complete'}
                         className={`mt-1 flex-shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${
                           task.completed
-                            ? 'bg-gray-400 border-gray-400'
+                            ? 'bg-muted-foreground/40 border-muted-foreground/40'
                             : `bg-transparent ${task.status === 'overdue' ? 'border-red-600' : task.status === 'urgent' ? 'border-orange-500' : task.status === 'upcoming' ? 'border-amber-500' : 'border-blue-500'}`
                         }`}
                       >
@@ -545,34 +545,34 @@ export function Tasks() {
                       <div className="flex-1 min-w-0" onClick={() => navigate(`/tasks/${task.id}`)}>
                         <div className="flex items-center gap-2 flex-wrap mb-1.5">
                           <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                            style={{ borderColor: getCategoryColor(task.categoryId, task.subcategoryId), color: getCategoryColor(task.categoryId, task.subcategoryId) }}>
+                            style={{ borderColor: getCategoryColor(task.categoryId, task.subcategoryId) || undefined, color: getCategoryColor(task.categoryId, task.subcategoryId) || undefined }}>
                             {getCategoryName(task.categoryId, task.subcategoryId)}
                           </span>
                           <StatusBadge task={task} />
                         </div>
                         <p className={`text-sm font-semibold leading-tight ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{task.title}</p>
                         {task.description && (
-                          <p className="text-xs text-slate-400 mt-1 line-clamp-2">{stripHtml(task.description)}</p>
+                          <p className="text-xs text-muted-foreground/70 mt-1 line-clamp-2">{stripHtml(task.description)}</p>
                         )}
                         <div className="flex items-center justify-between mt-3">
                           <div>
-                            <p className="text-xs text-slate-500 flex items-center gap-1">
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
                               <Clock size={11} className="opacity-70" />
                               {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                             </p>
                             <p className={`text-xs mt-0.5 ${daysInfo.color}`}>{daysInfo.label}</p>
                           </div>
                           {task.completionAttachments && task.completionAttachments.length > 0 && (
-                            <span className="flex items-center gap-1 text-xs text-slate-400">
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground/60">
                               <Paperclip size={11} /> {task.completionAttachments.length}
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center gap-0 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-foreground"
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
                           onClick={(e) => handleEdit(e, task.id)}><Edit size={13} /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:bg-red-500 hover:text-white"
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/60 hover:bg-red-500 hover:text-white"
                           onClick={(e) => handleDeleteRequest(e, task)}>
                           <Trash2 size={13} />
                         </Button>

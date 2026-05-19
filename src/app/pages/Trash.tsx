@@ -77,8 +77,8 @@ function TrashItemDetail({ item }: { item: TrashItem }) {
         {item.table === 'transactions' && (
           <div className="space-y-3">
             <DetailRow label="Amount" value={
-              <span className={item.meta?.type === 'income' ? 'text-green-600 dark:text-green-400 font-semibold' : 'text-red-600 dark:text-red-400 font-semibold'}>
-                {item.meta?.type === 'income' ? '+' : '-'}{fmt(item.meta?.amount ?? 0)}
+              <span className={item.meta?.type === 'income' ? 'text-green-600 dark:text-green-400 font-semibold' : item.meta?.type === 'transfer' ? 'text-blue-600 dark:text-blue-400 font-semibold' : 'text-red-600 dark:text-red-400 font-semibold'}>
+                {item.meta?.type === 'income' ? '+' : item.meta?.type === 'transfer' ? '↔' : '-'}{fmt(item.meta?.amount ?? 0)}
               </span>
             } />
             <DetailRow label="Type"  value={<span className="capitalize">{item.meta?.type}</span>} />

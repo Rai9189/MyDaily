@@ -247,7 +247,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('sb-')) localStorage.removeItem(key);
       });
-      localStorage.removeItem('mydaily_tx_templates');
 
       lastFetchedUserId.current = null;
       setUser(null);
