@@ -236,7 +236,7 @@ export function Trash() {
   );
 
   if (error) return (
-    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-lg">
+    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
       <p className="text-red-600 dark:text-red-400">Error: {error}</p>
     </div>
   );
@@ -277,7 +277,7 @@ export function Trash() {
                 return (
                   <button key={t} type="button" onClick={() => setActiveTab(t)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors flex-shrink-0 ${
-                      active ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                      active ? 'bg-primary text-primary-foreground border-primary shadow-sm dark:bg-primary/15 dark:text-primary dark:border-primary/30'
                       : 'bg-white dark:bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted'
                     }`}>
                     {t !== 'all' && TABLE_ICONS[t]}
@@ -290,14 +290,14 @@ export function Trash() {
             <div className="flex items-center gap-1 bg-white dark:bg-card border border-border rounded-lg p-1 shadow-sm flex-shrink-0">
               {([{ key: 'expiry', label: 'Expiry' }, { key: 'deleted', label: 'Deleted' }] as const).map(s => (
                 <button key={s.key} type="button" onClick={() => setSortBy(s.key)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${sortBy === s.key ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}>
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${sortBy === s.key ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}>
                   {s.label}
                 </button>
               ))}
             </div>
           </div>
 
-          <Card className="bg-white dark:bg-card border-2 border-slate-200 dark:border-border shadow-sm rounded-xl">
+          <Card className="bg-white dark:bg-card border-2 border-slate-300 dark:border-border shadow-sm rounded-xl">
             <CardContent className="p-0">
               {filtered.length === 0 ? (
                 <div className="py-16 text-center">

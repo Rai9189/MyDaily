@@ -218,7 +218,7 @@ export function Transactions() {
   );
 
   if (error) return (
-    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-lg">
+    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
       <p className="text-red-600 dark:text-red-400">Error: {error}</p>
     </div>
   );
@@ -226,7 +226,7 @@ export function Transactions() {
   if (accounts.length === 0 && transactions.length === 0) return (
     <div className="space-y-4">
       <p className="text-sm font-medium text-foreground/65">All Your Transaction History</p>
-      <Card className="border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
+      <Card className="border-2 border-amber-400 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
         <CardContent className="py-14 flex flex-col items-center text-center gap-4">
           <div className="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
             <Wallet size={28} className="text-amber-600 dark:text-amber-400" />
@@ -339,28 +339,28 @@ export function Transactions() {
         {activeFilterCount > 0 && (
           <div className="flex flex-wrap gap-2 text-xs items-center">
             {filterAccount !== 'all' && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium shadow-sm">
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium dark:bg-primary/15 dark:text-primary">
                 Account: {accounts.find(a => a.id === filterAccount)?.name}
                 <button onClick={() => { setFilterAccount('all'); setCurrentPage(1); }}
                   className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={11} /></button>
               </span>
             )}
             {filterType !== 'all' && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium capitalize shadow-sm">
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium capitalize dark:bg-primary/15 dark:text-primary">
                 Type: {filterType}
                 <button onClick={() => { setFilterType('all'); setFilterCategory('all'); setCurrentPage(1); }}
                   className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={11} /></button>
               </span>
             )}
             {filterCategory !== 'all' && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium shadow-sm">
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium dark:bg-primary/15 dark:text-primary">
                 Category: {categories.find(c => c.id === filterCategory)?.name}
                 <button onClick={() => { setFilterCategory('all'); setCurrentPage(1); }}
                   className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={11} /></button>
               </span>
             )}
             {dateRangeEnabled && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium shadow-sm">
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium dark:bg-primary/15 dark:text-primary">
                 <CalendarDays size={11} />
                 {format(dateRange.start, 'd MMM')} – {format(dateRange.end, 'd MMM yyyy')}
                 <button onClick={() => { setDateRangeEnabled(false); setCurrentPage(1); }}
@@ -532,7 +532,7 @@ export function Transactions() {
               <button key={num} onClick={() => { setItemsPerPage(num); setCurrentPage(1); }}
                 className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-150 ${
                   itemsPerPage === num
-                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary'
                     : 'text-foreground/60 hover:text-foreground hover:bg-background'
                 }`}>
                 {num === 'all' ? 'All' : num}
@@ -542,11 +542,11 @@ export function Transactions() {
 
           <div className="hidden md:inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             <button onClick={() => setViewMode('list')} title="List view"
-              className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
+              className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
               <List size={16} />
             </button>
             <button onClick={() => setViewMode('card')} title="Card view"
-              className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'card' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
+              className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'card' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
               <LayoutGrid size={16} />
             </button>
           </div>
@@ -812,7 +812,7 @@ export function Transactions() {
       {itemsPerPage !== 'all' && totalPages > 1 && <div className="h-16 flex-shrink-0" />}
 
       <button type="button" onClick={() => navigate('/transactions/new')}
-        className="md:hidden fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all flex items-center justify-center"
+        className="md:hidden fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all flex items-center justify-center dark:bg-primary/20 dark:text-primary dark:border dark:border-primary/30 dark:hover:bg-primary/30"
         aria-label="Add transaction">
         <Plus size={24} />
       </button>

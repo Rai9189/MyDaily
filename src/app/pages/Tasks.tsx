@@ -222,7 +222,7 @@ export function Tasks() {
   );
 
   if (error) return (
-    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-lg">
+    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
       <p className="text-red-600 dark:text-red-400">Error: {error}</p>
     </div>
   );
@@ -275,19 +275,19 @@ export function Tasks() {
         {activeFilterCount > 0 && (
           <div className="flex flex-wrap gap-2 text-xs items-center">
             {filterStatus !== 'all' && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium shadow-sm">
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium dark:bg-primary/15 dark:text-primary">
                 Status: {getStatusConfig(filterStatus).label}
                 <button onClick={() => { setFilterStatus('all'); setCurrentPage(1); }} className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={11} /></button>
               </span>
             )}
             {filterCategory !== 'all' && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium shadow-sm">
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium dark:bg-primary/15 dark:text-primary">
                 Category: {categories.find(c => c.id === filterCategory)?.name}
                 <button onClick={() => { setFilterCategory('all'); setCurrentPage(1); }} className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={11} /></button>
               </span>
             )}
             {filterCompleted !== 'active' && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium shadow-sm">
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full font-medium dark:bg-primary/15 dark:text-primary">
                 {filterCompleted === 'completed' ? 'Completed only' : 'All (incl. completed)'}
                 <button onClick={() => { setFilterCompleted('active'); setCurrentPage(1); }} className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={11} /></button>
               </span>
@@ -405,17 +405,17 @@ export function Tasks() {
           <div className="inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             {([5, 10, 20, 'all'] as (number | 'all')[]).map((num) => (
               <button key={num} onClick={() => { setItemsPerPage(num); setCurrentPage(1); }}
-                className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-150 ${itemsPerPage === num ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
+                className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-150 ${itemsPerPage === num ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
                 {num === 'all' ? 'All' : num}
               </button>
             ))}
           </div>
           <div className="hidden md:inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             <button onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}
+              className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}
               title="List View"><List size={16} /></button>
             <button onClick={() => setViewMode('card')}
-              className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'card' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}
+              className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'card' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}
               title="Card View"><LayoutGrid size={16} /></button>
           </div>
           <span className="text-sm font-medium text-foreground/65 ml-auto">
@@ -618,7 +618,7 @@ export function Tasks() {
       {itemsPerPage !== 'all' && totalPages > 1 && <div className="h-16 flex-shrink-0" />}
 
       <button type="button" onClick={() => navigate('/tasks/new')}
-        className="md:hidden fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all flex items-center justify-center"
+        className="md:hidden fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all flex items-center justify-center dark:bg-primary/20 dark:text-primary dark:border dark:border-primary/30 dark:hover:bg-primary/30"
         aria-label="Add task">
         <Plus size={24} />
       </button>

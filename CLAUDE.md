@@ -110,4 +110,4 @@ Filenames are always replaced with `{timestamp}-{random}.{ext}` before upload.
 - Setiap perubahan kode harus konfirmasi ke saya terlebih dahulu sebelum dieksekusi
 - Setiap commit harus konfirmasi ke saya terlebih dahulu
 - Jika ada pertanyaan terkait UI/UX, jawab dari perspektif sebagai user/pengguna
-- jika sudah melakukan perubahan jangan lupa update version pada package.json dan settings.tsx
+- jika sudah melakukan perubahan dan saya sudah minta commit message update version pada package.json dan settings.tsx

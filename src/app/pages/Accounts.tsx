@@ -420,7 +420,9 @@ export function Accounts() {
           </div>
 
           {/* Summary Card */}
-          <Card className="bg-primary text-primary-foreground border-0 shadow-lg rounded-xl">
+          <Card className="border shadow-lg rounded-xl text-white dark:border-[rgba(59,159,216,0.3)]"
+            style={{ background: 'var(--balance-card-bg, var(--primary))' }}
+          >
             <CardContent className="pt-5 pb-5 px-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -602,7 +604,7 @@ export function Accounts() {
                         onClick={() => setChartDays(days)}
                         className={`px-2.5 py-1 text-xs rounded-full border font-medium transition-colors ${
                           chartDays === days
-                            ? 'bg-primary text-primary-foreground border-primary'
+                            ? 'bg-primary text-primary-foreground border-primary dark:bg-primary/15 dark:text-primary dark:border-primary/30'
                             : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
                         }`}>
                         {label}

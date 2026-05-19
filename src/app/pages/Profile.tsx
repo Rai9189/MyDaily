@@ -134,7 +134,9 @@ export function Profile() {
           <p className="text-sm font-medium text-foreground/65">Your Account Information</p>
 
           {/* Profile Hero Card */}
-          <Card className="bg-primary text-primary-foreground border-0 shadow-lg rounded-xl">
+          <Card className="border text-white shadow-lg rounded-xl dark:border-[rgba(59,159,216,0.3)]"
+            style={{ background: 'var(--balance-card-bg, var(--primary))' }}
+          >
             <CardContent className="pt-5 pb-5 px-5">
               <div className="flex items-center gap-5">
                 <div className="relative flex-shrink-0">
@@ -169,7 +171,7 @@ export function Profile() {
 
           {/* Security shortcut */}
           <button type="button" onClick={() => navigate('/settings')}
-            className="w-full flex items-center justify-between px-4 py-2.5 bg-white dark:bg-card border-2 border-slate-200 dark:border-border rounded-xl shadow-sm hover:bg-muted/50 transition-colors group">
+            className="w-full flex items-center justify-between px-4 py-2.5 bg-white dark:bg-card border-2 border-slate-300 dark:border-border rounded-xl shadow-sm hover:bg-muted/50 transition-colors group">
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <Lock size={13} className="text-primary" />
@@ -213,7 +215,7 @@ export function Profile() {
           </form>
 
           {/* Sign Out (mobile only) */}
-          <Card className="border-2 border-red-200 dark:border-red-900/40 bg-white dark:bg-card shadow-sm rounded-xl md:hidden">
+          <Card className="border-2 border-red-300 dark:border-red-900/40 bg-white dark:bg-card shadow-sm rounded-xl md:hidden">
             <CardContent className="pt-4 pb-4 px-4">
               <Button variant="destructive" className="w-full gap-2" onClick={() => setShowSignOutConfirm(true)} disabled={signingOut} type="button">
                 {signingOut ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing out...</> : <><LogOut size={14} /> Sign Out</>}
@@ -222,7 +224,7 @@ export function Profile() {
           </Card>
 
           {/* Danger Zone */}
-          <Card className="bg-white dark:bg-card border-2 border-red-200 dark:border-red-900/40 shadow-sm rounded-xl">
+          <Card className="bg-white dark:bg-card border-2 border-red-300 dark:border-red-900/40 shadow-sm rounded-xl">
             <CardContent className="pt-4 pb-4 px-4 space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
                 <ShieldAlert size={15} /> Danger Zone

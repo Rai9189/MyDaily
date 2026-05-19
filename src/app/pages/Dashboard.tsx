@@ -189,9 +189,9 @@ export function Dashboard() {
 
   // Tab config — warna aktif berbeda per mode agar lebih kontras & informatif
   const tabConfig: { key: PieMode; label: string; activeClass: string }[] = [
-    { key: 'income',  label: 'Income',  activeClass: 'bg-green-500 text-white shadow-sm' },
-    { key: 'expense', label: 'Expense', activeClass: 'bg-red-500 text-white shadow-sm'   },
-    { key: 'both',    label: 'Overview', activeClass: 'bg-primary text-primary-foreground shadow-sm' },
+    { key: 'income',  label: 'Income',  activeClass: 'bg-green-500 text-white shadow-sm dark:bg-green-500/15 dark:text-green-400' },
+    { key: 'expense', label: 'Expense', activeClass: 'bg-red-500 text-white shadow-sm dark:bg-red-500/15 dark:text-red-400'   },
+    { key: 'both',    label: 'Overview', activeClass: 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' },
   ];
 
   if (aL || tL || tkL) {
@@ -271,7 +271,7 @@ export function Dashboard() {
                 onClick={() => setRange({ preset: key, ...getPresetRange(key) })}
                 className={`px-2.5 py-1 text-xs rounded-full border font-medium transition-colors ${
                   range.preset === key
-                    ? 'bg-primary text-primary-foreground border-primary'
+                    ? 'bg-primary text-primary-foreground border-primary dark:bg-primary/15 dark:text-primary dark:border-primary/30'
                     : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}>
                 {label}
@@ -280,7 +280,9 @@ export function Dashboard() {
           </div>
 
           {/* ── Balance Card ── */}
-          <Card className="bg-primary text-primary-foreground border-0 shadow-lg rounded-xl overflow-hidden">
+          <Card className="border shadow-lg rounded-xl overflow-hidden text-white bg-primary dark:border-[rgba(59,159,216,0.3)]"
+            style={{ background: 'var(--balance-card-bg, var(--primary))' }}
+          >
             <CardContent className="pt-4 pb-4 px-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">

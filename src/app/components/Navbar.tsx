@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut, Settings, Menu, X, Trash2, Tag, MoreHorizontal, Plus } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 const navItems = [
   { path: '/',             icon: Home,        label: 'Dashboard' },
@@ -41,6 +42,8 @@ export function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut } = useAuth();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const [open, setOpen] = useState(false);
 
   const getIsActive = (path: string) => {
@@ -84,7 +87,7 @@ export function Navbar() {
   return (
     <>
       {/* ── Top Navbar ── */}
-      <header className="fixed top-0 left-0 right-0 h-16 bg-primary flex items-center px-4 z-50 shadow-md">
+      <header className="fixed top-0 left-0 right-0 h-16 bg-primary dark:bg-sidebar border-b border-transparent dark:border-sidebar-border flex items-center px-4 z-50 shadow-md">
         {/* Hamburger — always visible on desktop, hidden on mobile (bottom nav handles it) */}
         <button
           type="button"
@@ -120,14 +123,14 @@ export function Navbar() {
         className={`fixed top-0 left-0 h-full w-72 z-50 flex flex-col transition-transform duration-300 ease-in-out ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
-        style={{ background: 'linear-gradient(to bottom, var(--primary), color-mix(in srgb, var(--primary) 80%, black))' }}
+        style={{ background: isDark ? 'var(--sidebar)' : 'linear-gradient(to bottom, var(--primary), color-mix(in srgb, var(--primary) 80%, black))' }}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/20">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/20 dark:border-sidebar-border">
           <img src="/logo.png" alt="MyDaily" className="h-14 w-auto object-contain dark:invert" />
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/15 transition-colors"
+            className="text-white/80 dark:text-sidebar-foreground hover:text-white dark:hover:text-white p-1.5 rounded-lg hover:bg-white/15 dark:hover:bg-sidebar-accent transition-colors"
             aria-label="Close menu"
           >
             <X size={22} />
@@ -138,7 +141,6 @@ export function Navbar() {
           {navItems.map((item) => {
             const isActive = getIsActive(item.path);
             const Icon = item.icon;
-            // On mobile, hide items already in the bottom nav (redundant there)
             const mobileHidden = BOTTOM_NAV_PATHS.has(item.path);
             return (
               <Link
@@ -147,8 +149,8 @@ export function Navbar() {
                 onClick={() => setOpen(false)}
                 className={`${mobileHidden ? 'hidden md:flex' : 'flex'} items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors ${
                   isActive
-                    ? 'bg-white text-primary font-semibold'
-                    : 'text-white/80 hover:bg-white/15 hover:text-white'
+                    ? 'bg-white text-primary font-semibold dark:bg-sidebar-accent dark:text-sidebar-primary'
+                    : 'text-white/80 dark:text-sidebar-foreground hover:bg-white/15 dark:hover:bg-sidebar-accent hover:text-white dark:hover:text-white'
                 }`}
               >
                 <Icon size={20} />
@@ -158,8 +160,8 @@ export function Navbar() {
           })}
 
           {/* Quick Access — visible on all screen sizes */}
-          <div className="border-t border-white/20 mt-2 pt-3">
-            <p className="text-[10px] text-white/40 uppercase tracking-widest font-semibold px-4 mb-1">Quick Access</p>
+          <div className="border-t border-white/20 dark:border-sidebar-border mt-2 pt-3">
+            <p className="text-[10px] text-white/40 dark:text-sidebar-foreground/50 uppercase tracking-widest font-semibold px-4 mb-1">Quick Access</p>
             {quickAccessItems.map((item) => {
               const isActive = location.pathname === item.path;
               const Icon = item.icon;
@@ -170,8 +172,8 @@ export function Navbar() {
                   onClick={() => setOpen(false)}
                   className={`flex items-center gap-3 px-4 py-2.5 rounded-lg mb-0.5 transition-colors text-sm ${
                     isActive
-                      ? 'bg-white text-primary font-semibold'
-                      : 'text-white/70 hover:bg-white/15 hover:text-white'
+                      ? 'bg-white text-primary font-semibold dark:bg-sidebar-accent dark:text-sidebar-primary'
+                      : 'text-white/70 dark:text-sidebar-foreground/80 hover:bg-white/15 dark:hover:bg-sidebar-accent hover:text-white dark:hover:text-white'
                   }`}
                 >
                   <Icon size={18} />
@@ -182,11 +184,11 @@ export function Navbar() {
           </div>
         </nav>
 
-        <div className="p-4 border-t border-white/20">
+        <div className="p-4 border-t border-white/20 dark:border-sidebar-border">
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-white/80 hover:bg-red-600/50 hover:text-white transition-colors border border-red-400/40"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-white/80 dark:text-sidebar-foreground hover:bg-red-600/50 dark:hover:bg-red-900/40 hover:text-white transition-colors border border-red-400/40 dark:border-red-800/50"
           >
             <LogOut size={18} />
             <span>Sign Out</span>

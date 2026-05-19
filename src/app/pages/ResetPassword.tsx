@@ -87,7 +87,7 @@ export function ResetPassword() {
   // Loading state — tunggu Supabase proses token dari URL hash
   if (!sessionReady && !invalidLink) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-[#0b1622] dark:to-[#111e2e] flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
           <p className="text-sm">Verifying reset link...</p>
@@ -99,7 +99,7 @@ export function ResetPassword() {
   // Link tidak valid / expired
   if (invalidLink && !sessionReady) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-[#0b1622] dark:to-[#111e2e] flex items-center justify-center p-4">
         <div className="w-full max-w-sm">
           <Card className="border-2 border-red-200 dark:border-red-900/50 bg-white dark:bg-card shadow-lg rounded-2xl">
             <CardContent className="pt-8 pb-7 px-7 text-center space-y-4">
@@ -129,7 +129,7 @@ export function ResetPassword() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-[#0b1622] dark:to-[#111e2e] flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <Card className="border-2 border-blue-200 dark:border-blue-900/50 bg-white dark:bg-card shadow-lg rounded-2xl">
           <CardContent className="pt-8 pb-7 px-7">

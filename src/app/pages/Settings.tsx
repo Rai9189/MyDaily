@@ -202,7 +202,7 @@ export function Settings() {
           </SettingSection>
 
           {/* Data */}
-          <SettingSection icon={<Tag size={15} />} title="Data" borderColor="border-amber-200 dark:border-amber-900/50">
+          <SettingSection icon={<Tag size={15} />} title="Data" borderColor="border-amber-300 dark:border-amber-900/50">
             <SettingRow icon={<Tag size={15} />} label="Manage Categories"
               description="Customize categories for transactions, tasks, and notes."
               onClick={() => navigate('/categories')} />
@@ -217,7 +217,7 @@ export function Settings() {
           </SettingSection>
 
           {/* Theme */}
-          <SettingSection icon={<Sun size={15} />} title="Theme" borderColor="border-purple-200 dark:border-purple-900/50">
+          <SettingSection icon={<Sun size={15} />} title="Theme" borderColor="border-purple-300 dark:border-purple-900/50">
             <div className="flex gap-2">
               {(['light', 'dark', 'system'] as const).map((t) => {
                 const Icon = t === 'light' ? Sun : t === 'dark' ? Moon : Monitor;
@@ -239,7 +239,7 @@ export function Settings() {
 
           <div className="flex items-center justify-between px-1 pt-1 pb-2">
             <p className="text-xs text-muted-foreground/60">MyDaily</p>
-            <p className="text-xs text-muted-foreground/60">Version 1.7.6</p>
+            <p className="text-xs text-muted-foreground/60">Version 1.8.0</p>
           </div>
         </div>
       </div>
