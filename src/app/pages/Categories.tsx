@@ -19,7 +19,7 @@ import { Category } from '../types';
 import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
+import { TouchBackend } from 'react-dnd-touch-backend';
 
 type DialogMode = 'add-parent' | 'add-sub' | 'edit';
 type TabType    = 'transaction' | 'task' | 'note';
@@ -93,7 +93,7 @@ function DraggableParent({
   return (
     <div ref={ref} className={`${isDragging ? 'opacity-40' : 'opacity-100'} ${isOver ? 'ring-2 ring-primary/30 rounded-lg' : ''}`}>
       <div className="flex items-center gap-1">
-        <div ref={dragRef} className="hidden md:flex cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0 px-0.5 touch-none">
+        <div ref={dragRef} className="flex cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0 px-0.5 touch-none">
           <GripVertical size={15} />
         </div>
         <div className="flex-1">{children}</div>
@@ -150,7 +150,7 @@ function DraggableSub({
   return (
     <div ref={ref} className={`${isDragging ? 'opacity-40' : 'opacity-100'} ${isOver ? 'ring-2 ring-primary/30 rounded-lg' : ''}`}>
       <div className="flex items-center gap-1">
-        <div ref={dragRef} className="hidden md:flex cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0 px-0.5 touch-none ml-6">
+        <div ref={dragRef} className="flex cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0 px-0.5 touch-none ml-6">
           <GripVertical size={13} />
         </div>
         <div className="flex-1">{children}</div>
@@ -285,7 +285,6 @@ export function Categories() {
     });
   };
 
-  // ✅ Reset order per tab — tutup dialog dulu, tunggu animasi selesai baru proses
   const handleResetOrder = (type: TabType) => {
     setConfirmState({
       open: true,
@@ -293,7 +292,6 @@ export function Categories() {
       description: `Reset the ${type} category order back to default (creation order)? This cannot be undone.`,
       onConfirm: () => {
         setConfirmState(DEFAULT_CONFIRM);
-        // ✅ Tunggu 200ms agar dialog selesai close sebelum mulai proses async
         setTimeout(async () => {
           setResetting(true);
           try {
@@ -359,7 +357,10 @@ export function Categories() {
   const dialogTitle = dialogMode === 'edit' ? 'Edit Category'
     : dialogMode === 'add-sub' ? `Add Subcategory to "${selectedParent?.name}"` : 'Add New Category';
 
-  const CategoryRowContent = ({ category, isSubcat = false }: { category: Category; isSubcat?: boolean }) => {
+  // ─── Render Functions ────────────────────────────────────────────────────────
+  // Called as functions (not JSX components) to avoid component remount on each render.
+
+  const renderCategoryRow = (category: Category, isSubcat = false): JSX.Element => {
     const rawSubs    = getSubcategories(category.id);
     const subs       = getOrdered(`sub_${category.id}`, rawSubs);
     const isExpanded = expandedIds.has(category.id);
@@ -395,14 +396,14 @@ export function Categories() {
           </div>
           <div className="flex items-center gap-0 flex-shrink-0">
             {!isSubcat && (
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => openAddSub(category)}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openAddSub(category)}>
                 <Plus size={13} />
               </Button>
             )}
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(category)}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openEdit(category)}>
               <Edit size={13} />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-red-500 hover:text-white" onClick={() => handleDelete(category)}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-red-500 hover:text-white" onClick={() => handleDelete(category)}>
               <Trash2 size={13} />
             </Button>
           </div>
@@ -417,10 +418,10 @@ export function Categories() {
                   id={sub.id}
                   index={subIndex}
                   parentId={category.id}
-                  onMove={(pid, di, hi) => handleMove(subKey, rawSubs, di, hi)}
-                  onDrop={(pid) => handleDrop(subKey)}
+                  onMove={(_pid, di, hi) => handleMove(subKey, rawSubs, di, hi)}
+                  onDrop={() => handleDrop(subKey)}
                 >
-                  <CategoryRowContent category={sub} isSubcat />
+                  {renderCategoryRow(sub, true)}
                 </DraggableSub>
               );
             })}
@@ -430,20 +431,24 @@ export function Categories() {
     );
   };
 
-  const CategoryList = ({ type }: { type: TabType }) => {
+  const renderCategoryList = (type: TabType): JSX.Element => {
     if (loading) return (
       <div className="flex items-center justify-center py-10">
         <Loader2 className="w-6 h-6 animate-spin text-primary" />
       </div>
     );
-    const allParents = getCategoriesByType(type);
-    const ordered    = getOrdered(type, allParents);
-    const visible    = ordered.filter(p => {
+    const allParents    = getCategoriesByType(type);
+    const globalOrdered = getOrdered(type, allParents);
+    const filtered      = globalOrdered.filter(p => {
       if (type === 'transaction' && subtypeFilter !== 'all' && p.subtype !== subtypeFilter) return false;
       if (!searchQuery) return true;
       return matchesSearch(p) || getSubcategories(p.id).some(matchesSearch);
     });
     const dragKey = subtypeFilter !== 'all' ? `${type}_${subtypeFilter}` : type;
+    // When a subtype filter is active, apply the filter-specific drag order so visual
+    // reordering works correctly independent of the full list order.
+    const visible = subtypeFilter !== 'all' ? getOrdered(dragKey, filtered) : filtered;
+
     return (
       <div className="space-y-1.5">
         {visible.length === 0
@@ -456,7 +461,7 @@ export function Categories() {
               onMove={(di, hi) => handleMove(dragKey, visible, di, hi)}
               onDrop={() => handleDrop(dragKey)}
             >
-              <CategoryRowContent category={cat} />
+              {renderCategoryRow(cat)}
             </DraggableParent>
           ))
         }
@@ -485,7 +490,9 @@ export function Categories() {
   ];
 
   return (
-    <DndProvider backend={HTML5Backend}>
+    // TouchBackend with enableMouseEvents supports both mouse (desktop) and touch (mobile).
+    // delayTouchStart prevents drag from blocking scroll on touch devices.
+    <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true, delayTouchStart: 200, delayMouseStart: 0 }}>
       <div className="flex flex-col flex-1 min-h-0">
         <div className="flex-1 overflow-y-auto no-scrollbar">
           <div className="space-y-4 pb-6">
@@ -508,17 +515,17 @@ export function Categories() {
 
             {/* Tabs + Reset button */}
             <div className="flex items-center gap-2">
-              <div className="flex gap-1.5 flex-1">
+              <div className="flex gap-1.5 flex-1 min-w-0">
                 {TABS.map(tab => {
                   const active = activeTab === tab.key;
                   return (
                     <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                      className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors min-w-0 ${
                         active ? 'bg-primary text-primary-foreground border-primary shadow-sm'
                         : 'bg-white dark:bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted'
                       }`}>
-                      {tab.label}
-                      <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${active ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}`}>
+                      <span className="truncate">{tab.label}</span>
+                      <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${active ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}`}>
                         {countWithSubs(tab.key)}
                       </span>
                     </button>
@@ -539,7 +546,7 @@ export function Categories() {
                     ? <Loader2 size={13} className="animate-spin" />
                     : <RotateCcw size={13} />
                   }
-                  Reset Order
+                  <span className="hidden sm:inline">Reset Order</span>
                 </Button>
               )}
             </div>
@@ -561,12 +568,14 @@ export function Categories() {
 
             {!searchQuery && (
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <GripVertical size={12} /> Drag the grip icon to reorder categories
+                <GripVertical size={12} />
+                <span className="hidden md:inline">Drag the grip icon to reorder categories</span>
+                <span className="md:hidden">Hold and drag the grip icon to reorder</span>
               </p>
             )}
 
             <Card className="bg-white dark:bg-card border-2 border-blue-200 dark:border-blue-900/50 shadow-sm rounded-xl">
-              <CardContent className="p-3"><CategoryList type={activeTab} /></CardContent>
+              <CardContent className="p-3">{renderCategoryList(activeTab)}</CardContent>
             </Card>
           </div>
         </div>
@@ -591,6 +600,7 @@ export function Categories() {
                   <div className="grid grid-cols-3 gap-2">
                     {(['transaction', 'task', 'note'] as const).map(t => (
                       <Button key={t} type="button" variant={formData.type === t ? 'default' : 'outline'} size="sm"
+                        className={formData.type === t ? 'dark:bg-primary dark:text-white dark:border-primary' : ''}
                         onClick={() => setFormData({ ...formData, type: t, subtype: '' })}>
                         {t === 'transaction' ? 'Transaction' : t === 'task' ? 'Task' : 'Note'}
                       </Button>
@@ -605,8 +615,8 @@ export function Categories() {
                     {([{ value: 'income', label: 'Income' }, { value: 'expense', label: 'Expense' }] as const).map(opt => (
                       <Button key={opt.value} type="button" variant={formData.subtype === opt.value ? 'default' : 'outline'} size="sm"
                         onClick={() => setFormData({ ...formData, subtype: opt.value })}
-                        className={formData.subtype === opt.value && opt.value === 'income' ? 'bg-green-600 hover:bg-green-700 border-green-600'
-                          : formData.subtype === opt.value && opt.value === 'expense' ? 'bg-red-600 hover:bg-red-700 border-red-600' : ''}>
+                        className={formData.subtype === opt.value && opt.value === 'income' ? 'bg-green-600 hover:bg-green-700 border-green-600 text-white dark:text-white'
+                          : formData.subtype === opt.value && opt.value === 'expense' ? 'bg-red-600 hover:bg-red-700 border-red-600 text-white dark:text-white' : ''}>
                         {opt.label}
                       </Button>
                     ))}

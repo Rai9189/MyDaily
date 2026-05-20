@@ -809,10 +809,11 @@ export function Transactions() {
           </div>
         </div>
       )}
-      {itemsPerPage !== 'all' && totalPages > 1 && <div className="h-16 flex-shrink-0" />}
+      {/* Spacer: on mobile with pagination visible, add extra height to clear pagination bar + FAB */}
+      {itemsPerPage !== 'all' && totalPages > 1 && <div className="h-36 md:h-16 flex-shrink-0" />}
 
       <button type="button" onClick={() => navigate('/transactions/new')}
-        className="md:hidden fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all flex items-center justify-center dark:bg-primary/20 dark:text-primary dark:border dark:border-primary/30 dark:hover:bg-primary/30"
+        className={`md:hidden fixed right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all flex items-center justify-center dark:bg-primary/20 dark:text-primary dark:border dark:border-primary/30 dark:hover:bg-primary/30 ${itemsPerPage !== 'all' && totalPages > 1 ? 'bottom-36' : 'bottom-20'}`}
         aria-label="Add transaction">
         <Plus size={24} />
       </button>

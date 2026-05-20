@@ -208,9 +208,9 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
       return { success: true, error: null };
     } catch (err) {
-      // Soft-delete dulu agar trigger DB rollback balance, baru refresh
+      // Hard-delete outgoing agar trigger DB rollback balance & tidak meninggalkan orphan di Trash
       if (insertedOutId) {
-        await supabase.from('transactions').update({ deleted_at: new Date().toISOString() }).eq('id', insertedOutId);
+        await supabase.from('transactions').delete().eq('id', insertedOutId);
       }
       await refreshAccounts();
       const errorMessage = handleSupabaseError(err);

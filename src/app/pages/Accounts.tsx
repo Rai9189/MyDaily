@@ -374,7 +374,7 @@ export function Accounts() {
                         {editingAccount ? 'Balance' : 'Initial Balance'}
                       </Label>
                       <span className="text-[11px] text-muted-foreground">
-                        Gunakan <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono border border-border">,</kbd> untuk desimal
+                        Use <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono border border-border">,</kbd> for decimals
                       </span>
                     </div>
                     {editingAccount && formData.balance !== editingAccount.balance && (
@@ -388,8 +388,8 @@ export function Accounts() {
                           : <ArrowDownCircle size={14} />
                         }
                         <span>
-                          Selisih <strong>{formatCurrency(Math.abs(formData.balance - editingAccount.balance))}</strong>
-                          {' '}akan dicatat sebagai transaksi penyesuaian
+                          Difference of <strong>{formatCurrency(Math.abs(formData.balance - editingAccount.balance))}</strong>
+                          {' '}will be recorded as an adjustment transaction
                         </span>
                       </div>
                     )}
@@ -408,7 +408,7 @@ export function Accounts() {
                     </div>
                     {balanceError && <p className="text-xs text-destructive">{balanceError}</p>}
                     <p className="text-xs text-muted-foreground">
-                      Contoh: <span className="font-mono">300.010,50</span> untuk Rp 300.010,50 · Maks: Rp 1.000.000.000
+                      Example: <span className="font-mono">300.010,50</span> for Rp 300.010,50 · Max: Rp 1.000.000.000
                     </p>
                   </div>
                   <Button type="submit" className="w-full gap-2" disabled={submitting}>
@@ -616,7 +616,7 @@ export function Accounts() {
                   {balanceHistory.length < 2 ? (
                     <div className="flex flex-col items-center justify-center h-36 gap-2">
                       <BarChart2 size={28} className="text-muted-foreground/30" />
-                      <p className="text-sm text-muted-foreground">Belum ada riwayat transaksi dalam periode ini</p>
+                      <p className="text-sm text-muted-foreground">No transaction history in this period</p>
                     </div>
                   ) : (
                     <>
@@ -626,7 +626,7 @@ export function Accounts() {
                           : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
                       }`}>
                         {diff >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
-                        <span>{diff >= 0 ? '+' : ''}{formatCurrency(diff)} dalam periode ini</span>
+                        <span>{diff >= 0 ? '+' : ''}{formatCurrency(diff)} in this period</span>
                       </div>
                       <div style={{ height: 220 }}>
                         <ResponsiveContainer width="100%" height="100%">
@@ -687,13 +687,13 @@ export function Accounts() {
       {/* Confirm Balance Adjustment Dialog */}
       <ConfirmDialog
         open={adjustConfirm.open}
-        title="Catat Penyesuaian Saldo?"
+        title="Record Balance Adjustment?"
         description={
           adjustConfirm.diff > 0
-            ? `Saldo bertambah ${formatCurrency(adjustConfirm.diff)}. Perubahan ini akan dicatat sebagai transaksi income (penyesuaian) secara otomatis.`
-            : `Saldo berkurang ${formatCurrency(Math.abs(adjustConfirm.diff))}. Perubahan ini akan dicatat sebagai transaksi expense (penyesuaian) secara otomatis.`
+            ? `Balance increased by ${formatCurrency(adjustConfirm.diff)}. This will be recorded as an income (adjustment) transaction automatically.`
+            : `Balance decreased by ${formatCurrency(Math.abs(adjustConfirm.diff))}. This will be recorded as an expense (adjustment) transaction automatically.`
         }
-        confirmLabel="Ya, Simpan & Catat"
+        confirmLabel="Yes, Save & Record"
         variant="default"
         icon={adjustConfirm.diff > 0 ? <ArrowUpCircle size={20} /> : <ArrowDownCircle size={20} />}
         onConfirm={async () => {

@@ -73,7 +73,7 @@ export function Dashboard() {
     const handler = () => { if (document.visibilityState === 'visible') refreshTasks(); };
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
-  }, []);
+  }, [refreshTasks]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
   const [activePopup, setActivePopup] = useState<PopupType>(null);

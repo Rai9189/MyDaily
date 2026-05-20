@@ -239,7 +239,7 @@ export function Settings() {
 
           <div className="flex items-center justify-between px-1 pt-1 pb-2">
             <p className="text-xs text-muted-foreground/60">MyDaily</p>
-            <p className="text-xs text-muted-foreground/60">Version 1.8.0</p>
+            <p className="text-xs text-muted-foreground/60">Version 1.9.0</p>
           </div>
         </div>
       </div>

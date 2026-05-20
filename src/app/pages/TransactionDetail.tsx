@@ -1,5 +1,5 @@
 // src/app/pages/TransactionDetail.tsx
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTransactions } from '../context/TransactionContext';
 import { useAccounts } from '../context/AccountContext';
@@ -116,6 +116,7 @@ export function TransactionDetail() {
   const [attachsLoading, setAttachsLoading] = useState(false);
   const [uploading, setUploading]           = useState(false);
   const [submitting, setSubmitting]         = useState(false);
+  const submittingRef                       = useRef(false);
   const [amountError, setAmountError]       = useState('');
   const [deleteAttachTarget, setDeleteAttachTarget] = useState<{ id: string; url: string } | null>(null);
   const [deletingAttach, setDeletingAttach] = useState(false);
@@ -295,9 +296,9 @@ export function TransactionDetail() {
     setTaxEnabled(false);
     setTaxValueDisplay('');
     setTaxValue(0);
-    if (!accountExists)  toast.warning('Akun template sudah dihapus. Akun tidak diterapkan.');
-    if (!categoryExists) toast.warning('Kategori template sudah dihapus. Kategori tidak diterapkan.');
-    toast.success(`Template "${tpl.name}" diterapkan!`);
+    if (!accountExists)  toast.warning('Template account has been deleted. Account not applied.');
+    if (!categoryExists) toast.warning('Template category has been deleted. Category not applied.');
+    toast.success(`Template "${tpl.name}" applied!`);
   };
 
   const handleSaveTemplate = async () => {
@@ -310,8 +311,8 @@ export function TransactionDetail() {
       subcategoryId: formData.subcategoryId,
       description:   formData.description,
     });
-    if (result) toast.success(`Template "${templateName.trim()}" disimpan!`);
-    else toast.error('Gagal menyimpan template. Coba lagi.');
+    if (result) toast.success(`Template "${templateName.trim()}" saved!`);
+    else toast.error('Failed to save template. Please try again.');
     setShowSaveTemplate(false);
     setTemplateName('');
   };
@@ -375,18 +376,20 @@ export function TransactionDetail() {
       if (accounts.length < 2) { toast.warning('You need at least 2 accounts to make a transfer.'); return; }
       if (selectedAccount && (formData.amount + taxAmount) > availableBalance) {
         const totalNeeded = formData.amount + taxAmount;
-        toast.error(`Insufficient balance! ${selectedAccount.name}: ${fmt(availableBalance)} · Dibutuhkan: ${fmt(totalNeeded)}${taxAmount > 0 ? ` (incl. pajak ${fmt(taxAmount)})` : ''}`);
+        toast.error(`Insufficient balance! ${selectedAccount.name}: ${fmt(availableBalance)} · Required: ${fmt(totalNeeded)}${taxAmount > 0 ? ` (incl. tax ${fmt(taxAmount)})` : ''}`);
         return;
       }
     } else {
       if (!formData.categoryId) { toast.warning('Please select a category.'); return; }
       if (formData.type === 'expense' && selectedAccount && (formData.amount + taxAmount) > availableBalance) {
         const totalNeeded = formData.amount + taxAmount;
-        toast.error(`Insufficient balance! ${selectedAccount.name}: ${fmt(availableBalance)} · Dibutuhkan: ${fmt(totalNeeded)}${taxAmount > 0 ? ` (incl. pajak ${fmt(taxAmount)})` : ''}`);
+        toast.error(`Insufficient balance! ${selectedAccount.name}: ${fmt(availableBalance)} · Required: ${fmt(totalNeeded)}${taxAmount > 0 ? ` (incl. tax ${fmt(taxAmount)})` : ''}`);
         return;
       }
     }
 
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
 
     // Helper: resolve tax category (auto-create "Tax" if needed) then create tax expense
@@ -408,7 +411,7 @@ export function TransactionDetail() {
         date,
         categoryId: catId,
         subcategoryId: null,
-        description: mainDesc ? `Pajak dari ${mainDesc}` : `Pajak dari transaksi ${date}`,
+        description: mainDesc ? `Tax from ${mainDesc}` : `Tax from transaction ${date}`,
       });
       return success;
     };
@@ -427,8 +430,8 @@ export function TransactionDetail() {
           if (!success) { toast.error(error || 'Failed to create transfer'); return; }
           const taxOk = await saveTaxTransaction(formData.accountId, formData.date, formData.description);
           if (taxEnabled && taxAmount > 0) {
-            if (taxOk) toast.success(`Transfer & pajak ${fmt(taxAmount)} berhasil dicatat!`);
-            else toast.warning('Transfer berhasil, tapi gagal mencatat pajak.');
+            if (taxOk) toast.success(`Transfer & tax ${fmt(taxAmount)} recorded!`);
+            else toast.warning('Transfer saved, but failed to record tax.');
           } else {
             toast.success('Transfer recorded!');
           }
@@ -442,8 +445,8 @@ export function TransactionDetail() {
           }
           const taxOk = await saveTaxTransaction(formData.accountId, formData.date, formData.description);
           if (taxEnabled && taxAmount > 0) {
-            if (taxOk) toast.success(`Transaksi & pajak ${fmt(taxAmount)} berhasil dicatat!`);
-            else toast.warning('Transaksi tersimpan, tapi gagal mencatat pajak.');
+            if (taxOk) toast.success(`Transaction & tax ${fmt(taxAmount)} recorded!`);
+            else toast.warning('Transaction saved, but failed to record tax.');
           } else {
             toast.success('Transaction saved!');
           }
@@ -469,6 +472,7 @@ export function TransactionDetail() {
         }
       }
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -612,7 +616,7 @@ export function TransactionDetail() {
                         {selectedAccount ? (
                           <div className="flex items-center justify-between w-full pr-1">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="truncate">{selectedAccount.name}</span>
+                              <span className="truncate" title={selectedAccount.name}>{selectedAccount.name}</span>
                               {selectedAccount.is_primary && (
                                 <Star size={11} className="text-amber-500 fill-amber-500 flex-shrink-0" />
                               )}
@@ -657,8 +661,8 @@ export function TransactionDetail() {
                   <div className="flex items-center justify-between">
                     <Label htmlFor="amount">Amount <span className="text-destructive">*</span></Label>
                     <span className="text-[11px] text-muted-foreground">
-                      Gunakan <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono border border-border">,</kbd> untuk desimal&nbsp;
-                      <span className="opacity-60">(contoh: 300.010,50)</span>
+                      Use <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono border border-border">,</kbd> for decimals&nbsp;
+                      <span className="opacity-60">(e.g.: 300.010,50)</span>
                     </span>
                   </div>
                   <div className="relative">
@@ -680,7 +684,7 @@ export function TransactionDetail() {
                       <AlertCircle size={12} />
                       <span>
                         Exceeds balance. Shortfall: {fmt((formData.amount + (taxEnabled ? taxAmount : 0)) - availableBalance)}
-                        {taxEnabled && taxAmount > 0 && <span className="opacity-70 ml-1">(incl. pajak {fmt(taxAmount)})</span>}
+                        {taxEnabled && taxAmount > 0 && <span className="opacity-70 ml-1">(incl. tax {fmt(taxAmount)})</span>}
                       </span>
                     </div>
                   )}
@@ -803,12 +807,12 @@ export function TransactionDetail() {
                     {!showSaveTemplate ? (
                       <button type="button" onClick={() => setShowSaveTemplate(true)}
                         className="flex items-center gap-1.5 text-xs text-primary hover:underline">
-                        <Bookmark size={12} /> Simpan sebagai Template
+                        <Bookmark size={12} /> Save as Template
                       </button>
                     ) : (
                       <div className="flex gap-2 items-center">
                         <Input
-                          placeholder="Nama template (mis: Gaji Bulanan)"
+                          placeholder="Template name (e.g.: Monthly Salary)"
                           value={templateName}
                           onChange={e => setTemplateName(e.target.value.slice(0, 40))}
                           className="text-sm h-8 flex-1"
@@ -820,11 +824,11 @@ export function TransactionDetail() {
                         />
                         <Button type="button" size="sm" className="h-8 text-xs px-3"
                           onClick={handleSaveTemplate} disabled={!templateName.trim()}>
-                          Simpan
+                          Save
                         </Button>
                         <Button type="button" size="sm" variant="outline" className="h-8 text-xs"
                           onClick={() => { setShowSaveTemplate(false); setTemplateName(''); }}>
-                          Batal
+                          Cancel
                         </Button>
                       </div>
                     )}
@@ -852,8 +856,8 @@ export function TransactionDetail() {
                         className="cursor-pointer select-none"
                         onClick={() => setTaxEnabled(v => !v)}
                       >
-                        Tambah Pajak{' '}
-                        <span className="font-normal text-xs text-muted-foreground">(Opsional)</span>
+                        Add Tax{' '}
+                        <span className="font-normal text-xs text-muted-foreground">(Optional)</span>
                       </Label>
                     </div>
 
@@ -861,7 +865,7 @@ export function TransactionDetail() {
                       <div className="space-y-3 pl-4 border-l-2 border-primary/20">
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-1.5">
-                            <Label>Tipe Pajak</Label>
+                            <Label>Tax Type</Label>
                             <Select
                               value={taxType}
                               onValueChange={(v) => {
@@ -872,13 +876,13 @@ export function TransactionDetail() {
                             >
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="percent">Persentase (%)</SelectItem>
-                                <SelectItem value="nominal">Nominal (Rp)</SelectItem>
+                                <SelectItem value="percent">Percentage (%)</SelectItem>
+                                <SelectItem value="nominal">Amount (Rp)</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="space-y-1.5">
-                            <Label>Nilai</Label>
+                            <Label>Value</Label>
                             <div className="relative">
                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none select-none">
                                 {taxType === 'percent' ? '%' : 'Rp'}
@@ -898,15 +902,15 @@ export function TransactionDetail() {
                         {taxNominalExceedsAmount && (
                           <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
                             <AlertCircle size={12} />
-                            <span>Nominal pajak melebihi jumlah transaksi ({fmt(formData.amount)})</span>
+                            <span>Tax amount exceeds transaction amount ({fmt(formData.amount)})</span>
                           </div>
                         )}
 
                         <div className="space-y-1.5">
-                          <Label>Kategori Pajak</Label>
+                          <Label>Tax Category</Label>
                           <Select value={taxCategoryId} onValueChange={setTaxCategoryId}>
                             <SelectTrigger>
-                              <SelectValue placeholder={expenseCategories.length === 0 ? 'Auto: "Tax"' : 'Pilih kategori'} />
+                              <SelectValue placeholder={expenseCategories.length === 0 ? 'Auto: "Tax"' : 'Select category'} />
                             </SelectTrigger>
                             <SelectContent>
                               {expenseCategories.map(cat => (
@@ -916,7 +920,7 @@ export function TransactionDetail() {
                           </Select>
                           {!defaultTaxCategory && expenseCategories.length > 0 && (
                             <p className="text-xs text-muted-foreground">
-                              Belum ada kategori "Tax". Akan dibuat otomatis saat menyimpan.
+                              No "Tax" category found. It will be created automatically when saving.
                             </p>
                           )}
                         </div>
@@ -925,13 +929,13 @@ export function TransactionDetail() {
                           <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
                             <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
                               <Receipt size={12} />
-                              <span>Nominal pajak yang dicatat:</span>
+                              <span>Tax amount recorded:</span>
                             </div>
                             <div className="text-right">
                               <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">{fmt(taxAmount)}</span>
                               {taxType === 'percent' && taxValue > 0 && (
                                 <span className="block text-[10px] text-amber-600/70 dark:text-amber-400/70">
-                                  {taxValue}% dari {fmt(formData.amount)}
+                                  {taxValue}% of {fmt(formData.amount)}
                                 </span>
                               )}
                             </div>
@@ -946,7 +950,7 @@ export function TransactionDetail() {
                 {!isNew && (
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border border-border text-xs text-muted-foreground">
                     <Receipt size={12} className="flex-shrink-0" />
-                    <span>Pajak (jika ada) telah dicatat sebagai transaksi expense terpisah.</span>
+                    <span>Tax (if any) has been recorded as a separate expense transaction.</span>
                   </div>
                 )}
 

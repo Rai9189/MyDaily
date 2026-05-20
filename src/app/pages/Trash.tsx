@@ -66,7 +66,7 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 
 function TrashItemDetail({ item }: { item: TrashItem }) {
   const days = daysUntilExpiry(item.deleted_at);
-  const deletedDate = new Date(item.deleted_at).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const deletedDate = new Date(item.deleted_at).toLocaleString('en-US', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const expiryDate  = new Date(new Date(item.deleted_at).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
   return (
     <div className="space-y-4 mt-1">
