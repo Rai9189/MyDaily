@@ -54,19 +54,32 @@ const COLORS = [
 
 function ColorPicker({ onSelect, current }: { onSelect: (c: string) => void; current: string }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (!open) return;
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setPos({ top: rect.bottom + 4, left: rect.left });
+  }, [open]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (!open) return;
+      if (btnRef.current?.contains(e.target as Node)) return;
+      if (popRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [open]);
 
   return (
-    <div className="relative" ref={ref}>
+    <>
       <button
+        ref={btnRef}
         type="button"
         onMouseDown={(e) => { e.preventDefault(); setOpen(o => !o); }}
         title="Text color"
@@ -75,8 +88,12 @@ function ColorPicker({ onSelect, current }: { onSelect: (c: string) => void; cur
         <Palette size={14} />
         <div className="w-3.5 h-1 rounded-sm border border-border" style={{ backgroundColor: current || '#000000' }} />
       </button>
-      {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 p-2 bg-white dark:bg-card border border-border rounded-lg shadow-lg grid grid-cols-5 gap-1 w-[130px]">
+      {open && createPortal(
+        <div
+          ref={popRef}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="p-2 bg-white dark:bg-card border border-border rounded-lg shadow-lg grid grid-cols-5 gap-1 w-[130px]"
+        >
           {COLORS.map(c => (
             <button
               key={c} type="button"
@@ -95,9 +112,10 @@ function ColorPicker({ onSelect, current }: { onSelect: (c: string) => void; cur
               className="w-full h-6 cursor-pointer rounded border border-border"
             />
           </label>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }
 
@@ -113,19 +131,32 @@ const SIZES = [
 
 function SizeSelector({ onSelect }: { onSelect: (s: string) => void }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (!open) return;
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setPos({ top: rect.bottom + 4, left: rect.left });
+  }, [open]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (!open) return;
+      if (btnRef.current?.contains(e.target as Node)) return;
+      if (popRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [open]);
 
   return (
-    <div className="relative" ref={ref}>
+    <>
       <button
+        ref={btnRef}
         type="button"
         onMouseDown={(e) => { e.preventDefault(); setOpen(o => !o); }}
         title="Font size"
@@ -136,8 +167,12 @@ function SizeSelector({ onSelect }: { onSelect: (s: string) => void }) {
           <path d="M4 6L1 2h6z" fill="currentColor" />
         </svg>
       </button>
-      {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-card border border-border rounded-lg shadow-lg overflow-hidden min-w-[100px]">
+      {open && createPortal(
+        <div
+          ref={popRef}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="bg-white dark:bg-card border border-border rounded-lg shadow-lg overflow-hidden min-w-[100px]"
+        >
           {SIZES.map(s => (
             <button
               key={s.value} type="button"
@@ -148,9 +183,10 @@ function SizeSelector({ onSelect }: { onSelect: (s: string) => void }) {
               <span style={{ fontSize: Math.min(parseInt(s.value), 18) + 'px' }} className="text-foreground font-medium leading-tight">A</span>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }
 
@@ -427,5 +463,11 @@ export function RichTextEditor({
 
 // ─── Helper: strip HTML for char count ───────────────────────────────────────
 export function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+  return html
+    .replace(/<\/(p|div|li|h[1-6]|blockquote|tr)>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
