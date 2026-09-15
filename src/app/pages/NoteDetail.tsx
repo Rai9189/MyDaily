@@ -1,9 +1,10 @@
 // src/app/pages/NoteDetail.tsx
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useNotes } from '../context/NoteContext';
 import { useCategories } from '../context/CategoryContext';
 import { useAttachments } from '../context/AttachmentContext';
+import { useAuth } from '../context/AuthContext';
 import { usePendingAttachments } from '../hooks/usePendingAttachments';
 import { PendingAttachmentPicker } from '../components/PendingAttachmentPicker';
 import { RichTextEditor, stripHtml } from '../components/RichTextEditor';
@@ -19,9 +20,17 @@ import { CategorySelect } from '../components/CategorySelect';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { getDraft, saveDraft, clearDraft } from '../../lib/draftStorage';
 
 const MAX_TITLE   = 100;
 const MAX_CONTENT = 10_000;
+
+interface NoteDraftData {
+  title: string;
+  content: string;
+  categoryId: string;
+  subcategoryId: string | null;
+}
 
 /* ─── Skeleton ─── */
 function NoteDetailSkeleton() {
@@ -72,6 +81,7 @@ export function NoteDetail() {
   const id           = idFromParams || idFromUrl;
   const isNew        = id === 'new' || !id;
 
+  const { user } = useAuth();
   const { notes, loading: notesLoading, getNoteById, createNote, updateNote, togglePin } = useNotes();
   const { categories }                                                                    = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments }                           = useAttachments();
@@ -106,6 +116,8 @@ export function NoteDetail() {
   const [attachsLoading, setAttachsLoading] = useState(false);
   const [deleteAttachTarget, setDeleteAttachTarget] = useState<{ id: string; url: string } | null>(null);
   const [deletingAttach, setDeletingAttach] = useState(false);
+  const [draftRestored, setDraftRestored]   = useState(false);
+  const draftLoadedRef                      = useRef(false);
 
   const isBusy = submitting || isUploadingPending;
 
@@ -136,6 +148,43 @@ export function NoteDetail() {
   useEffect(() => {
     if (!isNew && id) loadAttachments();
   }, [id]);
+
+  // Restore a saved draft (if any) once, when opening the "new note" form.
+  useEffect(() => {
+    if (!isNew || draftLoadedRef.current) return;
+    draftLoadedRef.current = true;
+    const draft = getDraft<NoteDraftData>(user?.id, 'note');
+    if (!draft) return;
+    setFormData(prev => ({ ...prev, ...draft }));
+    setDraftRestored(true);
+  }, [isNew, user?.id]);
+
+  // Auto-save the in-progress "new note" form as a draft.
+  useEffect(() => {
+    if (!isNew) return;
+    const hasContent = formData.title.trim() !== '' || formData.categoryId !== ''
+      || stripHtml(formData.content).trim() !== '';
+    const timer = setTimeout(() => {
+      if (hasContent) {
+        saveDraft<NoteDraftData>(user?.id, 'note', {
+          title: formData.title,
+          content: formData.content,
+          categoryId: formData.categoryId,
+          subcategoryId: formData.subcategoryId,
+        });
+      } else {
+        clearDraft(user?.id, 'note');
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [isNew, user?.id, formData.title, formData.content, formData.categoryId, formData.subcategoryId]);
+
+  const handleDiscardDraft = () => {
+    clearDraft(user?.id, 'note');
+    setFormData({ title: '', content: '', categoryId: '', subcategoryId: null, pinned: false });
+    setDraftRestored(false);
+    toast.success('Draft discarded');
+  };
 
   const loadAttachments = async () => {
     if (!id) return;
@@ -210,6 +259,7 @@ export function NoteDetail() {
           if (uploadError) toast.warning(`Note saved, but some attachments failed.`);
         }
         toast.success('Note saved!');
+        clearDraft(user?.id, 'note');
         navigate('/notes');
       } else {
         if (!id || id === 'new') { toast.error('Invalid note ID'); return; }
@@ -291,6 +341,20 @@ export function NoteDetail() {
               </button>
             )}
           </div>
+
+          {/* Draft restored banner */}
+          {isNew && draftRestored && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2 text-xs text-blue-700 dark:text-blue-300">
+                <FileText size={14} className="flex-shrink-0" />
+                <span>Draft restored from your last unsaved note.</span>
+              </div>
+              <button type="button" onClick={handleDiscardDraft}
+                className="text-xs font-semibold text-blue-700 dark:text-blue-300 hover:underline flex-shrink-0">
+                Discard
+              </button>
+            </div>
+          )}
 
           {/* ── Main form ── */}
           <form onSubmit={handleSubmit} className="space-y-4">

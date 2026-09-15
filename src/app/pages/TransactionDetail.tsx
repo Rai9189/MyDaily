@@ -5,6 +5,7 @@ import { useTransactions } from '../context/TransactionContext';
 import { useAccounts } from '../context/AccountContext';
 import { useCategories } from '../context/CategoryContext';
 import { useAttachments } from '../context/AttachmentContext';
+import { useAuth } from '../context/AuthContext';
 import { usePendingAttachments } from '../hooks/usePendingAttachments';
 import { PendingAttachmentPicker } from '../components/PendingAttachmentPicker';
 import { RichTextEditor, stripHtml } from '../components/RichTextEditor';
@@ -24,9 +25,28 @@ import { formatFileSize, isImageFile } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { DetailPageSkeleton } from '../components/Skeletons';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { getDraft, saveDraft, clearDraft } from '../../lib/draftStorage';
 
 const MAX_AMOUNT = 1_000_000_000;
 const MAX_DESC   = 10_000;
+
+interface TransactionDraftData {
+  formData: {
+    accountId: string;
+    toAccountId: string;
+    amount: number;
+    type: 'income' | 'expense' | 'transfer' | '';
+    date: string;
+    categoryId: string;
+    subcategoryId: string | null;
+    description: string;
+  };
+  taxEnabled: boolean;
+  taxType: 'percent' | 'nominal';
+  taxValueDisplay: string;
+  taxValue: number;
+  taxCategoryId: string;
+}
 
 function formatAmountDisplay(value: number): string {
   if (!value || value === 0) return '';
@@ -73,6 +93,7 @@ export function TransactionDetail() {
   const id           = idFromParams || idFromUrl;
   const isNew        = id === 'new' || !id;
 
+  const { user } = useAuth();
   const { transactions, loading: txLoading, getTransactionById, createTransaction, createTransfer, updateTransaction, updateTransfer } = useTransactions();
   const { accounts }   = useAccounts();
   const { categories, createCategory } = useCategories();
@@ -120,6 +141,10 @@ export function TransactionDetail() {
   const [amountError, setAmountError]       = useState('');
   const [deleteAttachTarget, setDeleteAttachTarget] = useState<{ id: string; url: string } | null>(null);
   const [deletingAttach, setDeletingAttach] = useState(false);
+
+  // Draft state
+  const [draftRestored, setDraftRestored] = useState(false);
+  const draftLoadedRef = useRef(false);
 
   // Template state
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
@@ -202,10 +227,64 @@ export function TransactionDetail() {
     [categories]
   );
 
+  // Restore a saved draft (if any) once, when opening the "new transaction" form.
+  useEffect(() => {
+    if (!isNew || draftLoadedRef.current) return;
+    draftLoadedRef.current = true;
+    const draft = getDraft<TransactionDraftData>(user?.id, 'transaction');
+    if (!draft) return;
+    setFormData(draft.formData);
+    setAmountDisplay(formatAmountDisplay(draft.formData.amount));
+    setTaxEnabled(draft.taxEnabled);
+    setTaxType(draft.taxType);
+    setTaxValueDisplay(draft.taxValueDisplay);
+    setTaxValue(draft.taxValue);
+    setTaxCategoryId(draft.taxCategoryId);
+    setDraftRestored(true);
+  }, [isNew, user?.id]);
+
+  // Auto-save the in-progress "new transaction" form as a draft.
+  useEffect(() => {
+    if (!isNew) return;
+    const hasContent = formData.amount > 0 || formData.type !== '' || formData.toAccountId !== ''
+      || formData.categoryId !== '' || stripHtml(formData.description).trim() !== '';
+    const timer = setTimeout(() => {
+      if (hasContent) {
+        saveDraft<TransactionDraftData>(user?.id, 'transaction', {
+          formData, taxEnabled, taxType, taxValueDisplay, taxValue, taxCategoryId,
+        });
+      } else {
+        clearDraft(user?.id, 'transaction');
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [isNew, user?.id, formData, taxEnabled, taxType, taxValueDisplay, taxValue, taxCategoryId]);
+
+  const handleDiscardDraft = () => {
+    clearDraft(user?.id, 'transaction');
+    setFormData({
+      accountId: primaryAccount?.id ?? '',
+      toAccountId: '',
+      amount: 0,
+      type: '',
+      date: new Date().toISOString().split('T')[0],
+      categoryId: '',
+      subcategoryId: null,
+      description: '',
+    });
+    setAmountDisplay('');
+    setTaxEnabled(false);
+    setTaxType('percent');
+    setTaxValueDisplay('');
+    setTaxValue(0);
+    setDraftRestored(false);
+    toast.success('Draft discarded');
+  };
+
   useEffect(() => {
     if (isNew) {
       if (primaryAccount) {
-        setFormData(prev => ({ ...prev, accountId: primaryAccount.id }));
+        setFormData(prev => (prev.accountId ? prev : { ...prev, accountId: primaryAccount.id }));
       }
       return;
     }
@@ -435,6 +514,7 @@ export function TransactionDetail() {
           } else {
             toast.success('Transfer recorded!');
           }
+          clearDraft(user?.id, 'transaction');
           navigate('/transactions');
         } else {
           const { success, data, error } = await createTransaction(formData as any);
@@ -450,6 +530,7 @@ export function TransactionDetail() {
           } else {
             toast.success('Transaction saved!');
           }
+          clearDraft(user?.id, 'transaction');
           navigate('/transactions');
         }
       } else {
@@ -534,6 +615,20 @@ export function TransactionDetail() {
               <ChevronLeft size={16} /> Back
             </button>
           </div>
+
+          {/* Draft restored banner */}
+          {isNew && draftRestored && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2 text-xs text-blue-700 dark:text-blue-300">
+                <FileText size={14} className="flex-shrink-0" />
+                <span>Draft restored from your last unsaved transaction.</span>
+              </div>
+              <button type="button" onClick={handleDiscardDraft}
+                className="text-xs font-semibold text-blue-700 dark:text-blue-300 hover:underline flex-shrink-0">
+                Discard
+              </button>
+            </div>
+          )}
 
           {/* Template Bar — hanya saat new transaction */}
           {isNew && templates.length > 0 && (

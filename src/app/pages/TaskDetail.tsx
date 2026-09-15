@@ -1,9 +1,10 @@
 // src/app/pages/TaskDetail.tsx
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTasks } from '../context/TaskContext';
 import { useCategories } from '../context/CategoryContext';
 import { useAttachments } from '../context/AttachmentContext';
+import { useAuth } from '../context/AuthContext';
 import { usePendingAttachments } from '../hooks/usePendingAttachments';
 import { PendingAttachmentPicker } from '../components/PendingAttachmentPicker';
 import { RichTextEditor, stripHtml } from '../components/RichTextEditor';
@@ -20,9 +21,18 @@ import { CategorySelect } from '../components/CategorySelect';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { DetailPageSkeleton } from '../components/Skeletons';
+import { getDraft, saveDraft, clearDraft } from '../../lib/draftStorage';
 
 const MAX_TITLE = 100;
 const MAX_DESC  = 10_000;
+
+interface TaskDraftData {
+  title: string;
+  deadline: string;
+  categoryId: string;
+  subcategoryId: string | null;
+  description: string;
+}
 
 /* ─── Reusable Popup ─── */
 function ConfirmPopup({
@@ -71,6 +81,7 @@ export function TaskDetail() {
   const id           = idFromParams || idFromUrl;
   const isNew        = id === 'new' || !id;
 
+  const { user } = useAuth();
   const { tasks, loading: tasksLoading, getTaskById, createTask, updateTask, completeTask, uncompleteTask } = useTasks();
   const { categories } = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
@@ -94,6 +105,8 @@ export function TaskDetail() {
   const [showUnsubmitPopup, setShowUnsubmitPopup]   = useState(false);
   const [deleteAttachTarget, setDeleteAttachTarget] = useState<{ id: string; url: string } | null>(null);
   const [deletingAttach, setDeletingAttach]         = useState(false);
+  const [draftRestored, setDraftRestored]           = useState(false);
+  const draftLoadedRef                              = useRef(false);
 
   const isBusy       = submitting || isUploadingPending;
   const descLength   = stripHtml(formData.description).length;
@@ -121,6 +134,47 @@ export function TaskDetail() {
   useEffect(() => {
     if (!isNew && id) loadAttachments();
   }, [id]);
+
+  // Restore a saved draft (if any) once, when opening the "new task" form.
+  useEffect(() => {
+    if (!isNew || draftLoadedRef.current) return;
+    draftLoadedRef.current = true;
+    const draft = getDraft<TaskDraftData>(user?.id, 'task');
+    if (!draft) return;
+    setFormData(prev => ({ ...prev, ...draft }));
+    setDraftRestored(true);
+  }, [isNew, user?.id]);
+
+  // Auto-save the in-progress "new task" form as a draft.
+  useEffect(() => {
+    if (!isNew) return;
+    const hasContent = formData.title.trim() !== '' || formData.categoryId !== ''
+      || stripHtml(formData.description).trim() !== '';
+    const timer = setTimeout(() => {
+      if (hasContent) {
+        saveDraft<TaskDraftData>(user?.id, 'task', {
+          title: formData.title,
+          deadline: formData.deadline,
+          categoryId: formData.categoryId,
+          subcategoryId: formData.subcategoryId,
+          description: formData.description,
+        });
+      } else {
+        clearDraft(user?.id, 'task');
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [isNew, user?.id, formData.title, formData.deadline, formData.categoryId, formData.subcategoryId, formData.description]);
+
+  const handleDiscardDraft = () => {
+    clearDraft(user?.id, 'task');
+    setFormData({
+      title: '', deadline: new Date().toISOString().split('T')[0],
+      categoryId: '', subcategoryId: null, description: '', completed: false,
+    });
+    setDraftRestored(false);
+    toast.success('Draft discarded');
+  };
 
   const loadAttachments = async () => {
     if (!id) return;
@@ -194,6 +248,7 @@ export function TaskDetail() {
           if (uploadError) toast.warning('Task saved, but some attachments failed.');
         }
         toast.success('Task saved!');
+        clearDraft(user?.id, 'task');
         navigate('/tasks');
       } else {
         if (!id || id === 'new') { toast.error('Invalid task ID'); return; }
@@ -300,6 +355,20 @@ export function TaskDetail() {
                 : statusBadge(task.status)
             )}
           </div>
+
+          {/* Draft restored banner */}
+          {isNew && draftRestored && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2 text-xs text-blue-700 dark:text-blue-300">
+                <FileText size={14} className="flex-shrink-0" />
+                <span>Draft restored from your last unsaved task.</span>
+              </div>
+              <button type="button" onClick={handleDiscardDraft}
+                className="text-xs font-semibold text-blue-700 dark:text-blue-300 hover:underline flex-shrink-0">
+                Discard
+              </button>
+            </div>
+          )}
 
           {/* Completed banner */}
           {task?.completed && (
