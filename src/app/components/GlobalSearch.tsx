@@ -1,0 +1,239 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Search, X, CreditCard, CheckSquare, FileText, Zap, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useTransactions } from '../context/TransactionContext';
+import { useTasks } from '../context/TaskContext';
+import { useNotes } from '../context/NoteContext';
+import { useAccounts } from '../context/AccountContext';
+import { useCategories } from '../context/CategoryContext';
+
+type SearchResult = {
+  id: string;
+  type: 'transaction' | 'task' | 'note' | 'account' | 'category';
+  title: string;
+  subtitle?: string;
+  icon: React.ReactNode;
+  path: string;
+};
+
+export function GlobalSearch() {
+  const navigate = useNavigate();
+  const { transactions } = useTransactions();
+  const { tasks } = useTasks();
+  const { notes } = useNotes();
+  const { accounts } = useAccounts();
+  const { categories } = useCategories();
+
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  // Listen for Cmd+K / Ctrl+K
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setOpen(o => !o);
+        setQuery('');
+        setSelectedIndex(0);
+      }
+      if (e.key === 'Escape' && open) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open]);
+
+  const results = useMemo<SearchResult[]>(() => {
+    if (!query.trim()) return [];
+
+    const q = query.toLowerCase();
+    const allResults: SearchResult[] = [];
+
+    // Search transactions
+    transactions.forEach(t => {
+      const cat = categories.find(c => c.id === t.categoryId);
+      const acc = accounts.find(a => a.id === t.accountId);
+      if (t.description?.toLowerCase().includes(q) || cat?.name.toLowerCase().includes(q) || acc?.name.toLowerCase().includes(q)) {
+        allResults.push({
+          id: t.id,
+          type: 'transaction',
+          title: t.description || 'Unnamed Transaction',
+          subtitle: `${t.type} · ${cat?.name || 'Other'} · ${acc?.name || 'Account'}`,
+          icon: <CreditCard size={16} />,
+          path: `/transactions/${t.id}`,
+        });
+      }
+    });
+
+    // Search tasks
+    tasks.forEach(t => {
+      if (t.title.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q)) {
+        allResults.push({
+          id: t.id,
+          type: 'task',
+          title: t.title,
+          subtitle: t.completed ? 'Completed' : `Status: ${t.status}`,
+          icon: <CheckSquare size={16} />,
+          path: `/tasks/${t.id}`,
+        });
+      }
+    });
+
+    // Search notes
+    notes.forEach(n => {
+      if (n.title.toLowerCase().includes(q) || n.content?.toLowerCase().includes(q)) {
+        allResults.push({
+          id: n.id,
+          type: 'note',
+          title: n.title || 'Untitled Note',
+          subtitle: n.content?.substring(0, 60).replace(/<[^>]*>/g, '') || 'No content',
+          icon: <FileText size={16} />,
+          path: `/notes/${n.id}`,
+        });
+      }
+    });
+
+    // Search accounts
+    accounts.forEach(a => {
+      if (a.name.toLowerCase().includes(q) || a.type.toLowerCase().includes(q)) {
+        allResults.push({
+          id: a.id,
+          type: 'account',
+          title: a.name,
+          subtitle: `${a.type} · Balance: Rp ${a.balance.toLocaleString('id-ID')}`,
+          icon: <CreditCard size={16} />,
+          path: `/accounts/${a.id}`,
+        });
+      }
+    });
+
+    // Search categories
+    categories.forEach(c => {
+      if (c.name.toLowerCase().includes(q)) {
+        allResults.push({
+          id: c.id,
+          type: 'category',
+          title: c.name,
+          subtitle: `Type: ${c.type}`,
+          icon: <Zap size={16} />,
+          path: `/categories/${c.id}`,
+        });
+      }
+    });
+
+    return allResults;
+  }, [query, transactions, tasks, notes, accounts, categories]);
+
+  const handleSelect = (result: SearchResult) => {
+    navigate(result.path);
+    setOpen(false);
+    setQuery('');
+  };
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [query]);
+
+  return (
+    <>
+      {/* Backdrop */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
+      {/* Search Modal */}
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-20">
+          <div className="w-full max-w-lg">
+            <div className="bg-background border border-border rounded-xl shadow-2xl overflow-hidden">
+              {/* Search Input */}
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+                <Search size={18} className="text-muted-foreground flex-shrink-0" />
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Search transactions, tasks, notes, accounts..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="flex-1 bg-transparent text-foreground text-sm outline-none placeholder:text-muted-foreground"
+                />
+                <button
+                  onClick={() => setOpen(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Results */}
+              {query.trim() ? (
+                results.length > 0 ? (
+                  <div className="max-h-80 overflow-y-auto">
+                    {results.map((result, idx) => (
+                      <button
+                        key={result.id}
+                        type="button"
+                        onClick={() => handleSelect(result)}
+                        onMouseEnter={() => setSelectedIndex(idx)}
+                        className={`w-full px-4 py-3 text-left border-b border-border last:border-b-0 transition-colors ${
+                          selectedIndex === idx ? 'bg-muted' : 'hover:bg-muted/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="text-muted-foreground flex-shrink-0">
+                            {result.icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {result.title}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {result.subtitle}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-4 py-8 text-center">
+                    <p className="text-sm text-muted-foreground">No results found</p>
+                  </div>
+                )
+              ) : (
+                <div className="px-4 py-6 text-center">
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Tip: Press <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-muted border border-border rounded">Esc</kbd> to close
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Start typing to search across all your data
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Keyboard Shortcut Hint */}
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+          title="Press Cmd+K to search"
+        >
+          <Search size={14} />
+          <span className="hidden lg:inline">Search...</span>
+          <kbd className="hidden lg:inline ml-auto text-[10px] px-1 py-0.5 bg-muted border border-border rounded">
+            ⌘K
+          </kbd>
+        </button>
+      )}
+    </>
+  );
+}
