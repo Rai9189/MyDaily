@@ -29,7 +29,7 @@ import { Settings } from './pages/Settings';
 import { Categories } from './pages/Categories';
 import { Trash } from './pages/Trash';
 import { Loader2 } from 'lucide-react';
-import { Toaster } from 'sonner';
+import { Toaster } from './components/ui/sonner';
 
 function DataProviders({ children }: { children: React.ReactNode }) {
   return (
