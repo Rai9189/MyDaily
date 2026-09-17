@@ -1,6 +1,7 @@
 // src/app/components/Layout.tsx
 import { useState, useEffect, useRef, ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'motion/react';
 import { Plus, CreditCard, CheckSquare, FileText, X } from 'lucide-react';
 import { Navbar } from './Navbar';
 import { GlobalSearch } from './GlobalSearch';
@@ -45,7 +46,7 @@ function DashboardFAB() {
                 </span>
                 <button
                   onClick={() => { setOpen(false); navigate(opt.path); }}
-                  className={`w-11 h-11 rounded-full ${opt.color} text-white shadow-lg flex items-center justify-center active:scale-95 transition-all`}
+                  className={`w-11 h-11 rounded-full ${opt.color} text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform`}
                 >
                   <Icon size={18} />
                 </button>
@@ -57,7 +58,7 @@ function DashboardFAB() {
 
       <button
         onClick={() => setOpen(o => !o)}
-        className={`w-14 h-14 rounded-full bg-primary text-white shadow-xl flex items-center justify-center active:scale-95 transition-all duration-200 ${open ? 'rotate-45' : ''}`}
+        className={`w-14 h-14 rounded-full bg-primary text-white shadow-xl flex items-center justify-center active:scale-95 transition-transform duration-200 ${open ? 'rotate-45' : ''}`}
         aria-label="Quick add"
       >
         {open ? <X size={24} /> : <Plus size={26} />}
@@ -71,6 +72,7 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
+  const location = useLocation();
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
@@ -82,9 +84,18 @@ export function Layout({ children }: LayoutProps) {
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}
       >
         <style>{`main::-webkit-scrollbar { display: none; }`}</style>
-        <div className="w-full mx-auto px-4 py-4 md:px-6 md:py-6 flex flex-col flex-1 min-h-0">
-          {children}
-        </div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="w-full mx-auto px-4 py-4 md:px-6 md:py-6 flex flex-col flex-1 min-h-0"
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       <DashboardFAB />
