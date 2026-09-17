@@ -11,5 +11,10 @@ supabase.md
 # graphify: regenerable cache/artifacts, contains machine-specific absolute paths
 graphify-out/
 
-# Claude Code hook config with a machine-specific absolute path
-.claude/settings.json
+# Claude Code / local tooling — not needed in the shared repo
+.claude/
+agent-skills/
+.21st/
+
+# Vercel builds from source; committed dist/ was stale build output
+dist/
