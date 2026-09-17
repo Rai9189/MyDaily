@@ -1,4 +1,5 @@
 // src/app/App.tsx
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -10,26 +11,28 @@ import { NoteProvider } from './context/NoteContext';
 import { AttachmentProvider } from './context/AttachmentContext';
 import { TrashProvider } from './context/TrashContext';
 import { Layout } from './components/Layout';
-import { Login } from './pages/Login';
-import { Register } from './pages/Register';
-import { ForgotPassword } from './pages/ForgotPassword';
-import { ResetPassword } from './pages/ResetPassword';
-import { PINSetup } from './pages/PINSetup';
-import { PINLock } from './pages/PINLock';
-import { Dashboard } from './pages/Dashboard';
-import { Accounts } from './pages/Accounts';
-import { Transactions } from './pages/Transactions';
-import { TransactionDetail } from './pages/TransactionDetail';
-import { Tasks } from './pages/Tasks';
-import { TaskDetail } from './pages/TaskDetail';
-import { Notes } from './pages/Notes';
-import { NoteDetail } from './pages/NoteDetail';
-import { Profile } from './pages/Profile';
-import { Settings } from './pages/Settings';
-import { Categories } from './pages/Categories';
-import { Trash } from './pages/Trash';
 import { Loader2 } from 'lucide-react';
 import { Toaster } from './components/ui/sonner';
+
+// Lazy-loaded per route so the initial bundle doesn't pull in every page's dependencies.
+const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const Register = lazy(() => import('./pages/Register').then(m => ({ default: m.Register })));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
+const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
+const PINSetup = lazy(() => import('./pages/PINSetup').then(m => ({ default: m.PINSetup })));
+const PINLock = lazy(() => import('./pages/PINLock').then(m => ({ default: m.PINLock })));
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const Accounts = lazy(() => import('./pages/Accounts').then(m => ({ default: m.Accounts })));
+const Transactions = lazy(() => import('./pages/Transactions').then(m => ({ default: m.Transactions })));
+const TransactionDetail = lazy(() => import('./pages/TransactionDetail').then(m => ({ default: m.TransactionDetail })));
+const Tasks = lazy(() => import('./pages/Tasks').then(m => ({ default: m.Tasks })));
+const TaskDetail = lazy(() => import('./pages/TaskDetail').then(m => ({ default: m.TaskDetail })));
+const Notes = lazy(() => import('./pages/Notes').then(m => ({ default: m.Notes })));
+const NoteDetail = lazy(() => import('./pages/NoteDetail').then(m => ({ default: m.NoteDetail })));
+const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
+const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const Categories = lazy(() => import('./pages/Categories').then(m => ({ default: m.Categories })));
+const Trash = lazy(() => import('./pages/Trash').then(m => ({ default: m.Trash })));
 
 function DataProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -112,6 +115,7 @@ function PINRoute({ children, requireNotUnlocked = false }: {
 function AppRoutes() {
   return (
     <DataProviders>
+      <Suspense fallback={<LoadingScreen />}>
       <Routes>
         {/* Public routes */}
         <Route path="/login"           element={<PublicRoute><Login /></PublicRoute>} />
@@ -145,6 +149,7 @@ function AppRoutes() {
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </DataProviders>
   );
 }
