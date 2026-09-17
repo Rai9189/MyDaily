@@ -1,6 +1,7 @@
 // src/app/pages/Transactions.tsx
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { useTransactions } from '../context/TransactionContext';
 import { useAccounts } from '../context/AccountContext';
 import { useCategories } from '../context/CategoryContext';
@@ -519,7 +520,7 @@ export function Transactions() {
           <div className="inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             {([5, 10, 20, 'all'] as (number | 'all')[]).map((num) => (
               <button key={num} onClick={() => { setItemsPerPage(num); setCurrentPage(1); }}
-                className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-150 ${
+                className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition duration-150 ${
                   itemsPerPage === num
                     ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary'
                     : 'text-foreground/60 hover:text-foreground hover:bg-background'
@@ -531,11 +532,11 @@ export function Transactions() {
 
           <div className="hidden md:inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             <button onClick={() => setViewMode('list')} title="List view"
-              className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
+              className={`p-1.5 rounded-md transition duration-150 ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
               <List size={16} />
             </button>
             <button onClick={() => setViewMode('card')} title="Card view"
-              className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'card' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
+              className={`p-1.5 rounded-md transition duration-150 ${viewMode === 'card' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
               <LayoutGrid size={16} />
             </button>
           </div>
@@ -548,53 +549,43 @@ export function Transactions() {
           </span>
         </div>
 
-        {/* ── Summary bar ── */}
+        {/* ── Summary ledger: typography-led, matches Dashboard ── */}
         {filteredTransactions.length > 0 && (
-          <div className={`grid gap-2 ${summaryTransfer > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-            <div
-              className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/10 border-2 border-green-200 dark:border-green-900/40 min-w-0 cursor-pointer active:scale-[0.98] transition-transform"
-              onClick={() => setActivePopup('income')}
-            >
-              <div className="flex items-center gap-1.5">
-                <div className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-                  <TrendingUp size={12} className="text-green-600 dark:text-green-400" />
-                </div>
-                <p className="text-xs text-green-700 dark:text-green-400 font-medium truncate">Income</p>
-              </div>
-              <p className="text-sm font-bold text-green-700 dark:text-green-300 truncate hidden sm:block">{fmt(summaryIncome)}</p>
-              <p className="text-base font-bold text-green-700 dark:text-green-300 truncate sm:hidden">{fmtShort(summaryIncome)}</p>
-            </div>
-
-            <div
-              className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/10 border-2 border-red-200 dark:border-red-900/40 min-w-0 cursor-pointer active:scale-[0.98] transition-transform"
-              onClick={() => setActivePopup('expense')}
-            >
-              <div className="flex items-center gap-1.5">
-                <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
-                  <TrendingDown size={12} className="text-red-600 dark:text-red-400" />
-                </div>
-                <p className="text-xs text-red-700 dark:text-red-400 font-medium truncate">Expense</p>
-              </div>
-              <p className="text-sm font-bold text-red-700 dark:text-red-300 truncate hidden sm:block">{fmt(summaryExpense)}</p>
-              <p className="text-base font-bold text-red-700 dark:text-red-300 truncate sm:hidden">{fmtShort(summaryExpense)}</p>
-            </div>
-
-            {summaryTransfer > 0 && (
-              <div
-                className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/10 border-2 border-blue-200 dark:border-blue-900/40 min-w-0 cursor-pointer active:scale-[0.98] transition-transform"
-                onClick={() => setActivePopup('transfer')}
+          <Card className="bg-white dark:bg-card border shadow-sm rounded-xl overflow-hidden">
+            <div className={`grid divide-x divide-border ${summaryTransfer > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+              <button type="button" onClick={() => setActivePopup('income')}
+                className="flex flex-col items-start px-3 py-2.5 text-left hover:bg-muted/40 transition-colors min-w-0"
               >
-                <div className="flex items-center gap-1.5">
-                  <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                    <ArrowLeftRight size={12} className="text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <p className="text-xs text-blue-700 dark:text-blue-400 font-medium truncate">Transfer</p>
-                </div>
-                <p className="text-sm font-bold text-blue-700 dark:text-blue-300 truncate hidden sm:block">{fmt(summaryTransfer)}</p>
-                <p className="text-base font-bold text-blue-700 dark:text-blue-300 truncate sm:hidden">{fmtShort(summaryTransfer)}</p>
-              </div>
-            )}
-          </div>
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                  <TrendingUp size={11} className="text-green-600 dark:text-green-400 flex-shrink-0" /> Income
+                </span>
+                <span className="text-sm font-bold text-foreground truncate hidden sm:block">{fmt(summaryIncome)}</span>
+                <span className="text-base font-bold text-foreground truncate sm:hidden">{fmtShort(summaryIncome)}</span>
+              </button>
+
+              <button type="button" onClick={() => setActivePopup('expense')}
+                className="flex flex-col items-start px-3 py-2.5 text-left hover:bg-muted/40 transition-colors min-w-0"
+              >
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                  <TrendingDown size={11} className="text-red-600 dark:text-red-400 flex-shrink-0" /> Expense
+                </span>
+                <span className="text-sm font-bold text-foreground truncate hidden sm:block">{fmt(summaryExpense)}</span>
+                <span className="text-base font-bold text-foreground truncate sm:hidden">{fmtShort(summaryExpense)}</span>
+              </button>
+
+              {summaryTransfer > 0 && (
+                <button type="button" onClick={() => setActivePopup('transfer')}
+                  className="flex flex-col items-start px-3 py-2.5 text-left hover:bg-muted/40 transition-colors min-w-0"
+                >
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                    <ArrowLeftRight size={11} className="text-blue-600 dark:text-blue-400 flex-shrink-0" /> Transfer
+                  </span>
+                  <span className="text-sm font-bold text-foreground truncate hidden sm:block">{fmt(summaryTransfer)}</span>
+                  <span className="text-base font-bold text-foreground truncate sm:hidden">{fmtShort(summaryTransfer)}</span>
+                </button>
+              )}
+            </div>
+          </Card>
         )}
       </div>
 
@@ -679,7 +670,7 @@ export function Transactions() {
                           </span>
                         )}
                       </td>
-                      <td className={`px-4 whitespace-nowrap text-center py-3`} onClick={(e) => e.stopPropagation()}>
+                      <td className={`px-4 whitespace-nowrap text-center py-3`}>
                         <div className="flex items-center justify-center gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
                             onClick={(e) => handleEdit(e, t)}><Edit size={14} /></Button>
@@ -698,9 +689,14 @@ export function Transactions() {
 
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {paginatedTransactions.map((t) => (
-              <Card key={t.id}
-                className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer border-2 ${getCardBorder(t)}`}
+            {paginatedTransactions.map((t, i) => (
+              <motion.div key={t.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: Math.min(i * 0.03, 0.3), duration: 0.2, ease: 'easeOut' }}
+              >
+              <Card
+                className={`hover:shadow-lg transition-shadow bg-white dark:bg-card cursor-pointer border-2 ${getCardBorder(t)}`}
                 onClick={() => navigate(`/transactions/${t.id}`)}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-3">
@@ -719,7 +715,7 @@ export function Transactions() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-0" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-0">
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
                         onClick={(e) => handleEdit(e, t)}><Edit size={13} /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-red-500 hover:text-white"
@@ -761,6 +757,7 @@ export function Transactions() {
                   </div>
                 </CardContent>
               </Card>
+              </motion.div>
             ))}
           </div>
         )}
@@ -800,7 +797,7 @@ export function Transactions() {
       {itemsPerPage !== 'all' && totalPages > 1 && <div className="h-36 md:h-16 flex-shrink-0" />}
 
       <button type="button" onClick={() => navigate('/transactions/new')}
-        className={`md:hidden fixed right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all flex items-center justify-center dark:bg-primary/20 dark:text-primary dark:border dark:border-primary/30 dark:hover:bg-primary/30 ${itemsPerPage !== 'all' && totalPages > 1 ? 'bottom-36' : 'bottom-20'}`}
+        className={`md:hidden fixed right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-transform flex items-center justify-center dark:bg-primary/20 dark:text-primary dark:border dark:border-primary/30 dark:hover:bg-primary/30 ${itemsPerPage !== 'all' && totalPages > 1 ? 'bottom-36' : 'bottom-20'}`}
         aria-label="Add transaction">
         <Plus size={24} />
       </button>
