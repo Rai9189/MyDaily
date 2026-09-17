@@ -13,8 +13,9 @@ import {
   Info, ArrowLeftRight, CalendarDays,
 } from 'lucide-react';
 import { SummaryPopup, PopupType } from '../components/SummaryPopup';
+import { QuickStats } from '../components/QuickStats';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { isWithinInterval, format } from 'date-fns';
+import { isWithinInterval, format, startOfMonth, endOfMonth } from 'date-fns';
 import { DateRangeFilter, defaultDateRange, getPresetRange, type DateRangeValue } from '../components/DateRangeFilter';
 import { DashboardSkeleton } from '../components/Skeletons';
 
@@ -96,6 +97,16 @@ export function Dashboard() {
   const net     = income - expense;
 
   const transfer = useMemo(() => filteredTx.filter(t => t.type === 'transfer' && t.toAccountId).reduce((s, t) => s + t.amount, 0), [filteredTx]);
+
+  // Monthly overview (current month)
+  const currentMonthStart = useMemo(() => startOfMonth(new Date()), []);
+  const currentMonthEnd = useMemo(() => endOfMonth(new Date()), []);
+  const monthlyTx = useMemo(
+    () => transactions.filter(t => inRange(t.date, currentMonthStart, currentMonthEnd) && (selectedAccountId === 'all' || t.accountId === selectedAccountId)),
+    [transactions, selectedAccountId, currentMonthStart, currentMonthEnd],
+  );
+  const monthlyIncome = useMemo(() => monthlyTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0), [monthlyTx]);
+  const monthlyExpense = useMemo(() => monthlyTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0), [monthlyTx]);
 
   const incomeTxCount   = useMemo(() => filteredTx.filter(t => t.type === 'income').length,                    [filteredTx]);
   const expenseTxCount  = useMemo(() => filteredTx.filter(t => t.type === 'expense').length,                   [filteredTx]);
@@ -277,6 +288,16 @@ export function Dashboard() {
                 {label}
               </button>
             ))}
+          </div>
+
+          {/* ── Monthly Overview ── */}
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2 px-1">Monthly Summary</p>
+            <QuickStats
+              totalBalance={totalBalance}
+              monthlyIncome={monthlyIncome}
+              monthlyExpense={monthlyExpense}
+            />
           </div>
 
           {/* ── Balance Card ── */}
