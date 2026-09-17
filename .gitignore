@@ -7,3 +7,9 @@ Kamenrider01* (Pass Supabase)
 .env.production
 
 supabase.md
+
+# graphify: regenerable cache/artifacts, contains machine-specific absolute paths
+graphify-out/
+
+# Claude Code hook config with a machine-specific absolute path
+.claude/settings.json
