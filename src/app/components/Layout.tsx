@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, CreditCard, CheckSquare, FileText, X } from 'lucide-react';
 import { Navbar } from './Navbar';
+import { GlobalSearch } from './GlobalSearch';
 
 const SPEED_DIAL = [
   { label: 'Transaction', icon: CreditCard,  path: '/transactions/new', color: 'bg-green-500 hover:bg-green-600' },
@@ -73,6 +74,7 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
+      <GlobalSearch />
 
       {/* pt-16 = top navbar; pb-16 md:pb-0 = bottom nav clearance on mobile */}
       <main
