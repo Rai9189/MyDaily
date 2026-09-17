@@ -1,6 +1,7 @@
 // src/app/pages/Accounts.tsx
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { useAccounts } from '../context/AccountContext';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -475,15 +476,20 @@ export function Accounts() {
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {accounts.map((account) => {
+              {accounts.map((account, i) => {
                 const cfg = getTypeConfig(account.type);
                 const isPrimary = !!account.is_primary;
                 const isSettingThis = settingPrimaryId === account.id;
 
                 return (
-                  <Card
+                  <motion.div
                     key={account.id}
-                    className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer ${
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(i * 0.04, 0.3), duration: 0.2, ease: 'easeOut' }}
+                  >
+                  <Card
+                    className={`hover:shadow-lg transition-shadow bg-white dark:bg-card cursor-pointer ${
                       isPrimary
                         ? 'border-2 border-amber-400 dark:border-amber-500'
                         : cfg.cardBorder
@@ -501,7 +507,7 @@ export function Accounts() {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-0" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-0">
                           {!isPrimary && (
                             <Button
                               variant="ghost"
@@ -516,14 +522,14 @@ export function Accounts() {
                               }
                             </Button>
                           )}
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleOpenDialog(account)}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); handleOpenDialog(account); }}>
                             <Edit size={14} />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:bg-red-500 hover:text-white"
-                            onClick={() => handleDelete(account.id, account.name)}
+                            onClick={(e) => { e.stopPropagation(); handleDelete(account.id, account.name); }}
                             disabled={isPrimary && accounts.length === 1}
                             title={isPrimary && accounts.length === 1 ? 'Cannot delete the only account' : 'Delete account'}>
                             <Trash2 size={14} />
@@ -542,6 +548,7 @@ export function Accounts() {
                       </div>
                     </CardContent>
                   </Card>
+                  </motion.div>
                 );
               })}
             </div>
