@@ -4,7 +4,6 @@ import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut, Settings
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { GlobalSearch } from './GlobalSearch';
 
 const navItems = [
   { path: '/',             icon: Home,        label: 'Dashboard' },

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNotes } from '../context/NoteContext';
 
 export function useAutoSave(content: string, onSave: () => Promise<void>) {
   const [isSaving, setIsSaving] = useState(false);
