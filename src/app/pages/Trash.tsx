@@ -315,7 +315,7 @@ export function Trash() {
                     const deletedLabel = new Date(item.deleted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     return (
                       <div key={item.id} className={`flex items-center gap-3 px-4 py-3 transition-colors ${days <= 3 ? 'bg-red-50/60 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20' : 'hover:bg-muted/30'}`}>
-                        <div className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer" onClick={() => setDetailItem(item)}>
+                        <button type="button" className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer text-left" onClick={() => setDetailItem(item)}>
                           <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 ${TABLE_COLORS[item.table]}`}>
                             {TABLE_ICONS[item.table]}
                             <span className="hidden sm:inline">{TABLE_LABELS[item.table]}</span>
@@ -327,7 +327,7 @@ export function Trash() {
                               {item.description && <span className="ml-2 text-muted-foreground/60">· {item.description}</span>}
                             </p>
                           </div>
-                        </div>
+                        </button>
                         <span className={`text-xs font-semibold flex-shrink-0 flex items-center gap-1 ${days <= 3 ? 'text-red-600 dark:text-red-400' : days <= 7 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
                           {days <= 3 && <AlertTriangle size={11} />}
                           {days === 0 ? 'Today' : `${days}d`}

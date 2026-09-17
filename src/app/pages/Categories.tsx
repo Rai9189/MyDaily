@@ -647,7 +647,7 @@ export function Categories() {
                   {PRESET_COLORS.map(c => (
                     <button key={c} type="button"
                       onClick={() => { setFormData({ ...formData, color: c }); setHexInput(c.replace(/^#/, '').toUpperCase()); }}
-                      className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${formData.color.toLowerCase() === c.toLowerCase() ? 'border-foreground scale-110' : 'border-transparent'}`}
+                      className={`w-7 h-7 rounded-full border-2 transition-transform active:scale-90 ${formData.color.toLowerCase() === c.toLowerCase() ? 'border-foreground scale-110' : 'border-transparent'}`}
                       style={{ backgroundColor: c }} />
                   ))}
                 </div>
