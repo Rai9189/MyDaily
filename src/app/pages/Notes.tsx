@@ -1,6 +1,7 @@
 // src/app/pages/Notes.tsx
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { useNotes } from '../context/NoteContext';
 import { useCategories } from '../context/CategoryContext';
 import { useViewPreferences } from '../hooks/useViewPreferences';
@@ -140,7 +141,7 @@ export function Notes() {
     setPinningId(null);
   };
 
-  const NoteCardView = ({ note }: { note: any }) => {
+  const NoteCardView = ({ note, index = 0 }: { note: any; index?: number }) => {
     const plainContent = stripHtml(note.content);
     const displaySnippet = useMemo(() => {
       if (!searchQuery) return plainContent;
@@ -154,10 +155,16 @@ export function Notes() {
     }, [plainContent, note.title, searchQuery]);
 
     return (
-      <Card className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer ${note.pinned ? 'border-2 border-amber-400 dark:border-amber-500' : 'border-2 border-blue-200 dark:border-blue-900/50'}`}>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: Math.min(index * 0.03, 0.3), duration: 0.2, ease: 'easeOut' }}
+      >
+      <Card onClick={() => navigate(`/notes/${note.id}`)}
+        className={`hover:shadow-lg transition-shadow bg-white dark:bg-card cursor-pointer ${note.pinned ? 'border-2 border-amber-400 dark:border-amber-500' : 'border-2 border-blue-200 dark:border-blue-900/50'}`}>
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0" onClick={() => navigate(`/notes/${note.id}`)}>
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
                   style={{ borderColor: getCategoryColor(note.categoryId, note.subcategoryId) || undefined, color: getCategoryColor(note.categoryId, note.subcategoryId) || undefined }}>
@@ -187,7 +194,7 @@ export function Notes() {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-0 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-0 flex-shrink-0">
               <Button variant="ghost" size="icon"
                 className={`h-8 w-8 ${note.pinned ? 'text-amber-500 hover:text-amber-600' : 'text-muted-foreground/60 hover:text-foreground'}`}
                 onClick={(e) => handlePin(e, note)} disabled={pinningId === note.id}>
@@ -203,6 +210,7 @@ export function Notes() {
           </div>
         </CardContent>
       </Card>
+      </motion.div>
     );
   };
 
@@ -272,7 +280,7 @@ export function Notes() {
             {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
           </span>
         </td>
-        <td className="px-4 py-3.5 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
+        <td className="px-4 py-3.5 whitespace-nowrap text-center">
           <div className="flex items-center justify-center gap-1">
             <Button variant="ghost" size="icon"
               className={`h-8 w-8 ${isPinned ? 'text-amber-500 hover:text-amber-600' : 'text-muted-foreground/60 hover:text-foreground'}`}
@@ -433,17 +441,17 @@ export function Notes() {
           <div className="inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             {([5, 10, 20, 'all'] as (number | 'all')[]).map((num) => (
               <button key={num} onClick={() => { setItemsPerPage(num); setCurrentPage(1); }}
-                className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-150 ${itemsPerPage === num ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
+                className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition duration-150 ${itemsPerPage === num ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
                 {num === 'all' ? 'All' : num}
               </button>
             ))}
           </div>
           <div className="hidden md:inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             <button onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}
+              className={`p-1.5 rounded-md transition duration-150 ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}
               title="List View"><List size={16} /></button>
             <button onClick={() => setViewMode('card')}
-              className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'card' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}
+              className={`p-1.5 rounded-md transition duration-150 ${viewMode === 'card' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}
               title="Card View"><LayoutGrid size={16} /></button>
           </div>
           <span className="text-sm font-medium text-foreground/65 ml-auto">
@@ -472,7 +480,7 @@ export function Notes() {
                   <h2 className="text-base font-semibold text-foreground">Pinned ({pinnedNotes.length})</h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {pinnedNotes.map(note => <NoteCardView key={note.id} note={note} />)}
+                  {pinnedNotes.map((note, i) => <NoteCardView key={note.id} note={note} index={i} />)}
                 </div>
               </div>
             )}
@@ -484,7 +492,7 @@ export function Notes() {
                   </h2>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {paginatedNotes.map(note => <NoteCardView key={note.id} note={note} />)}
+                  {paginatedNotes.map((note, i) => <NoteCardView key={note.id} note={note} index={i} />)}
                 </div>
               </div>
             )}
@@ -553,7 +561,7 @@ export function Notes() {
       {itemsPerPage !== 'all' && totalPages > 1 && <div className="h-16 flex-shrink-0" />}
 
       <button type="button" onClick={() => navigate('/notes/new')}
-        className="md:hidden fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all flex items-center justify-center dark:bg-primary/20 dark:text-primary dark:border dark:border-primary/30 dark:hover:bg-primary/30"
+        className="md:hidden fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-transform flex items-center justify-center dark:bg-primary/20 dark:text-primary dark:border dark:border-primary/30 dark:hover:bg-primary/30"
         aria-label="Add note">
         <Plus size={24} />
       </button>
