@@ -1,6 +1,7 @@
 // src/app/pages/Tasks.tsx
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { useTasks } from '../context/TaskContext';
 import { useCategories } from '../context/CategoryContext';
 import { stripHtml } from '../components/RichTextEditor';
@@ -406,17 +407,17 @@ export function Tasks() {
           <div className="inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             {([5, 10, 20, 'all'] as (number | 'all')[]).map((num) => (
               <button key={num} onClick={() => { setItemsPerPage(num); setCurrentPage(1); }}
-                className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-150 ${itemsPerPage === num ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
+                className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition duration-150 ${itemsPerPage === num ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}>
                 {num === 'all' ? 'All' : num}
               </button>
             ))}
           </div>
           <div className="hidden md:inline-flex rounded-lg border border-border overflow-hidden bg-muted/40 p-0.5 gap-0.5">
             <button onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}
+              className={`p-1.5 rounded-md transition duration-150 ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}
               title="List View"><List size={16} /></button>
             <button onClick={() => setViewMode('card')}
-              className={`p-1.5 rounded-md transition-all duration-150 ${viewMode === 'card' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}
+              className={`p-1.5 rounded-md transition duration-150 ${viewMode === 'card' ? 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' : 'text-foreground/60 hover:text-foreground hover:bg-background'}`}
               title="Card View"><LayoutGrid size={16} /></button>
           </div>
           <span className="text-sm font-medium text-foreground/65 ml-auto">
@@ -452,12 +453,12 @@ export function Tasks() {
                       <tr key={task.id}
                         className={`group hover:bg-slate-50 dark:hover:bg-muted/40 cursor-pointer transition-colors ${task.completed ? 'opacity-60' : ''}`}
                         onClick={() => navigate(`/tasks/${task.id}`)}>
-                        <td className={`pl-4 pr-2 py-3`} onClick={e => e.stopPropagation()}>
+                        <td className={`pl-4 pr-2 py-3`}>
                           <button
                             type="button"
                             onClick={(e) => handleToggleComplete(e, task)}
                             title={task.completed ? 'Mark incomplete' : 'Mark complete'}
-                            className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${
+                            className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-transform active:scale-95 ${
                               task.completed
                                 ? 'bg-muted-foreground/40 border-muted-foreground/40'
                                 : `bg-transparent ${task.status === 'overdue' ? 'border-red-600' : task.status === 'urgent' ? 'border-orange-500' : task.status === 'upcoming' ? 'border-amber-500' : 'border-blue-500'}`
@@ -500,7 +501,7 @@ export function Tasks() {
                         <td className={`px-4 whitespace-nowrap text-center py-3`}>
                           <StatusBadge task={task} />
                         </td>
-                        <td className={`px-4 whitespace-nowrap text-center py-3`} onClick={(e) => e.stopPropagation()}>
+                        <td className={`px-4 whitespace-nowrap text-center py-3`}>
                           <div className="flex items-center justify-center gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/60 hover:text-foreground"
                               onClick={(e) => handleEdit(e, task.id)}><Edit size={14} /></Button>
@@ -519,17 +520,23 @@ export function Tasks() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {paginatedTasks.map((task) => {
+            {paginatedTasks.map((task, i) => {
               const daysInfo = getDaysInfo(task.deadline, task.completed);
               return (
-                <Card key={task.id} className={`hover:shadow-lg transition-all bg-white dark:bg-card cursor-pointer border-2 ${getCardBorder(task)}`}>
+                <motion.div key={task.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(i * 0.03, 0.3), duration: 0.2, ease: 'easeOut' }}
+                >
+                <Card onClick={() => navigate(`/tasks/${task.id}`)}
+                  className={`hover:shadow-lg transition-shadow bg-white dark:bg-card cursor-pointer border-2 ${getCardBorder(task)}`}>
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
                       <button
                         type="button"
                         onClick={(e) => handleToggleComplete(e, task)}
                         title={task.completed ? 'Mark incomplete' : 'Mark complete'}
-                        className={`mt-1 flex-shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${
+                        className={`mt-1 flex-shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-transform active:scale-95 ${
                           task.completed
                             ? 'bg-muted-foreground/40 border-muted-foreground/40'
                             : `bg-transparent ${task.status === 'overdue' ? 'border-red-600' : task.status === 'urgent' ? 'border-orange-500' : task.status === 'upcoming' ? 'border-amber-500' : 'border-blue-500'}`
@@ -541,7 +548,7 @@ export function Tasks() {
                           </svg>
                         )}
                       </button>
-                      <div className="flex-1 min-w-0" onClick={() => navigate(`/tasks/${task.id}`)}>
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1.5">
                           <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
                             style={{ borderColor: getCategoryColor(task.categoryId, task.subcategoryId) || undefined, color: getCategoryColor(task.categoryId, task.subcategoryId) || undefined }}>
@@ -568,7 +575,7 @@ export function Tasks() {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-0 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-0 flex-shrink-0">
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
                           onClick={(e) => handleEdit(e, task.id)}><Edit size={13} /></Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/60 hover:bg-red-500 hover:text-white"
@@ -579,6 +586,7 @@ export function Tasks() {
                     </div>
                   </CardContent>
                 </Card>
+                </motion.div>
               );
             })}
           </div>
@@ -617,7 +625,7 @@ export function Tasks() {
       {itemsPerPage !== 'all' && totalPages > 1 && <div className="h-16 flex-shrink-0" />}
 
       <button type="button" onClick={() => navigate('/tasks/new')}
-        className="md:hidden fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all flex items-center justify-center dark:bg-primary/20 dark:text-primary dark:border dark:border-primary/30 dark:hover:bg-primary/30"
+        className="md:hidden fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-transform flex items-center justify-center dark:bg-primary/20 dark:text-primary dark:border dark:border-primary/30 dark:hover:bg-primary/30"
         aria-label="Add task">
         <Plus size={24} />
       </button>
