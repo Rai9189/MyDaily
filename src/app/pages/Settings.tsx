@@ -4,13 +4,17 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useTrash } from '../context/TrashContext';
+import { useTransactions } from '../context/TransactionContext';
+import { useAccounts } from '../context/AccountContext';
+import { useCategories } from '../context/CategoryContext';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { ExportData } from '../components/ExportData';
 import {
   Lock, Tag, Trash2, Sun, Moon, Monitor, Mail,
-  ShieldCheck, Loader2, CheckCircle2, ChevronRight,
+  ShieldCheck, Loader2, CheckCircle2, ChevronRight, Download,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
@@ -214,6 +218,14 @@ export function Settings() {
                   ? <span className="text-xs font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full">{trashItems.length}</span>
                   : undefined
               } />
+          </SettingSection>
+
+          {/* Export Data */}
+          <SettingSection icon={<Download size={15} />} title="Export" borderColor="border-green-300 dark:border-green-900/50">
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">Download your data in CSV or JSON format for backup or import to other applications.</p>
+              <ExportData />
+            </div>
           </SettingSection>
 
           {/* Theme */}

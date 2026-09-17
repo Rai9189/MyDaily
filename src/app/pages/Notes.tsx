@@ -5,6 +5,7 @@ import { useNotes } from '../context/NoteContext';
 import { useCategories } from '../context/CategoryContext';
 import { useViewPreferences } from '../hooks/useViewPreferences';
 import { stripHtml } from '../components/RichTextEditor';
+import { EmptyState } from '../components/EmptyState';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -458,12 +459,10 @@ export function Notes() {
 
       <div className="flex-1 overflow-y-auto min-h-0 no-scrollbar">
         {filteredNotes.length === 0 ? (
-          <Card className="border-2 border-slate-300 dark:border-border bg-white dark:bg-card shadow-sm">
-            <CardContent className="py-16 text-center">
-              <p className="text-muted-foreground">{searchQuery ? 'No Notes Found' : 'No Notes Yet'}</p>
-              <p className="text-sm text-muted-foreground/60 mt-1">{searchQuery ? 'Try adjusting your search or filters' : 'Create your first note'}</p>
-            </CardContent>
-          </Card>
+          <EmptyState
+            type="notes"
+            onAction={() => navigate('/notes/new')}
+          />
         ) : viewMode === 'card' ? (
           <div className="space-y-6">
             {pinnedNotes.length > 0 && (

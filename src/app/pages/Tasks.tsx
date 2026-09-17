@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTasks } from '../context/TaskContext';
 import { useCategories } from '../context/CategoryContext';
 import { stripHtml } from '../components/RichTextEditor';
+import { EmptyState } from '../components/EmptyState';
 import { useViewPreferences } from '../hooks/useViewPreferences';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -426,12 +427,10 @@ export function Tasks() {
 
       <div className="flex-1 overflow-y-auto min-h-0 no-scrollbar">
         {filteredTasks.length === 0 ? (
-          <Card className="border-2 border-slate-200 dark:border-border bg-white dark:bg-card shadow-sm">
-            <CardContent className="py-16 text-center">
-              <p className="text-muted-foreground">{searchQuery || activeFilterCount > 0 ? 'No Tasks Found' : 'No Tasks Yet'}</p>
-              <p className="text-sm text-muted-foreground/60 mt-1">{searchQuery || activeFilterCount > 0 ? 'Try adjusting your search or filters' : 'Create your first task'}</p>
-            </CardContent>
-          </Card>
+          <EmptyState
+            type="tasks"
+            onAction={() => navigate('/tasks/new')}
+          />
         ) : viewMode === 'list' ? (
           <div className="rounded-xl overflow-hidden w-full bg-white dark:bg-card border-2 border-slate-200 dark:border-border shadow-sm">
             <div className="overflow-x-auto">

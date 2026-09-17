@@ -5,6 +5,7 @@ import { useTransactions } from '../context/TransactionContext';
 import { useAccounts } from '../context/AccountContext';
 import { useCategories } from '../context/CategoryContext';
 import { stripHtml } from '../components/RichTextEditor';
+import { EmptyState } from '../components/EmptyState';
 import { useViewPreferences } from '../hooks/useViewPreferences';
 import { DateRangeFilter, defaultDateRange, type DateRangeValue } from '../components/DateRangeFilter';
 import { format } from 'date-fns';
@@ -226,22 +227,10 @@ export function Transactions() {
   if (accounts.length === 0 && transactions.length === 0) return (
     <div className="space-y-4">
       <p className="text-sm font-medium text-foreground/65">All Your Transaction History</p>
-      <Card className="border-2 border-amber-400 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
-        <CardContent className="py-14 flex flex-col items-center text-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
-            <Wallet size={28} className="text-amber-600 dark:text-amber-400" />
-          </div>
-          <div>
-            <p className="text-lg font-semibold text-foreground">No Account Yet</p>
-            <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-              Create at least one account before recording transactions.
-            </p>
-          </div>
-          <Button onClick={() => navigate('/accounts')} className="gap-2 mt-1">
-            <Plus size={16} /> Create Account
-          </Button>
-        </CardContent>
-      </Card>
+      <EmptyState
+        type="accounts"
+        onAction={() => navigate('/accounts')}
+      />
     </div>
   );
 
@@ -612,12 +601,10 @@ export function Transactions() {
       {/* ── SCROLLABLE CONTENT ── */}
       <div className="flex-1 overflow-y-auto min-h-0 no-scrollbar">
         {filteredTransactions.length === 0 ? (
-          <Card className="border-2 border-slate-200 dark:border-border bg-white dark:bg-card shadow-sm">
-            <CardContent className="py-16 text-center">
-              <p className="text-muted-foreground">No Transactions Found</p>
-              <p className="text-sm text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
-            </CardContent>
-          </Card>
+          <EmptyState
+            type="transactions"
+            onAction={() => navigate('/transactions/new')}
+          />
 
         ) : viewMode === 'list' ? (
           <div className="rounded-xl overflow-hidden w-full bg-white dark:bg-card border-2 border-slate-200 dark:border-border shadow-sm">
