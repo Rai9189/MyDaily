@@ -2,11 +2,11 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Card, CardContent } from '../components/ui/card';
+import { AuthShell, AuthHeader } from '../components/AuthShell';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Eye, EyeOff, Loader2, Check, X, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Check, X } from 'lucide-react';
 
 interface PasswordRule { label: string; test: (pw: string) => boolean; }
 
@@ -89,19 +89,8 @@ export function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-[#0b1622] dark:to-[#111e2e] flex items-start justify-center p-4 py-8 overflow-y-auto">
-      <div className="w-full max-w-sm">
-        <Card className="border-2 border-blue-200 dark:border-blue-900/50 bg-white dark:bg-card shadow-lg rounded-2xl">
-          <CardContent className="pt-8 pb-7 px-7">
-
-            {/* Header */}
-            <div className="flex flex-col items-center mb-6">
-              <div className="w-11 h-11 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-3">
-                <UserPlus size={20} className="text-blue-600 dark:text-blue-400" />
-              </div>
-              <h1 className="text-2xl font-bold text-foreground">Create account</h1>
-              <p className="text-sm text-muted-foreground mt-1">Sign up to get started</p>
-            </div>
+    <AuthShell align="start">
+      <AuthHeader title="Create account" subtitle="Sign up to get started" />
 
             <form onSubmit={handleRegister} className="space-y-4" noValidate>
 
@@ -184,7 +173,7 @@ export function Register() {
                         {Array.from({ length: 5 }).map((_, i) => (
                           <div
                             key={i}
-                            className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                            className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
                               i < strength.score ? strength.color : 'bg-slate-200 dark:bg-slate-700'
                             }`}
                           />
@@ -290,9 +279,6 @@ export function Register() {
               </p>
 
             </form>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    </AuthShell>
   );
 }

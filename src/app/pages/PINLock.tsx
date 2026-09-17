@@ -2,9 +2,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Card, CardContent } from '../components/ui/card';
+import { AuthShell, AuthHeader } from '../components/AuthShell';
 import { Button } from '../components/ui/button';
-import { Loader2, AlertCircle, Eye, EyeOff, Clock, Shield } from 'lucide-react';
+import { Loader2, AlertCircle, Eye, EyeOff, Clock } from 'lucide-react';
 
 const AUTO_LOGOUT_MINUTES = 15;
 const AUTO_LOGOUT_MS      = AUTO_LOGOUT_MINUTES * 60 * 1000;
@@ -165,23 +165,11 @@ export function PINLock() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-[#0b1622] dark:to-[#111e2e] flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <Card className="border-2 border-blue-200 dark:border-blue-900/50 bg-white dark:bg-card shadow-lg rounded-2xl">
-          <CardContent className="pt-8 pb-7 px-7">
-
-            {/* User greeting */}
-            <div className="flex flex-col items-center mb-6">
-              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center mb-3">
-                <Shield size={22} className="text-primary-foreground" />
-              </div>
-              <h1 className="text-2xl font-bold text-foreground">
-                {user.name ? `Hello, ${user.name.split(' ')[0]}` : 'Welcome back'}
-              </h1>
-              {user.email && (
-                <p className="text-sm text-muted-foreground mt-1">{user.email}</p>
-              )}
-            </div>
+    <AuthShell>
+            <AuthHeader
+              title={user.name ? `Hello, ${user.name.split(' ')[0]}` : 'Welcome back'}
+              subtitle={user.email}
+            />
 
             <form onSubmit={handleSubmit} className="space-y-3">
 
@@ -319,9 +307,6 @@ export function PINLock() {
                 </Button>
               </div>
             </form>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    </AuthShell>
   );
 }

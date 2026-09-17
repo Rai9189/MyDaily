@@ -2,12 +2,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Card, CardContent } from '../components/ui/card';
+import { AuthShell, AuthHeader } from '../components/AuthShell';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function PINSetup() {
@@ -77,23 +77,11 @@ export function PINSetup() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-[#0b1622] dark:to-[#111e2e] flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <Card className="border-2 border-blue-200 dark:border-blue-900/50 bg-white dark:bg-card shadow-lg rounded-2xl">
-          <CardContent className="pt-8 pb-7 px-7">
-
-            {/* Header */}
-            <div className="flex flex-col items-center mb-6">
-              <div className="w-11 h-11 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-3">
-                <ShieldCheck size={20} className="text-blue-600 dark:text-blue-400" />
-              </div>
-              <h1 className="text-2xl font-bold text-foreground text-center">
-                {isForgotPin ? 'Reset your PIN' : 'Set up PIN lock'}
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1 text-center">
-                {isForgotPin ? 'Create a new PIN for your account' : 'Protect your app with a PIN or password'}
-              </p>
-            </div>
+    <AuthShell>
+            <AuthHeader
+              title={isForgotPin ? 'Reset your PIN' : 'Set up PIN lock'}
+              subtitle={isForgotPin ? 'Create a new PIN for your account' : 'Protect your app with a PIN or password'}
+            />
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
@@ -251,9 +239,6 @@ export function PINSetup() {
                 }
               </Button>
             </form>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    </AuthShell>
   );
 }

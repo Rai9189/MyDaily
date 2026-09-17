@@ -2,11 +2,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Card, CardContent } from '../components/ui/card';
+import { AuthShell, AuthHeader } from '../components/AuthShell';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Eye, EyeOff, Loader2, ShieldAlert, LogIn } from 'lucide-react';
+import { Eye, EyeOff, Loader2, ShieldAlert } from 'lucide-react';
 
 const MAX_ATTEMPTS     = 3;
 const COOLDOWN_SECONDS = 30;
@@ -90,19 +90,8 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-[#0b1622] dark:to-[#111e2e] flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <Card className="border-2 border-blue-200 dark:border-blue-900/50 bg-white dark:bg-card shadow-lg rounded-2xl">
-          <CardContent className="pt-8 pb-7 px-7">
-
-            {/* Header */}
-            <div className="flex flex-col items-center mb-6">
-              <div className="w-11 h-11 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-3">
-                <LogIn size={20} className="text-blue-600 dark:text-blue-400" />
-              </div>
-              <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
-              <p className="text-sm text-muted-foreground mt-1">Sign in to your account</p>
-            </div>
+    <AuthShell>
+      <AuthHeader title="Welcome back" subtitle="Sign in to your account" />
 
             <form onSubmit={handleLogin} className="space-y-4">
 
@@ -182,9 +171,6 @@ export function Login() {
                 </Button>
               </p>
             </form>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    </AuthShell>
   );
 }

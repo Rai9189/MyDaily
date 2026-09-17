@@ -2,11 +2,11 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Card, CardContent } from '../components/ui/card';
+import { AuthShell, AuthHeader } from '../components/AuthShell';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { ChevronLeft, Loader2, CheckCircle2, KeyRound } from 'lucide-react';
+import { ChevronLeft, Loader2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function ForgotPassword() {
@@ -46,25 +46,13 @@ export function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-[#0b1622] dark:to-[#111e2e] flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <Card className="border-2 border-blue-200 dark:border-blue-900/50 bg-white dark:bg-card shadow-lg rounded-2xl">
-          <CardContent className="pt-8 pb-7 px-7">
-
+    <AuthShell>
             {!sent ? (
               <>
-                {/* Header */}
-                <div className="flex flex-col items-center mb-6">
-                  <div className="w-11 h-11 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-3">
-                    <KeyRound size={20} className="text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <h1 className="text-2xl font-bold text-foreground text-center">
-                    {fromProfile ? 'Change Password' : 'Forgot Password'}
-                  </h1>
-                  <p className="text-sm text-muted-foreground mt-1 text-center">
-                    We'll send a reset link to your email
-                  </p>
-                </div>
+                <AuthHeader
+                  title={fromProfile ? 'Change Password' : 'Forgot Password'}
+                  subtitle="We'll send a reset link to your email"
+                />
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {/* Back link */}
@@ -135,9 +123,6 @@ export function ForgotPassword() {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    </AuthShell>
   );
 }
