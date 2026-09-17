@@ -98,7 +98,7 @@ function ColorPicker({ onSelect, current }: { onSelect: (c: string) => void; cur
             <button
               key={c} type="button"
               onMouseDown={(e) => { e.preventDefault(); onSelect(c); setOpen(false); }}
-              className="w-5 h-5 rounded border border-border hover:scale-110 transition-transform"
+              className="w-5 h-5 rounded border border-border active:scale-90 transition-transform"
               style={{ backgroundColor: c }}
               title={c}
             />

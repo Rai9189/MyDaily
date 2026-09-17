@@ -1,5 +1,5 @@
 // src/app/components/DateRangeFilter.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   startOfDay, endOfDay, startOfWeek, endOfWeek,
   startOfMonth, endOfMonth, startOfYear, endOfYear,
@@ -79,6 +79,13 @@ export function DateRangeFilter({ value, onChange }: DateRangeFilterProps) {
       setShowCalendar(false);
     }
   };
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); setShowCalendar(false); } };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
 
   const handleClear = () => {
     const def = defaultDateRange();

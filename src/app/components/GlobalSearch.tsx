@@ -160,7 +160,7 @@ export function GlobalSearch() {
                   placeholder="Search transactions, tasks, notes, accounts..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="flex-1 bg-transparent text-foreground text-sm outline-none placeholder:text-muted-foreground"
+                  className="flex-1 bg-transparent text-foreground text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-sm placeholder:text-muted-foreground"
                 />
                 <button
                   onClick={() => setOpen(false)}

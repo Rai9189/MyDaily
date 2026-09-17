@@ -1,4 +1,5 @@
 // src/app/components/SummaryPopup.tsx
+import { useEffect } from 'react';
 import { TrendingUp, TrendingDown, ArrowLeftRight, X, ChevronRight } from 'lucide-react';
 
 export type PopupType = 'income' | 'expense' | 'transfer' | null;
@@ -21,6 +22,13 @@ export function SummaryPopup({
   onClose: () => void;
   onViewAll: () => void;
 }) {
+  useEffect(() => {
+    if (!type) return;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [type, onClose]);
+
   if (!type) return null;
 
   const config = {
@@ -97,7 +105,7 @@ export function SummaryPopup({
 
         <button
           onClick={onViewAll}
-          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] ${c.btnBg} ${c.color} flex items-center justify-center gap-1.5`}
+          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-transform active:scale-[0.98] ${c.btnBg} ${c.color} flex items-center justify-center gap-1.5`}
         >
           View All {c.label} <ChevronRight size={15} />
         </button>

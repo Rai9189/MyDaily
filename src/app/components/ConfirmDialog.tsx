@@ -67,12 +67,12 @@ export function ConfirmDialog({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-200 ${
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition duration-200 ${
         show ? 'bg-black/40 backdrop-blur-sm' : 'bg-black/0 backdrop-blur-none'
       }`}
     >
       <div
-        className={`relative w-full max-w-[420px] bg-white dark:bg-card rounded-2xl shadow-2xl border border-border overflow-hidden transition-all duration-200 ${
+        className={`relative w-full max-w-[420px] bg-white dark:bg-card rounded-2xl shadow-2xl border border-border overflow-hidden transition duration-200 ${
           show ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
         }`}
       >
