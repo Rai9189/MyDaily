@@ -1,6 +1,7 @@
 // src/app/pages/Dashboard.tsx
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { useAccounts } from '../context/AccountContext';
 import { useTransactions } from '../context/TransactionContext';
@@ -13,9 +14,8 @@ import {
   Info, ArrowLeftRight, CalendarDays,
 } from 'lucide-react';
 import { SummaryPopup, PopupType } from '../components/SummaryPopup';
-import { QuickStats } from '../components/QuickStats';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { isWithinInterval, format, startOfMonth, endOfMonth } from 'date-fns';
+import { isWithinInterval, format, eachDayOfInterval, isSameDay } from 'date-fns';
 import { DateRangeFilter, defaultDateRange, getPresetRange, type DateRangeValue } from '../components/DateRangeFilter';
 import { DashboardSkeleton } from '../components/Skeletons';
 
@@ -79,6 +79,13 @@ export function Dashboard() {
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
   const [activePopup, setActivePopup] = useState<PopupType>(null);
 
+  useEffect(() => {
+    if (!accountDropdownOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') setAccountDropdownOpen(false); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [accountDropdownOpen]);
+
   const filteredTx = useMemo(
     () => transactions.filter(t =>
       inRange(t.date, range.start, range.end) &&
@@ -98,15 +105,28 @@ export function Dashboard() {
 
   const transfer = useMemo(() => filteredTx.filter(t => t.type === 'transfer' && t.toAccountId).reduce((s, t) => s + t.amount, 0), [filteredTx]);
 
-  // Monthly overview (current month)
-  const currentMonthStart = useMemo(() => startOfMonth(new Date()), []);
-  const currentMonthEnd = useMemo(() => endOfMonth(new Date()), []);
-  const monthlyTx = useMemo(
-    () => transactions.filter(t => inRange(t.date, currentMonthStart, currentMonthEnd) && (selectedAccountId === 'all' || t.accountId === selectedAccountId)),
-    [transactions, selectedAccountId, currentMonthStart, currentMonthEnd],
-  );
-  const monthlyIncome = useMemo(() => monthlyTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0), [monthlyTx]);
-  const monthlyExpense = useMemo(() => monthlyTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0), [monthlyTx]);
+  const sparklinePoints = useMemo(() => {
+    const days = eachDayOfInterval({ start: range.start, end: range.end });
+    if (days.length < 2) return null;
+    let cumulative = 0;
+    const values = days.map(day => {
+      const dayNet = filteredTx
+        .filter(t => t.type !== 'transfer' && isSameDay(new Date(t.date), day))
+        .reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
+      cumulative += dayNet;
+      return cumulative;
+    });
+    const min = Math.min(...values, 0);
+    const max = Math.max(...values, 0);
+    const span = max - min || 1;
+    return values
+      .map((v, i) => {
+        const x = (i / (values.length - 1)) * 64;
+        const y = 24 - ((v - min) / span) * 24;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(' ');
+  }, [filteredTx, range]);
 
   const incomeTxCount   = useMemo(() => filteredTx.filter(t => t.type === 'income').length,                    [filteredTx]);
   const expenseTxCount  = useMemo(() => filteredTx.filter(t => t.type === 'expense').length,                   [filteredTx]);
@@ -290,17 +310,7 @@ export function Dashboard() {
             ))}
           </div>
 
-          {/* ── Monthly Overview ── */}
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2 px-1">Monthly Summary</p>
-            <QuickStats
-              totalBalance={totalBalance}
-              monthlyIncome={monthlyIncome}
-              monthlyExpense={monthlyExpense}
-            />
-          </div>
-
-          {/* ── Balance Card ── */}
+          {/* ── Hero: total balance + net-flow sparkline ── */}
           <Card className="border shadow-lg rounded-xl overflow-hidden text-white bg-primary dark:border-[rgba(59,159,216,0.3)]"
             style={{ background: 'var(--balance-card-bg, var(--primary))' }}
           >
@@ -322,82 +332,69 @@ export function Dashboard() {
                       : (accounts.find(a => a.id === selectedAccountId)?.type ?? '')}
                   </p>
                 </div>
-                <div className="opacity-10 flex-shrink-0"><Wallet size={40} /></div>
+                {sparklinePoints ? (
+                  <svg width="72" height="28" viewBox="0 0 64 24" className="flex-shrink-0 opacity-90" aria-hidden="true">
+                    <polyline points={sparklinePoints} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : (
+                  <div className="opacity-10 flex-shrink-0"><Wallet size={40} /></div>
+                )}
               </div>
             </CardContent>
           </Card>
 
-          {/* ── Income + Expense + Transfer cards ── */}
-          <div className="grid gap-2 grid-cols-3">
-            {/* Income */}
-            <Card
-              className="bg-white dark:bg-card border-2 border-green-200 dark:border-green-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform overflow-hidden"
-              onClick={() => setActivePopup('income')}
-            >
-              <CardContent className="pt-3 pb-3 px-3">
-                <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400 mb-1.5">
-                  <div className="w-5 h-5 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-                    <TrendingUp size={11} />
-                  </div>
-                  <span className="text-xs font-semibold truncate">Income</span>
-                  <span className="ml-auto text-[10px] font-semibold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-1 py-0.5 rounded-full flex-shrink-0 hidden sm:inline">
-                    {income + expense > 0 ? `${((income / (income + expense)) * 100).toFixed(0)}%` : '—'}
-                  </span>
-                </div>
-                <p className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(income)}</p>
-                <p className="text-base font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(income)}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-0.5 truncate">
-                  <span className="truncate">{incomeTxCount} tx</span>
-                  <ChevronRight size={10} className="opacity-50 flex-shrink-0" />
-                </p>
-              </CardContent>
-            </Card>
+          {/* ── Ledger: income / expense / net, typography-led ── */}
+          <Card className="bg-white dark:bg-card border shadow-sm rounded-xl overflow-hidden">
+            <div className="grid grid-cols-3 divide-x divide-border">
+              <button type="button" onClick={() => setActivePopup('income')}
+                className="flex flex-col items-start px-3 py-3 text-left hover:bg-muted/40 transition-colors min-w-0"
+              >
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                  <TrendingUp size={11} className="text-green-600 dark:text-green-400 flex-shrink-0" /> Income
+                </span>
+                <span className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(income)}</span>
+                <span className="text-base font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(income)}</span>
+                <span className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                  {incomeTxCount} tx{incomePercent ? ` · ${incomePercent}%` : ''}
+                </span>
+              </button>
 
-            {/* Expense */}
-            <Card
-              className="bg-white dark:bg-card border-2 border-red-200 dark:border-red-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform overflow-hidden"
-              onClick={() => setActivePopup('expense')}
-            >
-              <CardContent className="pt-3 pb-3 px-3">
-                <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 mb-1.5">
-                  <div className="w-5 h-5 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
-                    <TrendingDown size={11} />
-                  </div>
-                  <span className="text-xs font-semibold truncate">Expense</span>
-                  <span className="ml-auto text-[10px] font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1 py-0.5 rounded-full flex-shrink-0 hidden sm:inline">
-                    {income + expense > 0 ? `${((expense / (income + expense)) * 100).toFixed(0)}%` : '—'}
-                  </span>
-                </div>
-                <p className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(expense)}</p>
-                <p className="text-base font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(expense)}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-0.5 truncate">
-                  <span className="truncate">{expenseTxCount} tx</span>
-                  <ChevronRight size={10} className="opacity-50 flex-shrink-0" />
-                </p>
-              </CardContent>
-            </Card>
+              <button type="button" onClick={() => setActivePopup('expense')}
+                className="flex flex-col items-start px-3 py-3 text-left hover:bg-muted/40 transition-colors min-w-0"
+              >
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                  <TrendingDown size={11} className="text-red-600 dark:text-red-400 flex-shrink-0" /> Expense
+                </span>
+                <span className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(expense)}</span>
+                <span className="text-base font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(expense)}</span>
+                <span className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                  {expenseTxCount} tx{expensePercent ? ` · ${expensePercent}%` : ''}
+                </span>
+              </button>
 
-            {/* Transfer */}
-            <Card
-              className="bg-white dark:bg-card border-2 border-blue-200 dark:border-blue-900/50 shadow-sm rounded-xl cursor-pointer active:scale-[0.98] transition-transform overflow-hidden"
-              onClick={() => setActivePopup('transfer')}
-            >
-              <CardContent className="pt-3 pb-3 px-3">
-                <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 mb-1.5">
-                  <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                    <ArrowLeftRight size={11} />
-                  </div>
-                  <span className="text-xs font-semibold truncate">Transfer</span>
-                </div>
-                <p className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(transfer)}</p>
-                <p className="text-base font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(transfer)}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-0.5 truncate">
-                  <span className="truncate">{transferTxCount} tx</span>
-                  <ChevronRight size={10} className="opacity-50 flex-shrink-0" />
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+              <div className="flex flex-col items-start px-3 py-3 min-w-0">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Net</span>
+                <span className={`text-sm font-bold leading-tight truncate hidden sm:block ${net >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {net < 0 ? '-' : ''}{fmt(Math.abs(net))}
+                </span>
+                <span className={`text-base font-bold leading-tight truncate sm:hidden ${net >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {net < 0 ? '-' : ''}{fmtShort(Math.abs(net))}
+                </span>
+                <span className="text-[10px] text-muted-foreground mt-0.5 truncate">{net >= 0 ? 'Surplus' : 'Deficit'}</span>
+              </div>
+            </div>
+          </Card>
+
+          {/* ── Transfer: secondary, lower visual weight ── */}
+          <button type="button" onClick={() => setActivePopup('transfer')}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg border border-border bg-white dark:bg-card text-xs hover:bg-muted/40 transition-colors"
+          >
+            <ArrowLeftRight size={12} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
+            <span className="text-muted-foreground">Transfer</span>
+            <span className="font-semibold text-foreground ml-auto">{fmt(transfer)}</span>
+            <span className="text-muted-foreground">· {transferTxCount} tx</span>
+            <ChevronRight size={12} className="opacity-50 flex-shrink-0" />
+          </button>
 
           {/* ── Popup detail ── */}
           {activePopup === 'income' && (
@@ -454,7 +451,7 @@ export function Dashboard() {
                     key={m.key}
                     type="button"
                     onClick={() => setPieMode(m.key)}
-                    className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-all duration-150 ${
+                    className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition duration-150 ${
                       pieMode === m.key
                         ? m.activeClass
                         : 'text-muted-foreground hover:text-foreground'
@@ -607,7 +604,7 @@ export function Dashboard() {
               <div className="min-h-[96px]">
                 {upcomingTasks.length > 0 ? (
                   <div className="divide-y divide-border">
-                    {upcomingTasks.map(task => {
+                    {upcomingTasks.map((task, i) => {
                       const today = new Date(); today.setHours(0, 0, 0, 0);
                       const deadline = new Date(task.deadline); deadline.setHours(0, 0, 0, 0);
                       const daysLeft = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -622,8 +619,11 @@ export function Dashboard() {
                         : daysLeft <= 3  ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20'
                         : 'text-muted-foreground bg-muted/60';
                       return (
-                        <div
+                        <motion.div
                           key={task.id}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: Math.min(i * 0.04, 0.3), duration: 0.2, ease: 'easeOut' }}
                           className="flex items-center justify-between py-2 hover:bg-muted/30 cursor-pointer -mx-1 px-1 rounded-lg transition-colors"
                           onClick={() => navigate(`/tasks/${task.id}`)}
                         >
@@ -632,7 +632,7 @@ export function Dashboard() {
                               type="button"
                               onClick={(e) => handleToggleTask(e, task)}
                               title="Mark complete"
-                              className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted/50 active:bg-muted/70 transition-all active:scale-95"
+                              className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted/50 active:bg-muted/70 transition active:scale-95"
                             >
                               <span className={`w-3 h-3 rounded-full border-2 block ${dotBorderColor(task.status)}`} />
                             </button>
@@ -646,7 +646,7 @@ export function Dashboard() {
                           <span className={`flex-shrink-0 ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${daysColor}`}>
                             {daysLabel}
                           </span>
-                        </div>
+                        </motion.div>
                       );
                     })}
                   </div>
