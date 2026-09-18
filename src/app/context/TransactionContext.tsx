@@ -1,6 +1,7 @@
 // src/app/context/TransactionContext.tsx
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase, handleSupabaseError } from '../../lib/supabase';
+import { withErrorHandling, withErrorHandlingNoData } from '../../lib/errorHandler';
 import { Transaction } from '../types';
 import { useAuth } from './AuthContext';
 import { useAccounts } from './AccountContext';
@@ -103,11 +104,14 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
   //    Kita cukup refresh accounts untuk sync local state.
   // ============================================================
   const createTransaction = async (transaction: Omit<Transaction, 'id'>) => {
-    try {
-      setError(null);
-      if (!user) throw new Error('User not authenticated');
-
-      const { data, error: insertError } = await supabase
+    setError(null);
+    if (!user) {
+      const msg = 'User not authenticated';
+      setError(msg);
+      return { success: false, error: msg };
+    }
+    return withErrorHandling(
+      () => supabase
         .from('transactions')
         .insert({
           user_id: user.id,
@@ -120,21 +124,17 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
           description: transaction.description,
         })
         .select()
-        .single();
-      if (insertError) throw insertError;
-
-      const mapped = mapToTransaction(data);
-      setTransactions(prev => [mapped, ...prev]);
-
-      // ✅ Trigger sudah update balance di DB — refresh untuk sync local state
-      await refreshAccounts();
-
-      return { success: true, data: mapped, error: null };
-    } catch (err) {
-      const errorMessage = handleSupabaseError(err);
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    }
+        .single(),
+      { setError }
+    ).then(async result => {
+      if (result.success && result.data) {
+        const mapped = mapToTransaction(result.data);
+        setTransactions(prev => [mapped, ...prev]);
+        await refreshAccounts();
+        return { success: true, data: mapped, error: null };
+      }
+      return { success: false, error: result.error };
+    });
   };
 
   // ============================================================
@@ -152,13 +152,20 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     description?: string;
     categoryId: string;
   }) => {
+    setError(null);
     let insertedOutId: string | null = null;
-    try {
-      setError(null);
-      if (!user) throw new Error('User not authenticated');
-      if (fromAccountId === toAccountId) throw new Error('Source and destination accounts must be different.');
+    if (!user) {
+      const msg = 'User not authenticated';
+      setError(msg);
+      return { success: false, error: msg };
+    }
+    if (fromAccountId === toAccountId) {
+      const msg = 'Source and destination accounts must be different.';
+      setError(msg);
+      return { success: false, error: msg };
+    }
 
-      // Optimistic update — balance langsung berubah di UI tanpa nunggu DB
+    try {
       updateBalanceLocally(fromAccountId, -amount);
       updateBalanceLocally(toAccountId, +amount);
 
@@ -203,12 +210,10 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       const mappedIn  = mapToTransaction(inData);
       setTransactions(prev => [mappedOut, mappedIn, ...prev]);
 
-      // ✅ Trigger sudah handle balance kedua akun — refresh untuk sync
       await refreshAccounts();
 
       return { success: true, error: null };
     } catch (err) {
-      // Hard-delete outgoing agar trigger DB rollback balance & tidak meninggalkan orphan di Trash
       if (insertedOutId) {
         await supabase.from('transactions').delete().eq('id', insertedOutId);
       }
@@ -227,37 +232,32 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
   //    Kita cukup refresh accounts setelah update berhasil.
   // ============================================================
   const updateTransaction = async (id: string, updates: Partial<Transaction>) => {
-    try {
-      setError(null);
-      if (!id || id === 'new') throw new Error('Invalid transaction ID');
-
-      const dbUpdates: any = {};
-      if (updates.accountId     !== undefined) dbUpdates.account_id     = updates.accountId;
-      if (updates.categoryId    !== undefined) dbUpdates.category_id    = updates.categoryId;
-      if (updates.subcategoryId !== undefined) dbUpdates.subcategory_id = updates.subcategoryId ?? null;
-      if (updates.amount        !== undefined) dbUpdates.amount         = updates.amount;
-      if (updates.type          !== undefined) dbUpdates.type           = updates.type;
-      if (updates.date          !== undefined) dbUpdates.date           = updates.date;
-      if (updates.description   !== undefined) dbUpdates.description    = updates.description;
-
-      const { error: updateError } = await supabase
-        .from('transactions')
-        .update(dbUpdates)
-        .eq('id', id);
-      if (updateError) throw updateError;
-
-      // Update local transaction list
-      setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
-
-      // ✅ Trigger DB sudah update balance — refresh untuk sync local state
-      await refreshAccounts();
-
-      return { success: true, error: null };
-    } catch (err) {
-      const errorMessage = handleSupabaseError(err);
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
+    setError(null);
+    if (!id || id === 'new') {
+      const msg = 'Invalid transaction ID';
+      setError(msg);
+      return { success: false, error: msg };
     }
+
+    const dbUpdates: any = {};
+    if (updates.accountId     !== undefined) dbUpdates.account_id     = updates.accountId;
+    if (updates.categoryId    !== undefined) dbUpdates.category_id    = updates.categoryId;
+    if (updates.subcategoryId !== undefined) dbUpdates.subcategory_id = updates.subcategoryId ?? null;
+    if (updates.amount        !== undefined) dbUpdates.amount         = updates.amount;
+    if (updates.type          !== undefined) dbUpdates.type           = updates.type;
+    if (updates.date          !== undefined) dbUpdates.date           = updates.date;
+    if (updates.description   !== undefined) dbUpdates.description    = updates.description;
+
+    return withErrorHandlingNoData(
+      () => supabase.from('transactions').update(dbUpdates).eq('id', id),
+      { setError }
+    ).then(async result => {
+      if (result.success) {
+        setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+        await refreshAccounts();
+      }
+      return result;
+    });
   };
 
   // ============================================================
@@ -274,75 +274,74 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     description?: string;
     categoryId: string;
   }) => {
-    try {
-      setError(null);
-      const outTx = transactions.find(t => t.id === id);
-      if (!outTx || !outTx.transferPairId) throw new Error('Transfer not found');
+    setError(null);
+    const outTx = transactions.find(t => t.id === id);
+    if (!outTx || !outTx.transferPairId) {
+      const msg = 'Transfer not found';
+      setError(msg);
+      return { success: false, error: msg };
+    }
 
-      const inTx = transactions.find(t =>
-        t.transferPairId === outTx.transferPairId && t.id !== id
-      );
+    const inTx = transactions.find(t =>
+      t.transferPairId === outTx.transferPairId && t.id !== id
+    );
 
-      // Update outgoing transaction
-      const { error: outError } = await supabase
+    const { error: outError } = await supabase
+      .from('transactions')
+      .update({
+        account_id: updates.fromAccountId,
+        to_account_id: updates.toAccountId,
+        amount: updates.amount,
+        date: updates.date,
+        description: updates.description || '',
+        category_id: updates.categoryId,
+      })
+      .eq('id', id);
+    if (outError) {
+      setError(handleSupabaseError(outError));
+      return { success: false, error: handleSupabaseError(outError) };
+    }
+
+    if (inTx) {
+      const { error: inError } = await supabase
         .from('transactions')
         .update({
-          account_id: updates.fromAccountId,
-          to_account_id: updates.toAccountId,
+          account_id: updates.toAccountId,
           amount: updates.amount,
           date: updates.date,
           description: updates.description || '',
           category_id: updates.categoryId,
         })
-        .eq('id', id);
-      if (outError) throw outError;
-
-      // Update incoming transaction
-      if (inTx) {
-        const { error: inError } = await supabase
-          .from('transactions')
-          .update({
-            account_id: updates.toAccountId,
-            amount: updates.amount,
-            date: updates.date,
-            description: updates.description || '',
-            category_id: updates.categoryId,
-          })
-          .eq('id', inTx.id);
-        if (inError) throw inError;
+        .eq('id', inTx.id);
+      if (inError) {
+        setError(handleSupabaseError(inError));
+        return { success: false, error: handleSupabaseError(inError) };
       }
-
-      // Update local transaction list
-      setTransactions(prev => prev.map(t => {
-        if (t.id === id) return {
-          ...t,
-          accountId: updates.fromAccountId,
-          toAccountId: updates.toAccountId,
-          amount: updates.amount,
-          date: updates.date,
-          description: updates.description || '',
-          categoryId: updates.categoryId,
-        };
-        if (inTx && t.id === inTx.id) return {
-          ...t,
-          accountId: updates.toAccountId,
-          amount: updates.amount,
-          date: updates.date,
-          description: updates.description || '',
-          categoryId: updates.categoryId,
-        };
-        return t;
-      }));
-
-      // ✅ Trigger DB sudah handle balance kedua akun — refresh untuk sync
-      await refreshAccounts();
-
-      return { success: true, error: null };
-    } catch (err) {
-      const errorMessage = handleSupabaseError(err);
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
     }
+
+    setTransactions(prev => prev.map(t => {
+      if (t.id === id) return {
+        ...t,
+        accountId: updates.fromAccountId,
+        toAccountId: updates.toAccountId,
+        amount: updates.amount,
+        date: updates.date,
+        description: updates.description || '',
+        categoryId: updates.categoryId,
+      };
+      if (inTx && t.id === inTx.id) return {
+        ...t,
+        accountId: updates.toAccountId,
+        amount: updates.amount,
+        date: updates.date,
+        description: updates.description || '',
+        categoryId: updates.categoryId,
+      };
+      return t;
+    }));
+
+    await refreshAccounts();
+    return { success: true, error: null };
   };
 
   // ============================================================
@@ -353,42 +352,42 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
   //    otomatis saat deleted_at di-set.
   // ============================================================
   const deleteTransaction = async (id: string) => {
-    try {
-      setError(null);
-      const transaction = transactions.find(t => t.id === id);
+    setError(null);
+    const transaction = transactions.find(t => t.id === id);
 
-      if (transaction?.type === 'transfer' && transaction.transferPairId) {
-        // Soft delete kedua sisi transfer sekaligus
-        const now = new Date().toISOString();
-        const { error: deleteError } = await supabase
+    if (transaction?.type === 'transfer' && transaction.transferPairId) {
+      const now = new Date().toISOString();
+      return withErrorHandlingNoData(
+        () => supabase
           .from('transactions')
           .update({ deleted_at: now })
-          .eq('transfer_pair_id', transaction.transferPairId);
-        if (deleteError) throw deleteError;
-
-        setTransactions(prev =>
-          prev.filter(t => t.transferPairId !== transaction.transferPairId)
-        );
-      } else {
-        // Soft delete transaksi biasa
-        const { error: deleteError } = await supabase
+          .eq('transfer_pair_id', transaction.transferPairId),
+        { setError }
+      ).then(async result => {
+        if (result.success) {
+          setTransactions(prev =>
+            prev.filter(t => t.transferPairId !== transaction.transferPairId)
+          );
+          await refreshAccounts();
+          trashEvents.emit();
+        }
+        return result;
+      });
+    } else {
+      return withErrorHandlingNoData(
+        () => supabase
           .from('transactions')
           .update({ deleted_at: new Date().toISOString() })
-          .eq('id', id);
-        if (deleteError) throw deleteError;
-
-        setTransactions(prev => prev.filter(t => t.id !== id));
-      }
-
-      // ✅ Trigger DB sudah rollback balance — refresh untuk sync local state
-      await refreshAccounts();
-
-      trashEvents.emit();
-      return { success: true, error: null };
-    } catch (err) {
-      const errorMessage = handleSupabaseError(err);
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
+          .eq('id', id),
+        { setError }
+      ).then(async result => {
+        if (result.success) {
+          setTransactions(prev => prev.filter(t => t.id !== id));
+          await refreshAccounts();
+          trashEvents.emit();
+        }
+        return result;
+      });
     }
   };
 
