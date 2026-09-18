@@ -22,6 +22,7 @@ import { subDays } from 'date-fns';
 import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
 import { fmtIDR } from '../../lib/formatCurrency';
+import { formatNumericDisplay, parseNumericInput, handleNumericKeyInput } from '../../lib/numericInput';
 
 const MAX_BALANCE = 1_000_000_000;
 const MAX_NAME = 100;
@@ -58,34 +59,15 @@ interface ConfirmState {
 const DEFAULT_CONFIRM: ConfirmState = { open: false, accountName: '', onConfirm: () => {} };
 
 function formatBalanceDisplay(value: number): string {
-  if (!value || value === 0) return '';
-  const [intPart, decPart] = value.toString().split('.');
-  const formattedInt = Number(intPart).toLocaleString('id-ID');
-  return decPart ? `${formattedInt},${decPart}` : formattedInt;
+  return formatNumericDisplay(value);
 }
 
 function parseBalanceInput(display: string): number {
-  const normalized = display
-    .replace(/\./g, '')
-    .replace(',', '.');
-  const parsed = parseFloat(normalized);
-  return isNaN(parsed) ? 0 : parsed;
+  return parseNumericInput(display);
 }
 
 function handleBalanceKeyInput(raw: string): string {
-  const cleaned = raw.replace(/[^\d.,]/g, '');
-  const hasComma   = cleaned.includes(',');
-  const commaIndex = cleaned.indexOf(',');
-  const afterComma = hasComma ? cleaned.slice(commaIndex + 1) : '';
-  if ((cleaned.match(/,/g) || []).length > 1) return raw.slice(0, -1);
-  if (hasComma && afterComma.length > 2) return raw.slice(0, -1);
-  const intRaw = hasComma
-    ? cleaned.slice(0, commaIndex).replace(/\./g, '')
-    : cleaned.replace(/\./g, '');
-  if (!intRaw && !hasComma) return '';
-  const formattedInt = intRaw ? Number(intRaw).toLocaleString('id-ID') : '0';
-  if (hasComma) return `${formattedInt},${afterComma}`;
-  return formattedInt;
+  return handleNumericKeyInput(raw);
 }
 
 export function Accounts() {
