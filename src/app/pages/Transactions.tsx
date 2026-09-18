@@ -24,21 +24,10 @@ import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { SummaryPopup, PopupType } from '../components/SummaryPopup';
+import { fmtIDR, fmtIDRCompact } from '../../lib/formatCurrency';
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(n);
-
-const fmtShort = (n: number) => {
-  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(2)}M`;
-  if (n >= 1_000_000)     return `Rp ${(n / 1_000_000).toFixed(2)}jt`;
-  if (n >= 1_000)         return `Rp ${(n / 1_000).toFixed(1)}rb`;
-  return `Rp ${n.toLocaleString('id-ID')}`;
-};
+const fmt = fmtIDR;
+const fmtShort = fmtIDRCompact;
 
 export function Transactions() {
   const navigate = useNavigate();

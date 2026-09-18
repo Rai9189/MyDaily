@@ -1,16 +1,11 @@
 // src/app/components/SummaryPopup.tsx
 import { useEffect } from 'react';
 import { TrendingUp, TrendingDown, ArrowLeftRight, X, ChevronRight } from 'lucide-react';
+import { fmtIDR } from '../../lib/formatCurrency';
 
 export type PopupType = 'income' | 'expense' | 'transfer' | null;
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(n);
+const fmt = fmtIDR;
 
 export function SummaryPopup({
   type, amount, txCount, percentage, onClose, onViewAll,

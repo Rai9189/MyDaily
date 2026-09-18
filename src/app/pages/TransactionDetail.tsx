@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import { DetailPageSkeleton } from '../components/Skeletons';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { getDraft, saveDraft, clearDraft } from '../../lib/draftStorage';
+import { fmtIDR, fmtIDRCompact } from '../../lib/formatCurrency';
 
 const MAX_AMOUNT = 1_000_000_000;
 const MAX_DESC   = 10_000;
@@ -75,13 +76,7 @@ function handleAmountKeyInput(raw: string): string {
   return formattedInt;
 }
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(n);
+const fmt = fmtIDR;
 
 export function TransactionDetail() {
   const navigate  = useNavigate();

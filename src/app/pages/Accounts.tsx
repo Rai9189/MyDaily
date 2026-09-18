@@ -21,6 +21,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { subDays } from 'date-fns';
 import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
+import { fmtIDR } from '../../lib/formatCurrency';
 
 const MAX_BALANCE = 1_000_000_000;
 const MAX_NAME = 100;
@@ -42,7 +43,7 @@ function BalanceTooltip({ active, payload }: any) {
     <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-lg text-xs">
       <p className="text-muted-foreground mb-0.5">{label}</p>
       <p className="font-semibold text-foreground">
-        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(balance)}
+        {fmtIDR(balance)}
       </p>
     </div>
   );

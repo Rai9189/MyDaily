@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { supabase, handleSupabaseError } from '../../lib/supabase';
 import { useAuth } from './AuthContext';
 import { trashEvents } from '../../lib/trashEvents';
+import { fmtIDR } from '../../lib/formatCurrency';
 
 export interface TrashItem {
   id: string;
@@ -49,7 +50,7 @@ export function TrashProvider({ children }: { children: ReactNode }) {
 
       (transactions.data || []).forEach(t => items.push({
         id: t.id, table: 'transactions',
-        name: `${t.type === 'income' ? '+' : t.type === 'transfer' ? '↔' : '-'} ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(t.amount)}`,
+        name: `${t.type === 'income' ? '+' : t.type === 'transfer' ? '↔' : '-'} ${fmtIDR(t.amount)}`,
         description: t.description || t.date,
         deleted_at: t.deleted_at,
         meta: { amount: t.amount, type: t.type, date: t.date, account_id: t.account_id },
