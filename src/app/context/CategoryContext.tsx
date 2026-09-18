@@ -1,6 +1,6 @@
 // src/app/context/CategoryContext.tsx
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, handleSupabaseError } from '../../lib/supabase';
 import { withErrorHandling, withErrorHandlingNoData } from '../../lib/errorHandler';
 import { Category } from '../types';
 import { useAuth } from './AuthContext';

@@ -1,6 +1,6 @@
 // src/app/context/NoteContext.tsx
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, handleSupabaseError } from '../../lib/supabase';
 import { withErrorHandling, withErrorHandlingNoData } from '../../lib/errorHandler';
 import { Note, Attachment } from '../types';
 import { useAuth } from './AuthContext';
