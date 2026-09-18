@@ -19,6 +19,7 @@ import { isWithinInterval, format, eachDayOfInterval, isSameDay } from 'date-fns
 import { DateRangeFilter, defaultDateRange, getPresetRange, type DateRangeValue } from '../components/DateRangeFilter';
 import { DashboardSkeleton } from '../components/Skeletons';
 import { fmtIDR } from '../../lib/formatCurrency';
+import { formatDateShort } from '../../lib/dateTimeFormat';
 
 const fmt = fmtIDR;
 

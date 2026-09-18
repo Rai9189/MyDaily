@@ -4,6 +4,7 @@ import { supabase, handleSupabaseError } from '../../lib/supabase';
 import { useAuth } from './AuthContext';
 import { trashEvents } from '../../lib/trashEvents';
 import { fmtIDR } from '../../lib/formatCurrency';
+import { formatDateShort } from '../../lib/dateTimeFormat';
 
 export interface TrashItem {
   id: string;
@@ -59,7 +60,7 @@ export function TrashProvider({ children }: { children: ReactNode }) {
       (tasks.data || []).forEach(t => items.push({
         id: t.id, table: 'tasks',
         name: t.title,
-        description: `Deadline: ${new Date(t.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+        description: `Deadline: ${formatDateShort(new Date(t.deadline))}`,
         deleted_at: t.deleted_at,
         meta: { deadline: t.deadline },
       }));

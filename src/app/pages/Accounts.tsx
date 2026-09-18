@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
 import { fmtIDR } from '../../lib/formatCurrency';
 import { formatNumericDisplay, parseNumericInput, handleNumericKeyInput } from '../../lib/numericInput';
+import { formatDateShort } from '../../lib/dateTimeFormat';
 
 const MAX_BALANCE = 1_000_000_000;
 const MAX_NAME = 100;
@@ -38,8 +39,7 @@ function BalanceTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
   const { date, balance } = payload[0].payload;
   const d = date.split('-');
-  const label = new Date(Number(d[0]), Number(d[1]) - 1, Number(d[2]))
-    .toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  const label = formatDateShort(new Date(Number(d[0]), Number(d[1]) - 1, Number(d[2])));
   return (
     <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-lg text-xs">
       <p className="text-muted-foreground mb-0.5">{label}</p>
@@ -626,8 +626,7 @@ export function Accounts() {
                               dataKey="date"
                               tickFormatter={(d: string) => {
                                 const p = d.split('-');
-                                return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]))
-                                  .toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+                                return formatDateCompact(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
                               }}
                               tick={{ fontSize: 10 }}
                               stroke="currentColor"
