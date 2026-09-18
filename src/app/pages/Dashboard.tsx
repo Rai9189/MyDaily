@@ -18,10 +18,11 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { isWithinInterval, format, eachDayOfInterval, isSameDay } from 'date-fns';
 import { DateRangeFilter, defaultDateRange, getPresetRange, type DateRangeValue } from '../components/DateRangeFilter';
 import { DashboardSkeleton } from '../components/Skeletons';
-import { fmtIDR } from '../../lib/formatCurrency';
+import { fmtIDR, fmtIDRCompact } from '../../lib/formatCurrency';
 import { formatDateShort } from '../../lib/dateTimeFormat';
 
 const fmt = fmtIDR;
+const fmtShort = fmtIDRCompact;
 
 const inRange = (dateStr: string, start: Date, end: Date) =>
   isWithinInterval(new Date(dateStr), { start, end });
