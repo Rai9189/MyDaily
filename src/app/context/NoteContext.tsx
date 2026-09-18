@@ -1,6 +1,7 @@
 // src/app/context/NoteContext.tsx
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase, handleSupabaseError } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import { withErrorHandling, withErrorHandlingNoData } from '../../lib/errorHandler';
 import { Note, Attachment } from '../types';
 import { useAuth } from './AuthContext';
 import { trashEvents } from '../../lib/trashEvents';
@@ -86,10 +87,15 @@ export function NoteProvider({ children }: { children: ReactNode }) {
   const getNoteById = (id: string) => notes.find(n => n.id === id);
 
   const createNote = async (note: Omit<Note, 'id' | 'timestamp'>) => {
-    try {
-      setError(null);
-      if (!user) throw new Error('User not authenticated');
-      const { data, error: insertError } = await supabase
+    if (!user) {
+      const errorMessage = 'User not authenticated';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    }
+
+    setError(null);
+    return withErrorHandling(
+      () => supabase
         .from('notes')
         .insert({
           user_id: user.id,
@@ -100,55 +106,61 @@ export function NoteProvider({ children }: { children: ReactNode }) {
           pinned: note.pinned || false,
         })
         .select()
-        .single();
-      if (insertError) throw insertError;
-      const mapped: Note = { ...mapToNote(data), attachments: [] };
-      setNotes(prev => [mapped, ...prev]);
-      return { success: true, data: mapped, error: null };
-    } catch (err) {
-      const errorMessage = handleSupabaseError(err);
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    }
+        .single(),
+      { setError }
+    ).then(result => {
+      if (result.success && result.data) {
+        const mapped: Note = { ...mapToNote(result.data), attachments: [] };
+        setNotes(prev => [mapped, ...prev]);
+        return { success: true, data: mapped, error: null };
+      }
+      return { success: false, error: result.error };
+    });
   };
 
   const updateNote = async (id: string, updates: Partial<Note>) => {
-    try {
-      setError(null);
-      if (!id || id === 'new') throw new Error('Invalid note ID');
-      const dbUpdates: any = {};
-      if (updates.categoryId    !== undefined) dbUpdates.category_id    = updates.categoryId;
-      if (updates.subcategoryId !== undefined) dbUpdates.subcategory_id = updates.subcategoryId ?? null;
-      if (updates.title         !== undefined) dbUpdates.title          = updates.title;
-      if (updates.content       !== undefined) dbUpdates.content        = updates.content;
-      if (updates.pinned        !== undefined) dbUpdates.pinned         = updates.pinned;
-      const { error: updateError } = await supabase.from('notes').update(dbUpdates).eq('id', id);
-      if (updateError) throw updateError;
-      setNotes(prev => prev.map(n => (n.id === id ? { ...n, ...updates } : n)));
-      return { success: true, error: null };
-    } catch (err) {
-      const errorMessage = handleSupabaseError(err);
+    if (id === 'new') {
+      const errorMessage = 'Invalid note ID';
       setError(errorMessage);
       return { success: false, error: errorMessage };
     }
+
+    setError(null);
+    const dbUpdates: any = {};
+    if (updates.categoryId    !== undefined) dbUpdates.category_id    = updates.categoryId;
+    if (updates.subcategoryId !== undefined) dbUpdates.subcategory_id = updates.subcategoryId ?? null;
+    if (updates.title         !== undefined) dbUpdates.title          = updates.title;
+    if (updates.content       !== undefined) dbUpdates.content        = updates.content;
+    if (updates.pinned        !== undefined) dbUpdates.pinned         = updates.pinned;
+
+    const result = await withErrorHandlingNoData(
+      () => supabase.from('notes').update(dbUpdates).eq('id', id),
+      { setError }
+    );
+
+    if (result.success) {
+      setNotes(prev => prev.map(n => (n.id === id ? { ...n, ...updates } : n)));
+    }
+
+    return result;
   };
 
   const deleteNote = async (id: string) => {
-    try {
-      setError(null);
-      const { error: deleteError } = await supabase
+    setError(null);
+    const result = await withErrorHandlingNoData(
+      () => supabase
         .from('notes')
         .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id);
-      if (deleteError) throw deleteError;
+        .eq('id', id),
+      { setError }
+    );
+
+    if (result.success) {
       setNotes(prev => prev.filter(n => n.id !== id));
       trashEvents.emit();
-      return { success: true, error: null };
-    } catch (err) {
-      const errorMessage = handleSupabaseError(err);
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
     }
+
+    return result;
   };
 
   const togglePin = async (id: string) => {
