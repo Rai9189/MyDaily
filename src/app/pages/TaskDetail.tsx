@@ -22,6 +22,7 @@ import { formatFileSize, isImageFile } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { DetailPageSkeleton } from '../components/Skeletons';
 import { getDraft, saveDraft, clearDraft } from '../../lib/draftStorage';
+import { validateName } from '../../lib/validation';
 
 const MAX_TITLE = 100;
 const MAX_DESC  = 10_000;
@@ -236,8 +237,12 @@ export function TaskDetail() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim()) { toast.warning('Please enter a task title.'); return; }
-    if (!formData.categoryId)   { toast.warning('Please select a category.'); return; }
+
+    const titleValidation = validateName(formData.title, MAX_TITLE);
+    if (!titleValidation.valid) { toast.warning(titleValidation.error); return; }
+
+    if (!formData.categoryId) { toast.warning('Please select a category.'); return; }
+
     setSubmitting(true);
     try {
       if (isNew) {

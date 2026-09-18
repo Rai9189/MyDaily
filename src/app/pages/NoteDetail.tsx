@@ -21,6 +21,7 @@ import { formatFileSize, isImageFile } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { getDraft, saveDraft, clearDraft } from '../../lib/draftStorage';
+import { validateName, validateDescription } from '../../lib/validation';
 
 const MAX_TITLE   = 100;
 const MAX_CONTENT = 10_000;
@@ -245,9 +246,14 @@ export function NoteDetail() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim())          { toast.warning('Please enter a note title.');   return; }
-    if (!stripHtml(formData.content))    { toast.warning('Please enter note content.');   return; }
-    if (!formData.categoryId)            { toast.warning('Please select a category.');    return; }
+
+    const titleValidation = validateName(formData.title, MAX_TITLE);
+    if (!titleValidation.valid) { toast.warning(titleValidation.error); return; }
+
+    const contentValidation = validateDescription(stripHtml(formData.content), MAX_CONTENT);
+    if (!contentValidation.valid) { toast.warning(contentValidation.error); return; }
+
+    if (!formData.categoryId) { toast.warning('Please select a category.'); return; }
 
     setSubmitting(true);
     try {

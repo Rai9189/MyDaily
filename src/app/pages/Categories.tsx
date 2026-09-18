@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { TouchBackend } from 'react-dnd-touch-backend';
+import { validateName, validateColor, validateEnum } from '../../lib/validation';
 
 type DialogMode = 'add-parent' | 'add-sub' | 'edit';
 type TabType    = 'transaction' | 'task' | 'note';
@@ -232,6 +233,18 @@ export function Categories() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const nameValidation = validateName(formData.name, 100);
+    if (!nameValidation.valid) { toast.warning(nameValidation.error); return; }
+
+    const colorValidation = validateColor(formData.color);
+    if (!colorValidation.valid) { toast.warning(colorValidation.error); return; }
+
+    if (showSubtypeSelector) {
+      const subtypeValidation = validateEnum(formData.subtype as 'income' | 'expense', ['income', 'expense']);
+      if (!subtypeValidation.valid) { toast.warning(subtypeValidation.error); return; }
+    }
+
     setSubmitting(true);
     try {
       if (dialogMode === 'edit' && editingCategory) {
