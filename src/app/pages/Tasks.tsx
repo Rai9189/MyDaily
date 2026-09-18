@@ -84,16 +84,6 @@ export function Tasks() {
     );
   };
 
-  const getDotColor = (task: any) => {
-    if (task.completed) return 'bg-muted-foreground/40';
-    switch (task.status) {
-      case 'overdue':  return 'bg-red-600';
-      case 'urgent':   return 'bg-orange-500';
-      case 'upcoming': return 'bg-amber-500';
-      default:         return 'bg-blue-500';
-    }
-  };
-
   const getCardBorder = (task: any) => {
     if (task.completed)             return 'border-slate-200 dark:border-border/60 opacity-60';
     if (task.status === 'overdue')  return 'border-red-300 dark:border-red-800';

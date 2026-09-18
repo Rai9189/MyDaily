@@ -189,14 +189,6 @@ export function Dashboard() {
       .slice(0, 8);
   }, [tasks, range]);
 
-  const dotColor = (status: string) => {
-    switch (status) {
-      case 'overdue':  return 'bg-red-500';
-      case 'urgent':   return 'bg-orange-500';
-      case 'upcoming': return 'bg-amber-400';
-      default:         return 'bg-blue-400';
-    }
-  };
 
   const dotBorderColor = (status: string) => {
     switch (status) {
