@@ -1,6 +1,7 @@
 // src/app/context/CategoryContext.tsx
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase, handleSupabaseError } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import { withErrorHandling, withErrorHandlingNoData } from '../../lib/errorHandler';
 import { Category } from '../types';
 import { useAuth } from './AuthContext';
 import { trashEvents } from '../../lib/trashEvents';
@@ -134,15 +135,21 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
   };
 
   const createCategory = async (category: Omit<Category, 'id'>) => {
-    try {
-      setError(null);
-      if (!user) throw new Error('User not authenticated');
-      const siblings = categories.filter(c =>
-        c.type === category.type &&
-        (category.parentId ? c.parentId === category.parentId : !c.parentId)
-      );
-      const maxOrder = siblings.reduce((max, c) => Math.max(max, c.sortOrder ?? 0), 0);
-      const { data, error: insertError } = await supabase
+    if (!user) {
+      const errorMessage = 'User not authenticated';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    }
+
+    setError(null);
+    const siblings = categories.filter(c =>
+      c.type === category.type &&
+      (category.parentId ? c.parentId === category.parentId : !c.parentId)
+    );
+    const maxOrder = siblings.reduce((max, c) => Math.max(max, c.sortOrder ?? 0), 0);
+
+    return withErrorHandling(
+      () => supabase
         .from('categories')
         .insert({
           user_id: user.id,
@@ -154,63 +161,75 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
           sort_order: maxOrder + 1,
         })
         .select()
-        .single();
-      if (insertError) throw insertError;
-      const mapped = mapToCategory(data);
-      setCategories(prev => [...prev, mapped]);
-      return { success: true, data: mapped, error: null };
-    } catch (err) {
-      const errorMessage = handleSupabaseError(err);
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    }
+        .single(),
+      { setError }
+    ).then(result => {
+      if (result.success && result.data) {
+        const mapped = mapToCategory(result.data);
+        setCategories(prev => [...prev, mapped]);
+        return { success: true, data: mapped, error: null };
+      }
+      return { success: false, error: result.error };
+    });
   };
 
   const updateCategory = async (id: string, updates: Partial<Category>) => {
-    try {
-      setError(null);
-      if (!user) throw new Error('User not authenticated');
-      const dbUpdates: any = {};
-      if (updates.name      !== undefined) dbUpdates.name       = updates.name;
-      if (updates.color     !== undefined) dbUpdates.color      = updates.color;
-      if (updates.subtype   !== undefined) dbUpdates.subtype    = updates.subtype;
-      if (updates.parentId  !== undefined) dbUpdates.parent_id  = updates.parentId;
-      if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
-      const { error: updateError } = await supabase
+    if (!user) {
+      const errorMessage = 'User not authenticated';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    }
+
+    setError(null);
+    const dbUpdates: any = {};
+    if (updates.name      !== undefined) dbUpdates.name       = updates.name;
+    if (updates.color     !== undefined) dbUpdates.color      = updates.color;
+    if (updates.subtype   !== undefined) dbUpdates.subtype    = updates.subtype;
+    if (updates.parentId  !== undefined) dbUpdates.parent_id  = updates.parentId;
+    if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
+
+    const result = await withErrorHandlingNoData(
+      () => supabase
         .from('categories')
         .update(dbUpdates)
         .eq('id', id)
-        .eq('user_id', user!.id);
-      if (updateError) throw updateError;
+        .eq('user_id', user.id),
+      { setError }
+    );
+
+    if (result.success) {
       setCategories(prev => prev.map(cat => (cat.id === id ? { ...cat, ...updates } : cat)));
-      return { success: true, error: null };
-    } catch (err) {
-      const errorMessage = handleSupabaseError(err);
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
     }
+
+    return result;
   };
 
   const deleteCategory = async (id: string) => {
-    try {
-      setError(null);
-      if (!user) throw new Error('User not authenticated');
-      const now = new Date().toISOString();
-      const { error: deleteError } = await supabase
-        .from('categories')
-        .update({ deleted_at: now })
-        .eq('id', id)
-        .eq('user_id', user!.id);
-      if (deleteError) throw deleteError;
-      await supabase.from('categories').update({ deleted_at: now }).eq('parent_id', id).eq('user_id', user!.id);
-      setCategories(prev => prev.filter(cat => cat.id !== id && cat.parentId !== id));
-      trashEvents.emit();
-      return { success: true, error: null };
-    } catch (err) {
-      const errorMessage = handleSupabaseError(err);
+    if (!user) {
+      const errorMessage = 'User not authenticated';
       setError(errorMessage);
       return { success: false, error: errorMessage };
     }
+
+    setError(null);
+    const now = new Date().toISOString();
+
+    const result = await withErrorHandlingNoData(
+      () => supabase
+        .from('categories')
+        .update({ deleted_at: now })
+        .eq('id', id)
+        .eq('user_id', user.id),
+      { setError }
+    );
+
+    if (result.success) {
+      await supabase.from('categories').update({ deleted_at: now }).eq('parent_id', id).eq('user_id', user.id);
+      setCategories(prev => prev.filter(cat => cat.id !== id && cat.parentId !== id));
+      trashEvents.emit();
+    }
+
+    return result;
   };
 
   const reorderCategories = async (orderedIds: string[]) => {
@@ -237,19 +256,15 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
   // Caller (Categories.tsx) yang bertanggung jawab fetch sekali di akhir
   const resetCategoryOrder = async (type: 'transaction' | 'task' | 'note', parentId?: string) => {
     if (!user) return { success: false, error: 'Not authenticated' };
-    try {
-      const { error: rpcError } = await supabase.rpc('reset_category_order', {
+
+    return withErrorHandlingNoData(
+      () => supabase.rpc('reset_category_order', {
         p_user_id: user.id,
         p_type: type,
         p_parent_id: parentId ?? null,
-      });
-      if (rpcError) throw rpcError;
-      // ✅ Tidak fetch di sini — caller akan fetch silent sekali setelah semua RPC selesai
-      return { success: true, error: null };
-    } catch (err) {
-      const errorMessage = handleSupabaseError(err);
-      return { success: false, error: errorMessage };
-    }
+      }),
+      { setError }
+    );
   };
 
   const refreshCategories = async () => { await fetchCategoriesSilent(); };
