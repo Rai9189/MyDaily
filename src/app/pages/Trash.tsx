@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 
 type TableFilter = 'all' | 'transactions' | 'tasks' | 'notes' | 'categories' | 'accounts';
 
@@ -137,6 +138,7 @@ function TrashItemDetail({ item }: { item: TrashItem }) {
 export function Trash() {
   const { trashItems, loading, error, restoreItem, hardDeleteItem, hardDeleteAll } = useTrash();
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
   const [activeTab, setActiveTab]       = useState<TableFilter>('all');
   const [sortBy, setSortBy]             = useState<'expiry' | 'deleted'>('expiry');
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -297,8 +299,16 @@ export function Trash() {
             </div>
           </div>
 
-          <Card className="bg-white dark:bg-card border-2 border-slate-300 dark:border-border shadow-sm rounded-xl">
+          <Card className="bg-white dark:bg-card border-2 border-slate-300 dark:border-border shadow-sm rounded-xl overflow-hidden">
             <CardContent className="p-0">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.2, ease: 'easeOut' }}
+                >
               {filtered.length === 0 ? (
                 <div className="py-16 text-center">
                   <Trash2 size={36} className="text-muted-foreground/25 mx-auto mb-3" />
@@ -348,6 +358,8 @@ export function Trash() {
                   })}
                 </div>
               )}
+                </motion.div>
+              </AnimatePresence>
             </CardContent>
           </Card>
         </div>
