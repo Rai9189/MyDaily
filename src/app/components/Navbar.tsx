@@ -51,6 +51,48 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
   const [open, setOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragStart = useRef<{ x: number; y: number; axis: 'x' | 'y' | null } | null>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+
+  // Swipe-to-dismiss on the mobile/tablet drawer — the lg+ sidebar isn't a modal, so it opts out.
+  const onDrawerPointerDown = (e: React.PointerEvent) => {
+    if (!open || window.innerWidth >= 1024) return;
+    dragStart.current = { x: e.clientX, y: e.clientY, axis: null };
+  };
+
+  const onDrawerPointerMove = (e: React.PointerEvent) => {
+    const start = dragStart.current;
+    if (!start) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (!start.axis) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      start.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (start.axis === 'x' && dx < 0) {
+        setDragging(true);
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      } else {
+        dragStart.current = null; // vertical scroll or dragging the wrong way — let it pass through
+        return;
+      }
+    }
+    if (start.axis === 'x') {
+      e.preventDefault();
+      setDragX(Math.min(0, dx));
+    }
+  };
+
+  const onDrawerPointerUp = () => {
+    if (dragging) {
+      const width = drawerRef.current?.offsetWidth ?? 288;
+      if (dragX < -width * 0.35) setOpen(false);
+    }
+    setDragging(false);
+    setDragX(0);
+    dragStart.current = null;
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -196,15 +238,27 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
 
       {/* ── Overlay (drawer mode only — the lg+ sidebar isn't modal) ── */}
       {open && (
-        <div className="fixed inset-0 bg-black/50 z-50 lg:hidden" onClick={() => setOpen(false)} />
+        <div
+          className="fixed inset-0 bg-black/50 z-50 lg:hidden"
+          onClick={() => setOpen(false)}
+          style={dragging ? { opacity: Math.max(0, 1 - Math.abs(dragX) / (drawerRef.current?.offsetWidth ?? 288)), transition: 'none' } : undefined}
+        />
       )}
 
       {/* ── Drawer on mobile/tablet, permanent sidebar from lg+ ── */}
       <div
+        ref={drawerRef}
+        onPointerDown={onDrawerPointerDown}
+        onPointerMove={onDrawerPointerMove}
+        onPointerUp={onDrawerPointerUp}
+        onPointerCancel={onDrawerPointerUp}
         className={`fixed left-0 top-0 bottom-0 lg:top-16 w-72 z-50 lg:z-30 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 lg:shadow-none ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
-        style={{ background: isDark ? 'var(--sidebar)' : 'linear-gradient(to bottom, var(--primary), color-mix(in srgb, var(--primary) 80%, black))' }}
+        style={{
+          background: isDark ? 'var(--sidebar)' : 'linear-gradient(to bottom, var(--primary), color-mix(in srgb, var(--primary) 80%, black))',
+          ...(dragging ? { transform: `translateX(${dragX}px)`, transition: 'none' } : {}),
+        }}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/20 dark:border-sidebar-border lg:hidden">
           <img src="/logo.png" alt="MyDaily" className="h-14 w-auto object-contain dark:invert" />
