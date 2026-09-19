@@ -18,7 +18,7 @@ import {
 import { Account, AccountType } from '../types';
 import { useTransactions } from '../context/TransactionContext';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { subDays } from 'date-fns';
+import { subDays, format } from 'date-fns';
 import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
 import { fmtIDR } from '../../lib/formatCurrency';
@@ -626,7 +626,7 @@ export function Accounts() {
                               dataKey="date"
                               tickFormatter={(d: string) => {
                                 const p = d.split('-');
-                                return formatDateCompact(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
+                                return format(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])), 'MMM d');
                               }}
                               tick={{ fontSize: 10 }}
                               stroke="currentColor"
