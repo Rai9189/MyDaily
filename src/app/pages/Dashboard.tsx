@@ -19,7 +19,6 @@ import { isWithinInterval, format, eachDayOfInterval, isSameDay } from 'date-fns
 import { DateRangeFilter, defaultDateRange, getPresetRange, type DateRangeValue } from '../components/DateRangeFilter';
 import { DashboardSkeleton } from '../components/Skeletons';
 import { fmtIDR, fmtIDRCompact } from '../../lib/formatCurrency';
-import { formatDateShort } from '../../lib/dateTimeFormat';
 
 const fmt = fmtIDR;
 const fmtShort = fmtIDRCompact;
@@ -38,7 +37,7 @@ function CustomPieTooltip({ active, payload }: any) {
   );
 }
 
-function EmptyState({ label }: { label: string }) {
+function ChartEmptyState({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-10 gap-2">
       <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
@@ -182,10 +181,10 @@ export function Dashboard() {
 
   const dotBorderColor = (status: string) => {
     switch (status) {
-      case 'overdue':  return 'border-red-500';
-      case 'urgent':   return 'border-orange-500';
+      case 'overdue':  return 'border-destructive';
+      case 'urgent':   return 'border-warning';
       case 'upcoming': return 'border-amber-400';
-      default:         return 'border-blue-400';
+      default:         return 'border-primary';
     }
   };
 
@@ -202,8 +201,8 @@ export function Dashboard() {
 
   // Tab config — warna aktif berbeda per mode agar lebih kontras & informatif
   const tabConfig: { key: PieMode; label: string; activeClass: string }[] = [
-    { key: 'income',  label: 'Income',  activeClass: 'bg-green-500 text-white shadow-sm dark:bg-green-500/15 dark:text-green-400' },
-    { key: 'expense', label: 'Expense', activeClass: 'bg-red-500 text-white shadow-sm dark:bg-red-500/15 dark:text-red-400'   },
+    { key: 'income',  label: 'Income',  activeClass: 'bg-success text-success-foreground shadow-sm dark:bg-success/15 dark:text-success' },
+    { key: 'expense', label: 'Expense', activeClass: 'bg-destructive text-destructive-foreground shadow-sm dark:bg-destructive/15 dark:text-destructive' },
     { key: 'both',    label: 'Overview', activeClass: 'bg-primary text-primary-foreground shadow-sm dark:bg-primary/15 dark:text-primary' },
   ];
 
@@ -228,7 +227,7 @@ export function Dashboard() {
               <button
                 type="button"
                 onClick={() => setAccountDropdownOpen(o => !o)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white dark:bg-card border border-border rounded-lg text-xs font-medium shadow-sm hover:bg-muted transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-card border border-border rounded-lg text-xs font-medium shadow-sm hover:bg-muted transition-colors"
               >
                 <Wallet size={12} className="text-primary flex-shrink-0" />
                 <span className="text-foreground max-w-[80px] truncate">
@@ -242,7 +241,7 @@ export function Dashboard() {
               {accountDropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setAccountDropdownOpen(false)} />
-                  <div className="absolute left-0 top-full mt-1 z-20 bg-white dark:bg-card border border-border rounded-lg shadow-lg py-1 min-w-[180px]">
+                  <div className="absolute left-0 top-full mt-1 z-20 bg-card border border-border rounded-lg shadow-lg py-1 min-w-[180px]">
                     <button
                       type="button"
                       onClick={() => { setSelectedAccountId('all'); setAccountDropdownOpen(false); }}
@@ -326,13 +325,13 @@ export function Dashboard() {
           </Card>
 
           {/* ── Ledger: income / expense / net, typography-led ── */}
-          <Card className="bg-white dark:bg-card border shadow-sm rounded-xl overflow-hidden">
+          <Card className="bg-card border shadow-sm rounded-xl overflow-hidden">
             <div className="grid grid-cols-3 divide-x divide-border">
               <button type="button" onClick={() => setActivePopup('income')}
                 className="flex flex-col items-start px-3 py-3 text-left hover:bg-muted/40 transition-colors min-w-0"
               >
                 <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                  <TrendingUp size={11} className="text-green-600 dark:text-green-400 flex-shrink-0" /> Income
+                  <TrendingUp size={11} className="text-success flex-shrink-0" /> Income
                 </span>
                 <span className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(income)}</span>
                 <span className="text-base font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(income)}</span>
@@ -345,7 +344,7 @@ export function Dashboard() {
                 className="flex flex-col items-start px-3 py-3 text-left hover:bg-muted/40 transition-colors min-w-0"
               >
                 <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                  <TrendingDown size={11} className="text-red-600 dark:text-red-400 flex-shrink-0" /> Expense
+                  <TrendingDown size={11} className="text-destructive flex-shrink-0" /> Expense
                 </span>
                 <span className="text-sm font-bold text-foreground leading-tight truncate hidden sm:block">{fmt(expense)}</span>
                 <span className="text-base font-bold text-foreground leading-tight truncate sm:hidden">{fmtShort(expense)}</span>
@@ -356,10 +355,10 @@ export function Dashboard() {
 
               <div className="flex flex-col items-start px-3 py-3 min-w-0">
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Net</span>
-                <span className={`text-sm font-bold leading-tight truncate hidden sm:block ${net >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                <span className={`text-sm font-bold leading-tight truncate hidden sm:block ${net >= 0 ? 'text-success' : 'text-destructive'}`}>
                   {net < 0 ? '-' : ''}{fmt(Math.abs(net))}
                 </span>
-                <span className={`text-base font-bold leading-tight truncate sm:hidden ${net >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                <span className={`text-base font-bold leading-tight truncate sm:hidden ${net >= 0 ? 'text-success' : 'text-destructive'}`}>
                   {net < 0 ? '-' : ''}{fmtShort(Math.abs(net))}
                 </span>
                 <span className="text-[10px] text-muted-foreground mt-0.5 truncate">{net >= 0 ? 'Surplus' : 'Deficit'}</span>
@@ -369,9 +368,9 @@ export function Dashboard() {
 
           {/* ── Transfer: secondary, lower visual weight ── */}
           <button type="button" onClick={() => setActivePopup('transfer')}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg border border-border bg-white dark:bg-card text-xs hover:bg-muted/40 transition-colors"
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg border border-border bg-card text-xs hover:bg-muted/40 transition-colors"
           >
-            <ArrowLeftRight size={12} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
+            <ArrowLeftRight size={12} className="text-primary flex-shrink-0" />
             <span className="text-muted-foreground">Transfer</span>
             <span className="font-semibold text-foreground ml-auto">{fmt(transfer)}</span>
             <span className="text-muted-foreground">· {transferTxCount} tx</span>
@@ -410,7 +409,7 @@ export function Dashboard() {
           )}
 
           {/* ── Transaction Chart ── */}
-          <Card className="bg-white dark:bg-card border-2 border-blue-200 dark:border-blue-900/50 shadow-sm rounded-xl">
+          <Card className="bg-card border-2 border-primary/20 dark:border-primary/30 shadow-sm rounded-xl">
             <CardHeader className="pb-0 pt-3 px-4">
               <div className="flex items-center justify-between mb-2">
                 <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-1.5">
@@ -447,7 +446,7 @@ export function Dashboard() {
 
             <CardContent className="px-4 pb-4 pt-3">
               {pieData.length === 0 ? (
-                <EmptyState
+                <ChartEmptyState
                   label={
                     pieMode === 'both'
                       ? `No transactions in ${rangeLabel}.`
@@ -457,11 +456,11 @@ export function Dashboard() {
               ) : pieMode === 'both' ? (
                 /* ── Mode "vs": surplus info + donut kiri, legend kanan ── */
                 <>
-                  <div className={`rounded-xl px-4 py-3 mb-4 ${net >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                  <div className={`rounded-xl px-4 py-3 mb-4 ${net >= 0 ? 'bg-success/10' : 'bg-destructive/10'}`}>
                     <p className="text-[11px] text-muted-foreground mb-0.5">
                       {net >= 0 ? 'This period you have a surplus of' : 'This period you overspent by'}
                     </p>
-                    <p className={`text-xl font-bold ${net >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    <p className={`text-xl font-bold ${net >= 0 ? 'text-success' : 'text-destructive'}`}>
                       {net < 0 ? '-' : ''}{fmt(Math.abs(net))}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-1">
@@ -541,7 +540,7 @@ export function Dashboard() {
           </Card>
 
           {/* ── Tasks ── */}
-          <Card className="bg-white dark:bg-card border-2 border-blue-200 dark:border-blue-900/50 shadow-sm rounded-xl">
+          <Card className="bg-card border-2 border-primary/20 dark:border-primary/30 shadow-sm rounded-xl">
             <CardHeader className="pb-2 pt-3 px-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-1.5">
@@ -560,10 +559,10 @@ export function Dashboard() {
             <CardContent className="px-4 pb-4">
               <div className="grid grid-cols-4 gap-1.5 mb-3">
                 {[
-                  { label: 'Overdue',  count: overdueTasks.length,   color: overdueTasks.length   > 0 ? 'text-red-600 dark:text-red-400'      : 'text-foreground', icon: <CalendarX    size={13} className={overdueTasks.length   > 0 ? 'text-red-500'    : 'text-slate-400'} /> },
-                  { label: 'Urgent',   count: urgentTasks.length,    color: urgentTasks.length    > 0 ? 'text-orange-500 dark:text-orange-400' : 'text-foreground', icon: <AlertCircle  size={13} className={urgentTasks.length    > 0 ? 'text-orange-500' : 'text-slate-400'} /> },
-                  { label: 'Active',   count: activeTasks.length,    color: 'text-blue-600 dark:text-blue-400',                                                    icon: <Clock        size={13} className="text-blue-500" /> },
-                  { label: 'Done',     count: completedTasks.length, color: 'text-green-600 dark:text-green-400',                                                  icon: <CheckCircle2 size={13} className="text-green-500" /> },
+                  { label: 'Overdue',  count: overdueTasks.length,   color: overdueTasks.length   > 0 ? 'text-destructive' : 'text-foreground', icon: <CalendarX    size={13} className={overdueTasks.length   > 0 ? 'text-destructive' : 'text-slate-400'} /> },
+                  { label: 'Urgent',   count: urgentTasks.length,    color: urgentTasks.length    > 0 ? 'text-warning'     : 'text-foreground', icon: <AlertCircle  size={13} className={urgentTasks.length    > 0 ? 'text-warning'     : 'text-slate-400'} /> },
+                  { label: 'Active',   count: activeTasks.length,    color: 'text-primary', icon: <Clock        size={13} className="text-primary" /> },
+                  { label: 'Done',     count: completedTasks.length, color: 'text-success', icon: <CheckCircle2 size={13} className="text-success" /> },
                 ].map(item => (
                   <div key={item.label} className="flex flex-col items-center bg-slate-50 dark:bg-muted/40 rounded-lg py-2 px-1 gap-0.5">
                     {item.icon}
@@ -596,8 +595,8 @@ export function Dashboard() {
                         : daysLeft === 1 ? 'Tomorrow'
                         : `${daysLeft}d left`;
                       const daysColor =
-                        daysLeft < 0    ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20'
-                        : daysLeft <= 1  ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20'
+                        daysLeft < 0    ? 'text-destructive bg-destructive/10'
+                        : daysLeft <= 1  ? 'text-warning bg-warning/10'
                         : daysLeft <= 3  ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20'
                         : 'text-muted-foreground bg-muted/60';
                       return (

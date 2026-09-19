@@ -53,6 +53,11 @@
   --sidebar-accent-foreground: #1a5276;
   --sidebar-border: rgba(26, 82, 118, 0.12);
   --sidebar-ring: #3498db;
+
+  --success: #16a34a;
+  --success-foreground: #ffffff;
+  --warning: #d97706;
+  --warning-foreground: #ffffff;
 }
 
 .dark {
@@ -107,6 +112,11 @@
   --sidebar-accent-foreground: #daeef8;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #3b9fd8;
+
+  --success: #4ade80;
+  --success-foreground: #052e12;
+  --warning: #e0a820;
+  --warning-foreground: #2b1c02;
 }
 
 @theme inline {
@@ -126,6 +136,10 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-input-background: var(--input-background);
@@ -248,4 +262,15 @@ input:-webkit-autofill:active {
 /* ✅ Dark mode: link variant button (Forgot PIN, Sign in with another, dll) */
 .dark [class*="text-muted-foreground"] {
   color: var(--muted-foreground);
+}
+
+/* ✅ Reduced motion: shrink CSS transitions/animations to near-instant.
+   Framer Motion animations (page transitions) are handled separately via useReducedMotion(). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
