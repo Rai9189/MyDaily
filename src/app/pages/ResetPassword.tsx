@@ -107,7 +107,7 @@ export function ResetPassword() {
                 </div>
               </div>
               <div>
-                <h2 className="text-xl font-bold text-foreground">Link Invalid or Expired</h2>
+                <h2 className="text-xl font-bold tracking-tight text-foreground">Link Invalid or Expired</h2>
                 <p className="text-sm text-muted-foreground mt-2">
                   This reset link has expired or already been used. Please request a new one.
                 </p>
@@ -205,7 +205,7 @@ export function ResetPassword() {
                   </div>
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-foreground">Password Updated!</h2>
+                  <h2 className="text-2xl font-bold tracking-tight text-foreground">Password Updated!</h2>
                   <p className="text-sm text-muted-foreground mt-2">
                     Redirecting you to login...
                   </p>

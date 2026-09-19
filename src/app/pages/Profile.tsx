@@ -152,7 +152,7 @@ export function Profile() {
                   <input ref={avatarInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleAvatarChange} className="hidden" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xl font-bold leading-tight truncate">{displayName}</p>
+                  <p className="text-xl font-bold tracking-tight leading-tight truncate">{displayName}</p>
                   <p className="text-sm opacity-80 truncate mt-0.5">{user.email}</p>
                   {user.created_at && (
                     <p className="text-xs opacity-65 mt-0.5">

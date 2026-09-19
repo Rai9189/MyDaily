@@ -108,7 +108,7 @@ export function ForgotPassword() {
                   </div>
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-foreground">Check your inbox</h2>
+                  <h2 className="text-2xl font-bold tracking-tight text-foreground">Check your inbox</h2>
                   <p className="text-sm text-muted-foreground mt-2">
                     If an account exists for <span className="font-medium text-foreground">{email}</span>, a reset link has been sent. Check your inbox or spam folder.
                   </p>

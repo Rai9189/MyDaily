@@ -26,7 +26,7 @@ export function AuthHeader({ title, subtitle }: { title: ReactNode; subtitle?: R
   return (
     <div className="flex flex-col items-center mb-6">
       <img src="/logo.png" alt="MyDaily" className="h-14 w-auto object-contain mb-3 dark:invert" />
-      <h1 className="text-2xl font-bold text-foreground text-center">{title}</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-foreground text-center">{title}</h1>
       {subtitle && <p className="text-sm text-muted-foreground mt-1 text-center">{subtitle}</p>}
     </div>
   );

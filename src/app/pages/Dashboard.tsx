@@ -460,7 +460,7 @@ export function Dashboard() {
                     <p className="text-[11px] text-muted-foreground mb-0.5">
                       {net >= 0 ? 'This period you have a surplus of' : 'This period you overspent by'}
                     </p>
-                    <p className={`text-xl font-bold ${net >= 0 ? 'text-success' : 'text-destructive'}`}>
+                    <p className={`text-xl font-bold tracking-tight ${net >= 0 ? 'text-success' : 'text-destructive'}`}>
                       {net < 0 ? '-' : ''}{fmt(Math.abs(net))}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-1">

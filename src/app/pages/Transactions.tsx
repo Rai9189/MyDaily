@@ -713,7 +713,7 @@ export function Transactions() {
                       </Button>
                     </div>
                   </div>
-                  <p className={`text-xl font-bold mb-3 ${getAmountColor(t)}`}>
+                  <p className={`text-xl font-bold tracking-tight mb-3 ${getAmountColor(t)}`}>
                     {getAmountPrefix(t)}{fmt(t.amount)}
                   </p>
                   <div className="space-y-1.5">

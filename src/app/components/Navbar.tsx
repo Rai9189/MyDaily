@@ -105,7 +105,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
           <Menu size={26} />
         </button>
 
-        <span className="text-white font-bold text-xl tracking-wide flex-1 md:ml-3">{getPageTitle()}</span>
+        <span className="text-white font-bold text-xl tracking-tight flex-1 md:ml-3">{getPageTitle()}</span>
 
         {/* Search trigger — desktop only, mobile uses bottom nav */}
         <button

@@ -573,7 +573,7 @@ export function Accounts() {
                 <div className="space-y-3">
                   {/* Balance + View Transactions */}
                   <div className="flex items-center justify-between">
-                    <span className="text-xl font-bold text-foreground">{formatCurrency(account.balance)}</span>
+                    <span className="text-xl font-bold tracking-tight text-foreground">{formatCurrency(account.balance)}</span>
                     <button type="button"
                       onClick={() => { setExpandedAccountId(null); navigate(`/transactions?accountId=${account.id}`); }}
                       className="flex items-center gap-0.5 text-xs text-primary hover:text-primary/80 font-medium transition-colors">
