@@ -158,44 +158,49 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
 
       {/* Search Modal */}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-20">
-          <div className="w-full max-w-lg animate-in fade-in-0 zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh] px-4">
+          <div className="w-full max-w-xl animate-in fade-in-0 zoom-in-95 duration-200">
             <div className="bg-background border border-border rounded-2xl shadow-2xl overflow-hidden">
               {/* Search Input */}
-              <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-                <Search size={18} className="text-muted-foreground flex-shrink-0" />
+              <div className="flex items-center gap-3 px-5 py-4">
+                <Search size={20} className="text-muted-foreground flex-shrink-0" />
                 <input
                   autoFocus
                   type="text"
                   placeholder="Search transactions, tasks, notes, accounts..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="flex-1 bg-transparent text-foreground text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-sm placeholder:text-muted-foreground"
+                  className="flex-1 bg-transparent text-foreground text-base outline-none placeholder:text-muted-foreground"
                 />
-                <button
-                  onClick={() => onOpenChange(false)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X size={18} />
-                </button>
+                {query && (
+                  <button
+                    onClick={() => setQuery('')}
+                    className="text-muted-foreground hover:text-foreground flex-shrink-0"
+                    aria-label="Clear search"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
               </div>
 
               {/* Results */}
-              {query.trim() ? (
-                results.length > 0 ? (
-                  <div className="max-h-80 overflow-y-auto">
-                    {results.map((result, idx) => (
-                      <button
-                        key={result.id}
-                        type="button"
-                        onClick={() => handleSelect(result)}
-                        onMouseEnter={() => setSelectedIndex(idx)}
-                        className={`w-full px-4 py-3 text-left border-b border-border last:border-b-0 transition-colors ${
-                          selectedIndex === idx ? 'bg-muted' : 'hover:bg-muted/50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="text-muted-foreground flex-shrink-0">
+              <div className="border-t border-border">
+                {query.trim() ? (
+                  results.length > 0 ? (
+                    <div className="max-h-80 overflow-y-auto p-2">
+                      {results.map((result, idx) => (
+                        <button
+                          key={result.id}
+                          type="button"
+                          onClick={() => handleSelect(result)}
+                          onMouseEnter={() => setSelectedIndex(idx)}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                            selectedIndex === idx ? 'bg-primary/10' : 'hover:bg-muted'
+                          }`}
+                        >
+                          <div className={`flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0 ${
+                            selectedIndex === idx ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'
+                          }`}>
                             {result.icon}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -206,25 +211,33 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
                               {result.subtitle}
                             </p>
                           </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+                          {selectedIndex === idx && (
+                            <kbd className="hidden sm:block px-1.5 py-0.5 text-[10px] font-semibold text-primary bg-primary/10 rounded flex-shrink-0">↵</kbd>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 gap-2">
+                      <Search size={28} className="text-muted-foreground/30" />
+                      <p className="text-sm font-medium text-foreground">No results</p>
+                      <p className="text-xs text-muted-foreground">Try a different keyword</p>
+                    </div>
+                  )
                 ) : (
-                  <div className="px-4 py-8 text-center">
-                    <p className="text-sm text-muted-foreground">No results found</p>
+                  <div className="flex flex-col items-center justify-center py-10 gap-2">
+                    <Zap size={22} className="text-muted-foreground/30" />
+                    <p className="text-sm text-muted-foreground">Start typing to search across all your data</p>
                   </div>
-                )
-              ) : (
-                <div className="px-4 py-6 text-center">
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Tip: Press <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-muted border border-border rounded">Esc</kbd> to close
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Start typing to search across all your data
-                  </p>
-                </div>
-              )}
+                )}
+              </div>
+
+              {/* Keyboard hints */}
+              <div className="hidden sm:flex items-center gap-4 px-4 py-2.5 border-t border-border bg-muted/30 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1.5"><kbd className="px-1.5 py-0.5 bg-background border border-border rounded">↑↓</kbd> Navigate</span>
+                <span className="flex items-center gap-1.5"><kbd className="px-1.5 py-0.5 bg-background border border-border rounded">↵</kbd> Select</span>
+                <span className="flex items-center gap-1.5"><kbd className="px-1.5 py-0.5 bg-background border border-border rounded">esc</kbd> Close</span>
+              </div>
             </div>
           </div>
         </div>
