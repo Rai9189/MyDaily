@@ -83,7 +83,7 @@ export function TaskDetail() {
   const isNew        = id === 'new' || !id;
 
   const { user } = useAuth();
-  const { tasks, loading: tasksLoading, getTaskById, createTask, updateTask, completeTask, uncompleteTask } = useTasks();
+  const { loading: tasksLoading, getTaskById, createTask, updateTask, completeTask, uncompleteTask } = useTasks();
   const { categories } = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments } = useAttachments();
   const { pendingFiles, addFiles, removeFile: removePendingFile, uploadAllPending, isUploading: isUploadingPending } = usePendingAttachments();

@@ -1,6 +1,5 @@
 // src/app/components/PendingAttachmentPicker.tsx
 import { useRef } from 'react';
-import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { FileText, Image as ImageIcon, X, Loader2, Paperclip } from 'lucide-react';
 import { formatFileSize, isImageFile } from '../../lib/supabase';

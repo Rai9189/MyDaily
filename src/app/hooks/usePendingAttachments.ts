@@ -1,7 +1,6 @@
 // src/app/hooks/usePendingAttachments.ts
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAttachments } from '../context/AttachmentContext';
-import { formatFileSize, isImageFile } from '../../lib/supabase';
 
 export interface PendingFile {
   id: string; // temporary local ID

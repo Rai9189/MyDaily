@@ -26,7 +26,7 @@ import { toast } from 'sonner';
 import { DetailPageSkeleton } from '../components/Skeletons';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { getDraft, saveDraft, clearDraft } from '../../lib/draftStorage';
-import { fmtIDR, fmtIDRCompact } from '../../lib/formatCurrency';
+import { fmtIDR } from '../../lib/formatCurrency';
 import { formatNumericDisplay, parseNumericInput, handleNumericKeyInput } from '../../lib/numericInput';
 
 const MAX_AMOUNT = 1_000_000_000;

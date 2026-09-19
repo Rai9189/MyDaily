@@ -82,7 +82,7 @@ export function NoteDetail() {
   const isNew        = id === 'new' || !id;
 
   const { user } = useAuth();
-  const { notes, loading: notesLoading, getNoteById, createNote, updateNote, togglePin } = useNotes();
+  const { loading: notesLoading, getNoteById, createNote, updateNote, togglePin } = useNotes();
   const { categories }                                                                    = useCategories();
   const { uploadAttachment, deleteAttachment, getAttachments }                           = useAttachments();
 

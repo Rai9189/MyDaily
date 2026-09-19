@@ -23,58 +23,6 @@ export function validateName(value: string, maxLength: number = 100): { valid: b
 }
 
 /**
- * Validate that a description/content is within character limit
- * @example validateDescription("", 10000) → { valid: true } (empty allowed)
- * @example validateDescription("x".repeat(10001), 10000) → { valid: false, error: "..." }
- */
-export function validateDescription(value: string, maxLength: number = 10000): { valid: boolean; error?: string } {
-  if (value.length > maxLength) {
-    return { valid: false, error: `Description must be ${maxLength} characters or less` };
-  }
-
-  return { valid: true };
-}
-
-/**
- * Validate that an amount/number is positive and within limits
- * @example validateAmount(1000, 1000000000) → { valid: true }
- * @example validateAmount(0, 1000000000) → { valid: false, error: "Amount must be greater than 0" }
- */
-export function validateAmount(value: number, maxAmount: number = 1_000_000_000): { valid: boolean; error?: string } {
-  if (value <= 0) {
-    return { valid: false, error: 'Amount must be greater than 0' };
-  }
-
-  if (value > maxAmount) {
-    return { valid: false, error: `Amount cannot exceed ${maxAmount.toLocaleString('id-ID')}` };
-  }
-
-  return { valid: true };
-}
-
-/**
- * Validate that a date is valid and not in the past
- * @example validateDate(new Date()) → { valid: true }
- * @example validateDate(new Date("2020-01-01")) → { valid: false, error: "Date cannot be in the past" }
- */
-export function validateDate(value: Date, allowPast: boolean = false): { valid: boolean; error?: string } {
-  if (!(value instanceof Date) || isNaN(value.getTime())) {
-    return { valid: false, error: 'Invalid date' };
-  }
-
-  if (!allowPast) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (value < today) {
-      return { valid: false, error: 'Date cannot be in the past' };
-    }
-  }
-
-  return { valid: true };
-}
-
-/**
  * Validate that a color is a valid hex color code
  * @example validateColor("#3b82f6") → { valid: true }
  * @example validateColor("red") → { valid: false, error: "Invalid color format" }

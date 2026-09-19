@@ -1,4 +1,4 @@
-import { Download, FileJson, FileText } from 'lucide-react';
+import { FileJson, FileText } from 'lucide-react';
 import { useTransactions } from '../context/TransactionContext';
 import { useAccounts } from '../context/AccountContext';
 import { useCategories } from '../context/CategoryContext';

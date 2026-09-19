@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import {
   Plus, TrendingUp, TrendingDown, Paperclip, ArrowUpDown,
   ChevronLeft, ChevronRight, Filter, CalendarDays,
-  Search, X, Edit, Trash2, Wallet, ArrowLeftRight,
+  Search, X, Edit, Trash2, ArrowLeftRight,
   LayoutGrid, List,
 } from 'lucide-react';
 import { toast } from 'sonner';
