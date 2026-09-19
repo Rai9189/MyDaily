@@ -483,13 +483,4 @@ export function RichTextEditor({
   );
 }
 
-// ─── Helper: strip HTML for char count ───────────────────────────────────────
-export function stripHtml(html: string): string {
-  return html
-    .replace(/<\/(p|div|li|h[1-6]|blockquote|tr)>/gi, ' ')
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+export { stripHtml } from '../../lib/stripHtml';

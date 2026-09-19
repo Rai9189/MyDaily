@@ -6,6 +6,7 @@ import { useTasks } from '../context/TaskContext';
 import { useNotes } from '../context/NoteContext';
 import { useAccounts } from '../context/AccountContext';
 import { useCategories } from '../context/CategoryContext';
+import { stripHtml } from '../../lib/stripHtml';
 
 type SearchResult = {
   id: string;
@@ -37,7 +38,7 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
     transactions.forEach(t => {
       const cat = categories.find(c => c.id === t.categoryId);
       const acc = accounts.find(a => a.id === t.accountId);
-      if (t.description?.toLowerCase().includes(q) || cat?.name.toLowerCase().includes(q) || acc?.name.toLowerCase().includes(q)) {
+      if (stripHtml(t.description || '').toLowerCase().includes(q) || cat?.name.toLowerCase().includes(q) || acc?.name.toLowerCase().includes(q)) {
         allResults.push({
           id: t.id,
           type: 'transaction',
@@ -51,7 +52,7 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
 
     // Search tasks
     tasks.forEach(t => {
-      if (t.title.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q)) {
+      if (t.title.toLowerCase().includes(q) || stripHtml(t.description || '').toLowerCase().includes(q)) {
         allResults.push({
           id: t.id,
           type: 'task',
@@ -65,12 +66,13 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
 
     // Search notes
     notes.forEach(n => {
-      if (n.title.toLowerCase().includes(q) || n.content?.toLowerCase().includes(q)) {
+      const plainContent = stripHtml(n.content || '');
+      if (n.title.toLowerCase().includes(q) || plainContent.toLowerCase().includes(q)) {
         allResults.push({
           id: n.id,
           type: 'note',
           title: n.title || 'Untitled Note',
-          subtitle: n.content?.substring(0, 60).replace(/<[^>]*>/g, '') || 'No content',
+          subtitle: plainContent.substring(0, 60) || 'No content',
           icon: <FileText size={16} />,
           path: `/notes/${n.id}`,
         });
