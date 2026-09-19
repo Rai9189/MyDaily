@@ -107,16 +107,15 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
 
         <span className="text-white font-bold text-xl tracking-wide flex-1 md:ml-3">{getPageTitle()}</span>
 
-        {/* Search trigger — desktop only, mobile uses bottom nav + no shortcut affordance */}
+        {/* Search trigger — desktop only, mobile uses bottom nav */}
         <button
           type="button"
           onClick={onOpenSearch}
-          className="hidden md:flex items-center gap-2 px-3 py-1.5 text-sm text-white/80 hover:text-white hover:bg-white/15 rounded-lg transition-colors"
-          title="Press Cmd+K to search"
+          title="Search"
+          className="hidden md:flex items-center gap-2 px-3.5 py-2 lg:w-56 text-sm text-white/70 bg-white/10 hover:bg-white/20 hover:text-white rounded-full transition-colors"
         >
-          <Search size={15} />
-          <span className="hidden lg:inline">Search...</span>
-          <kbd className="hidden lg:inline ml-1 text-[10px] px-1 py-0.5 bg-white/15 rounded">⌘K</kbd>
+          <Search size={16} className="flex-shrink-0" />
+          <span className="hidden lg:inline truncate">Search</span>
         </button>
 
         {/* Quick-add "+" — mobile only, on list pages */}
