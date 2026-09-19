@@ -21,6 +21,7 @@ import { ListPageSkeleton } from '../components/Skeletons';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { TouchBackend } from 'react-dnd-touch-backend';
 import { validateName, validateColor, validateEnum } from '../../lib/validation';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 
 type DialogMode = 'add-parent' | 'add-sub' | 'edit';
 type TabType    = 'transaction' | 'task' | 'note';
@@ -173,6 +174,7 @@ export function Categories() {
   const { tasks }        = useTasks();
   const { notes }        = useNotes();
 
+  const reduceMotion = useReducedMotion();
   const [searchQuery, setSearchQuery]   = useState('');
   const [activeTab, setActiveTab]       = useState<TabType>('transaction');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -587,8 +589,20 @@ export function Categories() {
               </p>
             )}
 
-            <Card className="bg-white dark:bg-card border-2 border-blue-200 dark:border-blue-900/50 shadow-sm rounded-xl">
-              <CardContent className="p-3">{renderCategoryList(activeTab)}</CardContent>
+            <Card className="bg-white dark:bg-card border-2 border-blue-200 dark:border-blue-900/50 shadow-sm rounded-xl overflow-hidden">
+              <CardContent className="p-3">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeTab}
+                    initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.2, ease: 'easeOut' }}
+                  >
+                    {renderCategoryList(activeTab)}
+                  </motion.div>
+                </AnimatePresence>
+              </CardContent>
             </Card>
           </div>
         </div>
