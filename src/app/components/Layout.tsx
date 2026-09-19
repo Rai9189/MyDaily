@@ -91,7 +91,7 @@ export function Layout({ children }: LayoutProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="w-full mx-auto px-4 py-4 md:px-6 md:py-6 flex flex-col flex-1 min-h-0"
+            className="w-full max-w-6xl mx-auto px-4 py-4 md:px-6 md:py-6 flex flex-col flex-1 min-h-0"
           >
             {children}
           </motion.div>

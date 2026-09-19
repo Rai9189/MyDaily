@@ -44,7 +44,7 @@ export function EmptyState({ type, onAction }: EmptyStateProps) {
   const config = emptyStateConfig[type];
 
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4 gap-4">
+    <div className="flex flex-col items-center justify-center min-h-[280px] gap-4 px-4 py-12 rounded-xl border-2 border-dashed border-border bg-muted/20">
       <div className="flex items-center justify-center w-16 h-16 rounded-full bg-muted/50">
         {config.icon}
       </div>
@@ -55,7 +55,7 @@ export function EmptyState({ type, onAction }: EmptyStateProps) {
       {onAction && config.actionLabel && (
         <button
           onClick={onAction}
-          className="mt-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+          className="mt-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors active:scale-95"
         >
           {config.actionLabel}
         </button>
