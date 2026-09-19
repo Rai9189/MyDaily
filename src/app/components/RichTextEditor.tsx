@@ -13,6 +13,7 @@ import data from '@emoji-mart/data';
 import {
   Bold, Italic, Underline as UnderlineIcon,
   List, ListOrdered, Palette, Type, CheckSquare, Smile,
+  AlignLeft, AlignCenter, AlignJustify,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -280,6 +281,9 @@ function Toolbar({
       bulletList:  ctx.editor.isActive('bulletList'),
       orderedList: ctx.editor.isActive('orderedList'),
       taskList:    ctx.editor.isActive('taskList'),
+      alignLeft:    ctx.editor.isActive({ textAlign: 'left' }),
+      alignCenter:  ctx.editor.isActive({ textAlign: 'center' }),
+      alignJustify: ctx.editor.isActive({ textAlign: 'justify' }),
     }),
   });
 
@@ -307,6 +311,24 @@ function Toolbar({
         onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleUnderline().run(); }}
         className={btnClass(editorState.underline)}>
         <UnderlineIcon size={14} />
+      </button>
+
+      <Divider />
+
+      <button type="button" title="Align left"
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().setTextAlign('left').run(); }}
+        className={btnClass(editorState.alignLeft)}>
+        <AlignLeft size={14} />
+      </button>
+      <button type="button" title="Align center"
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().setTextAlign('center').run(); }}
+        className={btnClass(editorState.alignCenter)}>
+        <AlignCenter size={14} />
+      </button>
+      <button type="button" title="Justify"
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().setTextAlign('justify').run(); }}
+        className={btnClass(editorState.alignJustify)}>
+        <AlignJustify size={14} />
       </button>
 
       <Divider />
