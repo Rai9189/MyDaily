@@ -103,7 +103,7 @@ export function Layout({ children }: LayoutProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
             transition={{ duration: reduceMotion ? 0 : 0.18, ease: 'easeOut' }}
-            className="w-full max-w-6xl mx-auto px-4 py-4 md:px-6 md:py-6 flex flex-col flex-1 min-h-0"
+            className="w-full px-4 py-4 md:px-6 md:py-6 flex flex-col flex-1 min-h-0"
           >
             <Suspense fallback={<PageLoading />}>
               {children}
