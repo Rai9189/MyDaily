@@ -1,10 +1,20 @@
 // src/app/components/Layout.tsx
-import { useState, useEffect, useRef, ReactNode } from 'react';
+import { useState, useEffect, useRef, ReactNode, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { AnimatePresence, motion } from 'motion/react';
-import { Plus, CreditCard, CheckSquare, FileText, X } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { Plus, CreditCard, CheckSquare, FileText, X, Loader2 } from 'lucide-react';
 import { Navbar } from './Navbar';
 import { GlobalSearch } from './GlobalSearch';
+
+// Kept inside Layout (not the App-level Suspense) so only the content area
+// swaps to this while a page chunk loads — navbar/sidebar stay mounted.
+function PageLoading() {
+  return (
+    <div className="flex-1 flex items-center justify-center py-20">
+      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
 
 const SPEED_DIAL = [
   { label: 'Transaction', icon: CreditCard,  path: '/transactions/new', color: 'bg-green-500 hover:bg-green-600' },
@@ -74,6 +84,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const [searchOpen, setSearchOpen] = useState(false);
+  const reduceMotion = useReducedMotion();
   return (
     <div className="min-h-screen bg-background flex flex-col lg:pl-72">
       <Navbar onOpenSearch={() => setSearchOpen(true)} />
@@ -88,13 +99,15 @@ export function Layout({ children }: LayoutProps) {
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
-            initial={{ opacity: 0, y: 8 }}
+            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
+            exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
+            transition={{ duration: reduceMotion ? 0 : 0.18, ease: 'easeOut' }}
             className="w-full max-w-6xl mx-auto px-4 py-4 md:px-6 md:py-6 flex flex-col flex-1 min-h-0"
           >
-            {children}
+            <Suspense fallback={<PageLoading />}>
+              {children}
+            </Suspense>
           </motion.div>
         </AnimatePresence>
       </main>
