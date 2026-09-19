@@ -3,33 +3,33 @@
 :root {
   --font-size: 16px;
 
-  --background: #f0f4f8;
-  --foreground: #0d1b2a;
+  --background: #f7f8fa;
+  --foreground: #18181b;
 
   --card: #ffffff;
-  --card-foreground: #0d1b2a;
+  --card-foreground: #18181b;
 
   --popover: #ffffff;
-  --popover-foreground: #0d1b2a;
+  --popover-foreground: #18181b;
 
   --primary: #3498db;
   --primary-foreground: #ffffff;
 
-  --secondary: #d6e8f5;
-  --secondary-foreground: #1a5276;
+  --secondary: #f0f0f2;
+  --secondary-foreground: #27272a;
 
-  --muted: #e4edf5;
-  --muted-foreground: #5a7a94;
+  --muted: #f0f0f1;
+  --muted-foreground: #71717a;
 
-  --accent: #d4ac0d;
-  --accent-foreground: #ffffff;
+  --accent: #eef0f2;
+  --accent-foreground: #18181b;
 
   --destructive: #d4183d;
   --destructive-foreground: #ffffff;
 
   --border: rgba(13, 27, 42, 0.08);
   --input: transparent;
-  --input-background: #eaf1f8;
+  --input-background: #f0f0f2;
   --switch-background: #85c1e9;
 
   --font-weight-medium: 500;
@@ -61,34 +61,34 @@
 }
 
 .dark {
-  --background: #0b1622;
-  --foreground: #daeef8;
+  --background: #0a0a0c;
+  --foreground: #e4e4e7;
 
-  --card: #121e30;
-  --card-foreground: #daeef8;
+  --card: #141416;
+  --card-foreground: #e4e4e7;
 
-  --popover: #121e30;
-  --popover-foreground: #daeef8;
+  --popover: #141416;
+  --popover-foreground: #e4e4e7;
 
   --primary: #3b9fd8;
   --primary-foreground: #ffffff;
 
-  --secondary: #0f1d2e;
-  --secondary-foreground: #daeef8;
+  --secondary: #1c1c1f;
+  --secondary-foreground: #e4e4e7;
 
-  --muted: #172438;
-  --muted-foreground: #95c2d8;
+  --muted: #1c1c1f;
+  --muted-foreground: #a1a1aa;
 
-  --accent: #a07810;
-  --accent-foreground: #ffffff;
+  --accent: #232326;
+  --accent-foreground: #e4e4e7;
 
   --destructive: #c0392b;
   --destructive-foreground: #ffffff;
 
   --border: rgba(255, 255, 255, 0.06);
 
-  --input: rgba(80, 140, 180, 0.1);
-  --input-background: #0f1d2e;
+  --input: rgba(255, 255, 255, 0.08);
+  --input-background: #1c1c1f;
   --switch-background: #3b9fd8;
 
   --ring: #3b9fd8;
@@ -229,13 +229,6 @@
   }
 }
 
-/* ✅ Dark mode: button outline hover pakai warna sidebar */
-.dark .hover\:bg-accent:hover {
-  background-color: var(--sidebar) !important;
-  border-color: var(--sidebar-border) !important;
-  color: var(--sidebar-foreground) !important;
-}
-
 /* ✅ Dark mode: hanya tombol outline delete (punya border-destructive DAN text-destructive) */
 .dark button[class*="border-destructive"][class*="text-destructive"]:hover {
   background-color: var(--destructive) !important;
@@ -246,7 +239,7 @@
 /* Dark mode: ensure placeholder text is readable */
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: #7ab8d4;
+  color: var(--muted-foreground);
   opacity: 1;
 }
 
