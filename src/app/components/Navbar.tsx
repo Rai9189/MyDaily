@@ -3,7 +3,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut, Settings, Menu, X, Trash2, Tag, MoreHorizontal, Plus, Search } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
 
 const navItems = [
   { path: '/',             icon: Home,        label: 'Dashboard' },
@@ -46,8 +45,6 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const { theme } = useTheme();
-  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const [open, setOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -159,25 +156,25 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
   return (
     <>
       {/* ── Top Navbar ── */}
-      <header className="app-header fixed top-0 left-0 right-0 h-16 bg-primary/90 dark:bg-sidebar/85 backdrop-blur-xl backdrop-saturate-150 border-b border-white/15 dark:border-sidebar-border flex items-center px-4 z-50 shadow-md">
+      <header className="app-header fixed top-0 left-0 right-0 h-16 bg-sidebar/90 backdrop-blur-xl backdrop-saturate-150 border-b border-sidebar-border flex items-center px-4 z-50 shadow-md">
         {/* Hamburger — tablet only; mobile uses bottom nav, desktop (lg+) uses the persistent sidebar */}
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="text-white p-2 rounded-lg hover:bg-white/15 transition-colors hidden md:flex lg:hidden"
+          className="text-sidebar-foreground p-2 rounded-lg hover:bg-sidebar-foreground/10 transition-colors hidden md:flex lg:hidden"
           aria-label="Open menu"
         >
           <Menu size={26} />
         </button>
 
-        <span className="text-white font-bold text-xl tracking-tight flex-1 md:ml-3">{getPageTitle()}</span>
+        <span className="text-sidebar-foreground font-bold text-xl tracking-tight flex-1 md:ml-3">{getPageTitle()}</span>
 
         {/* Search trigger — desktop only, mobile uses bottom nav */}
         <button
           type="button"
           onClick={onOpenSearch}
           title="Search"
-          className="hidden md:flex items-center gap-2 px-3.5 py-2 lg:w-56 text-sm text-white/70 bg-white/10 hover:bg-white/20 hover:text-white rounded-full transition-colors"
+          className="hidden md:flex items-center gap-2 px-3.5 py-2 lg:w-56 text-sm text-sidebar-foreground/70 bg-sidebar-foreground/10 hover:bg-sidebar-foreground/15 hover:text-sidebar-foreground rounded-full transition-colors"
         >
           <Search size={16} className="flex-shrink-0" />
           <span className="hidden lg:inline truncate">Search</span>
@@ -188,7 +185,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
           <button
             type="button"
             onClick={() => navigate(addPath)}
-            className="md:hidden text-white p-2 rounded-lg hover:bg-white/15 transition-colors"
+            className="md:hidden text-sidebar-foreground p-2 rounded-lg hover:bg-sidebar-foreground/10 transition-colors"
             aria-label="Add new"
           >
             <Plus size={24} strokeWidth={2.5} />
@@ -200,7 +197,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
           <button
             type="button"
             onClick={() => setUserMenuOpen(o => !o)}
-            className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors"
+            className="w-9 h-9 rounded-full bg-sidebar-foreground/10 hover:bg-sidebar-foreground/15 flex items-center justify-center text-sidebar-foreground transition-colors"
             aria-label="Account menu"
           >
             <User size={18} />
@@ -252,20 +249,17 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
         onPointerMove={onDrawerPointerMove}
         onPointerUp={onDrawerPointerUp}
         onPointerCancel={onDrawerPointerUp}
-        className={`fixed left-0 top-0 bottom-0 lg:top-16 w-72 z-50 lg:z-30 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 lg:shadow-none ${
+        className={`bg-sidebar fixed left-0 top-0 bottom-0 lg:top-16 w-72 z-50 lg:z-30 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 lg:shadow-none lg:border-r lg:border-sidebar-border ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
-        style={{
-          background: isDark ? 'var(--sidebar)' : 'linear-gradient(to bottom, var(--primary), color-mix(in srgb, var(--primary) 80%, black))',
-          ...(dragging ? { transform: `translateX(${dragX}px)`, transition: 'none' } : {}),
-        }}
+        style={dragging ? { transform: `translateX(${dragX}px)`, transition: 'none' } : undefined}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/20 dark:border-sidebar-border lg:hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-sidebar-border lg:hidden">
           <img src="/logo.png" alt="MyDaily" className="h-14 w-auto object-contain dark:invert" />
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="text-white/80 dark:text-sidebar-foreground hover:text-white dark:hover:text-white p-1.5 rounded-lg hover:bg-white/15 dark:hover:bg-sidebar-accent transition-colors"
+            className="text-sidebar-foreground/80 hover:text-sidebar-foreground p-1.5 rounded-lg hover:bg-sidebar-foreground/10 transition-colors"
             aria-label="Close menu"
           >
             <X size={22} />
@@ -284,8 +278,8 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
                 onClick={() => setOpen(false)}
                 className={`${mobileHidden ? 'hidden md:flex' : 'flex'} items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors ${
                   isActive
-                    ? 'bg-white text-primary font-semibold dark:bg-sidebar-accent dark:text-sidebar-primary'
-                    : 'text-white/80 dark:text-sidebar-foreground hover:bg-white/15 dark:hover:bg-sidebar-accent hover:text-white dark:hover:text-white'
+                    ? 'bg-sidebar-accent text-sidebar-primary font-semibold'
+                    : 'text-sidebar-foreground/80 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground'
                 }`}
               >
                 <Icon size={20} />
@@ -295,8 +289,8 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
           })}
 
           {/* Quick Access — visible on all screen sizes */}
-          <div className="border-t border-white/20 dark:border-sidebar-border mt-2 pt-3">
-            <p className="text-[10px] text-white/40 dark:text-sidebar-foreground/50 uppercase tracking-widest font-semibold px-4 mb-1">Quick Access</p>
+          <div className="border-t border-sidebar-border mt-2 pt-3">
+            <p className="text-[10px] text-sidebar-foreground/40 uppercase tracking-widest font-semibold px-4 mb-1">Quick Access</p>
             {quickAccessItems.map((item) => {
               const isActive = location.pathname === item.path;
               const Icon = item.icon;
@@ -307,8 +301,8 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
                   onClick={() => setOpen(false)}
                   className={`flex items-center gap-3 px-4 py-2.5 rounded-lg mb-0.5 transition-colors text-sm ${
                     isActive
-                      ? 'bg-white text-primary font-semibold dark:bg-sidebar-accent dark:text-sidebar-primary'
-                      : 'text-white/70 dark:text-sidebar-foreground/80 hover:bg-white/15 dark:hover:bg-sidebar-accent hover:text-white dark:hover:text-white'
+                      ? 'bg-sidebar-accent text-sidebar-primary font-semibold'
+                      : 'text-sidebar-foreground/70 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground'
                   }`}
                 >
                   <Icon size={18} />

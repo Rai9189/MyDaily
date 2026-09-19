@@ -45,12 +45,12 @@
 
   --radius: 0.625rem;
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #0d1b2a;
+  --sidebar: #f4f4f5;
+  --sidebar-foreground: #18181b;
   --sidebar-primary: #2c6a94;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #dbe7ee;
-  --sidebar-accent-foreground: #1f4a63;
+  --sidebar-accent: #e3ecf1;
+  --sidebar-accent-foreground: #2c6a94;
   --sidebar-border: rgba(13, 27, 42, 0.08);
   --sidebar-ring: #2c6a94;
 
@@ -104,13 +104,13 @@
 
   --balance-card-bg: linear-gradient(135deg, #0d2240, #162f50);
 
-  --sidebar: #111e2e;
-  --sidebar-foreground: #daeef8;
+  --sidebar: #17171a;
+  --sidebar-foreground: #e4e4e7;
   --sidebar-primary: #4a8fc2;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1a2d40;
-  --sidebar-accent-foreground: #daeef8;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-accent: #1c2b36;
+  --sidebar-accent-foreground: #8fc4e8;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
   --sidebar-ring: #4a8fc2;
 
   --success: #4ade80;
@@ -275,11 +275,8 @@ input:-webkit-autofill:active {
 /* ✅ Reduced transparency: swap the blurred nav chrome for a solid fallback. */
 @media (prefers-reduced-transparency: reduce) {
   .app-header {
-    background-color: var(--primary) !important;
-    backdrop-filter: none !important;
-  }
-  .dark .app-header {
     background-color: var(--sidebar) !important;
+    backdrop-filter: none !important;
   }
   .app-bottomnav {
     background-color: var(--background) !important;
