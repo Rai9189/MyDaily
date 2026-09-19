@@ -55,10 +55,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTasks = async () => {
+  const fetchTasks = async (silent = false) => {
     if (!user) { setTasks([]); setLoading(false); return; }
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       const { data, error: fetchError } = await supabase
         .from('tasks')
@@ -74,7 +74,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       setError(handleSupabaseError(err));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -226,7 +226,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const refreshTasks = async () => { await fetchTasks(); };
+  const refreshTasks = async () => { await fetchTasks(true); };
 
   const value = {
     tasks, loading, error,
