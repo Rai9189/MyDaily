@@ -570,8 +570,8 @@ export function Categories() {
                   <button key={opt.value} type="button" onClick={() => setSubtypeFilter(opt.value)}
                     className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
                       subtypeFilter === opt.value
-                        ? opt.value === 'income' ? 'bg-green-600 text-white border-green-600'
-                          : opt.value === 'expense' ? 'bg-red-600 text-white border-red-600'
+                        ? opt.value === 'income' ? 'bg-green-600 text-white border-green-600 dark:bg-green-500/15 dark:text-green-400 dark:border-green-500/30'
+                          : opt.value === 'expense' ? 'bg-red-600 text-white border-red-600 dark:bg-red-500/15 dark:text-red-400 dark:border-red-500/30'
                           : 'bg-primary text-primary-foreground border-primary'
                         : 'bg-white dark:bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted'
                     }`}>{opt.label}</button>
@@ -628,8 +628,8 @@ export function Categories() {
                     {([{ value: 'income', label: 'Income' }, { value: 'expense', label: 'Expense' }] as const).map(opt => (
                       <Button key={opt.value} type="button" variant={formData.subtype === opt.value ? 'default' : 'outline'} size="sm"
                         onClick={() => setFormData({ ...formData, subtype: opt.value })}
-                        className={formData.subtype === opt.value && opt.value === 'income' ? 'bg-green-600 hover:bg-green-700 border-green-600 text-white dark:text-white'
-                          : formData.subtype === opt.value && opt.value === 'expense' ? 'bg-red-600 hover:bg-red-700 border-red-600 text-white dark:text-white' : ''}>
+                        className={formData.subtype === opt.value && opt.value === 'income' ? 'bg-green-600 hover:bg-green-700 border-green-600 text-white dark:bg-green-500/15 dark:hover:bg-green-500/25 dark:border-green-500/30 dark:text-green-400'
+                          : formData.subtype === opt.value && opt.value === 'expense' ? 'bg-red-600 hover:bg-red-700 border-red-600 text-white dark:bg-red-500/15 dark:hover:bg-red-500/25 dark:border-red-500/30 dark:text-red-400' : ''}>
                         {opt.label}
                       </Button>
                     ))}
