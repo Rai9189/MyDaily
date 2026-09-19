@@ -117,7 +117,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
   return (
     <>
       {/* ── Top Navbar ── */}
-      <header className="fixed top-0 left-0 right-0 h-16 bg-primary/90 dark:bg-sidebar/85 backdrop-blur-xl backdrop-saturate-150 border-b border-white/15 dark:border-sidebar-border flex items-center px-4 z-50 shadow-md">
+      <header className="app-header fixed top-0 left-0 right-0 h-16 bg-primary/90 dark:bg-sidebar/85 backdrop-blur-xl backdrop-saturate-150 border-b border-white/15 dark:border-sidebar-border flex items-center px-4 z-50 shadow-md">
         {/* Hamburger — tablet only; mobile uses bottom nav, desktop (lg+) uses the persistent sidebar */}
         <button
           type="button"
@@ -267,7 +267,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
       </div>
 
       {/* ── Bottom Nav (mobile only) ── */}
-      <nav className="fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-border z-40 flex md:hidden shadow-[0_-2px_8px_rgba(0,0,0,0.08)]">
+      <nav className="app-bottomnav fixed bottom-0 left-0 right-0 h-16 bg-background/85 backdrop-blur-xl backdrop-saturate-150 border-t border-border z-40 flex md:hidden shadow-[0_-2px_8px_rgba(0,0,0,0.08)]">
         {bottomNavItems.map((item) => {
           const isActive = getIsActive(item.path);
           const Icon = item.icon;
@@ -275,7 +275,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
             <Link
               key={item.path}
               to={item.path}
-              className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors ${
+              className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors active:scale-95 ${
                 isActive ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
@@ -289,7 +289,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors ${
+          className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors active:scale-95 ${
             moreIsActive ? 'text-primary' : 'text-muted-foreground'
           }`}
         >

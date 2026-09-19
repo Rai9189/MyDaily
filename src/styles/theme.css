@@ -270,3 +270,18 @@ input:-webkit-autofill:active {
     scroll-behavior: auto !important;
   }
 }
+
+/* ✅ Reduced transparency: swap the blurred nav chrome for a solid fallback. */
+@media (prefers-reduced-transparency: reduce) {
+  .app-header {
+    background-color: var(--primary) !important;
+    backdrop-filter: none !important;
+  }
+  .dark .app-header {
+    background-color: var(--sidebar) !important;
+  }
+  .app-bottomnav {
+    background-color: var(--background) !important;
+    backdrop-filter: none !important;
+  }
+}
