@@ -530,7 +530,7 @@ export function Notes() {
       </div>
 
       {itemsPerPage !== 'all' && totalPages > 1 && (
-        <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-30 bg-white dark:bg-card border-t-2 border-slate-200 dark:border-border shadow-[0_-4px_16px_rgba(0,0,0,0.08)] py-3 px-6">
+        <div className="fixed bottom-16 md:bottom-0 left-0 right-0 lg:left-72 z-30 bg-white dark:bg-card border-t-2 border-slate-200 dark:border-border shadow-[0_-4px_16px_rgba(0,0,0,0.08)] py-3 px-6">
           <div className="flex items-center justify-between w-full">
             <p className="text-sm font-medium text-foreground/65">
               Showing {startIndex + 1}–{Math.min(startIndex + (itemsPerPage as number), regularNotes.length)} of {regularNotes.length}
