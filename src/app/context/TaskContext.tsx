@@ -95,7 +95,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       setError(msg);
       return { success: false, error: msg };
     }
-    return withErrorHandling(
+    return withErrorHandling<any>(
       () => supabase
         .from('tasks')
         .insert({

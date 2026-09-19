@@ -31,7 +31,7 @@ export interface ErrorResultWithData<T> extends ErrorResult {
  * if (result.success) { ... } else { toast.error(result.error); }
  */
 export async function withErrorHandling<T = void>(
-  operation: () => Promise<{ data: T | null; error: any }>,
+  operation: () => PromiseLike<{ data: T | null; error: any }>,
   options: {
     setError?: (error: string) => void;
     context?: 'signin' | 'signup' | 'general';
@@ -58,7 +58,7 @@ export async function withErrorHandling<T = void>(
  * Same as withErrorHandling but clearer intent for mutations without a return value
  */
 export async function withErrorHandlingNoData(
-  operation: () => Promise<{ error: any }>,
+  operation: () => PromiseLike<{ error: any }>,
   options: {
     setError?: (error: string) => void;
     context?: 'signin' | 'signup' | 'general';

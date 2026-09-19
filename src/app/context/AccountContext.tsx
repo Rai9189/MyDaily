@@ -85,7 +85,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setError(null);
     const isFirst = accounts.length === 0;
 
-    return withErrorHandling(
+    return withErrorHandling<Account>(
       () => supabase
         .from('accounts')
         .insert({
@@ -100,7 +100,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       { setError }
     ).then(result => {
       if (result.success && result.data) {
-        setAccounts(prev => isFirst ? [result.data, ...prev] : [...prev, result.data]);
+        const newAccount = result.data;
+        setAccounts(prev => isFirst ? [newAccount, ...prev] : [...prev, newAccount]);
       }
       return { success: result.success, error: result.error };
     });

@@ -1,6 +1,7 @@
 // src/app/context/AuthContext.tsx
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { supabase, handleSupabaseError } from '../../lib/supabase';
+import { withErrorHandling, withErrorHandlingNoData } from '../../lib/errorHandler';
 import type { Session } from '@supabase/supabase-js';
 import { User } from '../types';
 
@@ -206,25 +207,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    try {
-      setError(null);
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-
-      // ✅ Log activity login berhasil
-      if (data.user) {
-        await logActivity(data.user.id, 'login', {
-          email: data.user.email,
+    setError(null);
+    return withErrorHandling<any>(
+      () => supabase.auth.signInWithPassword({ email, password }),
+      { setError, context: 'signin' }
+    ).then(async result => {
+      if (result.success && result.data?.user) {
+        // ✅ Log activity login berhasil
+        await logActivity(result.data.user.id, 'login', {
+          email: result.data.user.email,
           timestamp: new Date().toISOString(),
         });
       }
-
-      return { success: true, error: null };
-    } catch (err) {
-      const errorMessage = handleSupabaseError(err);
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    }
+      return { success: result.success, error: result.error };
+    });
   };
 
   const signOut = async () => {
@@ -257,38 +253,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const resetPassword = async (email: string) => {
-    try {
-      setError(null);
+    setError(null);
+    const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+    const redirectTo = `${appUrl}/reset-password`;
 
-      const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-      const redirectTo = `${appUrl}/reset-password`;
-
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
-      if (error) throw error;
-
-      return { success: true, error: null };
-    } catch (err) {
-      const errorMessage = handleSupabaseError(err);
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    }
+    return withErrorHandlingNoData(
+      () => supabase.auth.resetPasswordForEmail(email, { redirectTo }),
+      { setError }
+    );
   };
 
   const updateProfile = async (updates: Partial<User>) => {
-    try {
-      setError(null);
-      if (!user) throw new Error('No user logged in');
-
-      const { error } = await supabase.from('users').update(updates).eq('id', user.id);
-      if (error) throw error;
-
-      setUser({ ...user, ...updates });
-      return { success: true, error: null };
-    } catch (err) {
-      const errorMessage = handleSupabaseError(err);
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
+    setError(null);
+    if (!user) {
+      const msg = 'No user logged in';
+      setError(msg);
+      return { success: false, error: msg };
     }
+
+    return withErrorHandlingNoData(
+      () => supabase.from('users').update(updates).eq('id', user.id),
+      { setError }
+    ).then(result => {
+      if (result.success) setUser({ ...user, ...updates });
+      return result;
+    });
   };
 
   const savePin = async (pin: string, pinType: 'pin4' | 'pin6' | 'password') => {
