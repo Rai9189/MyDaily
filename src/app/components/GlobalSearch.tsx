@@ -27,23 +27,6 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // Listen for Cmd+K / Ctrl+K
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        onOpenChange(!open);
-        setQuery('');
-        setSelectedIndex(0);
-      }
-      if (e.key === 'Escape' && open) {
-        onOpenChange(false);
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [open, onOpenChange]);
-
   const results = useMemo<SearchResult[]>(() => {
     if (!query.trim()) return [];
 
@@ -135,12 +118,40 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
     setSelectedIndex(0);
   }, [query]);
 
+  // Cmd+K / Ctrl+K to toggle, arrow keys + Enter to navigate results, Escape to close
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        onOpenChange(!open);
+        setQuery('');
+        setSelectedIndex(0);
+        return;
+      }
+      if (!open) return;
+      if (e.key === 'Escape') {
+        onOpenChange(false);
+      } else if (e.key === 'ArrowDown' && results.length > 0) {
+        e.preventDefault();
+        setSelectedIndex(i => (i + 1) % results.length);
+      } else if (e.key === 'ArrowUp' && results.length > 0) {
+        e.preventDefault();
+        setSelectedIndex(i => (i - 1 + results.length) % results.length);
+      } else if (e.key === 'Enter' && results[selectedIndex]) {
+        e.preventDefault();
+        handleSelect(results[selectedIndex]);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open, onOpenChange, results, selectedIndex]);
+
   return (
     <>
       {/* Backdrop */}
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-black/50"
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm animate-in fade-in-0 duration-200"
           onClick={() => onOpenChange(false)}
         />
       )}
@@ -148,8 +159,8 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
       {/* Search Modal */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-20">
-          <div className="w-full max-w-lg">
-            <div className="bg-background border border-border rounded-xl shadow-2xl overflow-hidden">
+          <div className="w-full max-w-lg animate-in fade-in-0 zoom-in-95 duration-200">
+            <div className="bg-background border border-border rounded-2xl shadow-2xl overflow-hidden">
               {/* Search Input */}
               <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
                 <Search size={18} className="text-muted-foreground flex-shrink-0" />
