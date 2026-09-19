@@ -94,7 +94,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
   return (
     <>
       {/* ── Top Navbar ── */}
-      <header className="fixed top-0 left-0 right-0 h-16 bg-primary dark:bg-sidebar border-b border-transparent dark:border-sidebar-border flex items-center px-4 z-50 shadow-md">
+      <header className="fixed top-0 left-0 right-0 h-16 bg-primary/90 dark:bg-sidebar/85 backdrop-blur-xl backdrop-saturate-150 border-b border-white/15 dark:border-sidebar-border flex items-center px-4 z-50 shadow-md">
         {/* Hamburger — tablet only; mobile uses bottom nav, desktop (lg+) uses the persistent sidebar */}
         <button
           type="button"
