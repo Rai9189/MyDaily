@@ -472,7 +472,7 @@ export function Accounts() {
                     transition={{ delay: Math.min(i * 0.04, 0.3), duration: 0.2, ease: 'easeOut' }}
                   >
                   <Card
-                    className={`hover:shadow-lg transition-shadow bg-white dark:bg-card cursor-pointer ${
+                    className={`hover:shadow-lg hover:bg-muted/40 transition bg-white dark:bg-card cursor-pointer ${
                       isPrimary
                         ? 'border-2 border-amber-400 dark:border-amber-500'
                         : cfg.cardBorder

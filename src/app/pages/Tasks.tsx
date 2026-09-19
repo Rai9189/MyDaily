@@ -519,7 +519,7 @@ export function Tasks() {
                   transition={{ delay: Math.min(i * 0.03, 0.3), duration: 0.2, ease: 'easeOut' }}
                 >
                 <Card onClick={() => navigate(`/tasks/${task.id}`)}
-                  className={`hover:shadow-lg transition-shadow bg-white dark:bg-card cursor-pointer border-2 ${getCardBorder(task)}`}>
+                  className={`hover:shadow-lg hover:bg-muted/40 transition bg-white dark:bg-card cursor-pointer border-2 ${getCardBorder(task)}`}>
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
                       <button

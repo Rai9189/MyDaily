@@ -161,7 +161,7 @@ export function Notes() {
         transition={{ delay: Math.min(index * 0.03, 0.3), duration: 0.2, ease: 'easeOut' }}
       >
       <Card onClick={() => navigate(`/notes/${note.id}`)}
-        className={`hover:shadow-lg transition-shadow bg-white dark:bg-card cursor-pointer h-full flex flex-col ${note.pinned ? 'border-2 border-amber-400 dark:border-amber-500' : 'border-2 border-blue-200 dark:border-blue-900/50'}`}>
+        className={`hover:shadow-lg hover:bg-muted/40 transition bg-white dark:bg-card cursor-pointer h-full flex flex-col ${note.pinned ? 'border-2 border-amber-400 dark:border-amber-500' : 'border-2 border-blue-200 dark:border-blue-900/50'}`}>
         <CardContent className="p-4 flex-1 flex flex-col">
           <div className="flex items-start justify-between gap-2 flex-1">
             <div className="flex-1 min-w-0 flex flex-col h-full">
