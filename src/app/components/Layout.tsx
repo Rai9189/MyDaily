@@ -27,6 +27,7 @@ function DashboardFAB() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
 
   // useEffect must come before any early return — Rules of Hooks
   useEffect(() => {
@@ -45,34 +46,46 @@ function DashboardFAB() {
 
   return (
     <div className="fixed bottom-20 right-4 z-50 md:hidden flex flex-col items-end gap-2" ref={ref}>
-      {open && (
-        <div className="flex flex-col items-end gap-2 mb-1">
-          {SPEED_DIAL.map(opt => {
-            const Icon = opt.icon;
-            return (
-              <div key={opt.path} className="flex items-center gap-2 animate-in slide-in-from-bottom-2 fade-in duration-150">
-                <span className="text-xs font-semibold bg-foreground text-background px-2.5 py-1 rounded-full shadow-md whitespace-nowrap">
-                  {opt.label}
-                </span>
-                <button
-                  onClick={() => { setOpen(false); navigate(opt.path); }}
-                  className={`w-11 h-11 rounded-full ${opt.color} text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform`}
+      <AnimatePresence>
+        {open && (
+          <motion.div className="flex flex-col items-end gap-2 mb-1">
+            {SPEED_DIAL.map((opt, i) => {
+              const Icon = opt.icon;
+              return (
+                <motion.div
+                  key={opt.path}
+                  className="flex items-center gap-2"
+                  initial={reduceMotion ? false : { opacity: 0, y: 12, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={reduceMotion ? undefined : { opacity: 0, y: 12, scale: 0.9 }}
+                  transition={{ type: 'spring', bounce: 0, duration: 0.35, delay: reduceMotion ? 0 : i * 0.03 }}
                 >
-                  <Icon size={18} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
+                  <span className="text-xs font-semibold bg-foreground text-background px-2.5 py-1 rounded-full shadow-md whitespace-nowrap">
+                    {opt.label}
+                  </span>
+                  <button
+                    onClick={() => { setOpen(false); navigate(opt.path); }}
+                    className={`w-11 h-11 rounded-full ${opt.color} text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform`}
+                  >
+                    <Icon size={18} />
+                  </button>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <button
+      <motion.button
         onClick={() => setOpen(o => !o)}
-        className={`w-14 h-14 rounded-full bg-primary text-white shadow-xl flex items-center justify-center active:scale-95 transition-transform duration-200 ${open ? 'rotate-45' : ''}`}
+        className="w-14 h-14 rounded-full bg-primary text-white shadow-xl flex items-center justify-center"
         aria-label="Quick add"
+        animate={{ rotate: open ? 45 : 0 }}
+        whileTap={{ scale: 0.9 }}
+        transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
       >
         {open ? <X size={24} /> : <Plus size={26} />}
-      </button>
+      </motion.button>
     </div>
   );
 }
