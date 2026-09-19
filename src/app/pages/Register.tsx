@@ -45,6 +45,7 @@ export function Register() {
   const [confirmPassword, setConfirmPassword]         = useState('');
   const [showPassword, setShowPassword]               = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordFocused, setPasswordFocused]         = useState(false);
   const [loading, setLoading]                         = useState(false);
   const [error, setError]                             = useState<string | null>(null);
 
@@ -152,6 +153,8 @@ export function Register() {
                     placeholder="Create a strong password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => setPasswordFocused(false)}
                     disabled={loading}
                     className="pr-10"
                   />
@@ -165,47 +168,48 @@ export function Register() {
                   </button>
                 </div>
 
-                <div className="mt-2 space-y-2">
-                  {/* Strength bar — hanya muncul kalau ada input */}
-                  {password.length > 0 && (
-                    <>
-                      <div className="flex gap-1">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <div
-                            key={i}
-                            className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
-                              i < strength.score ? strength.color : 'bg-slate-200 dark:bg-slate-700'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <p className={`text-xs font-medium ${
-                        strength.score <= 2 ? 'text-red-500' :
-                        strength.score === 3 ? 'text-amber-500' : 'text-green-500'
-                      }`}>{strength.label}</p>
-                    </>
-                  )}
+                {/* Strength bar + rules — only while the field is focused or filled, so the form doesn't feel long upfront */}
+                {(passwordFocused || password.length > 0) && (
+                  <div className="mt-2 space-y-2">
+                    {password.length > 0 && (
+                      <>
+                        <div className="flex gap-1">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <div
+                              key={i}
+                              className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
+                                i < strength.score ? strength.color : 'bg-slate-200 dark:bg-slate-700'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <p className={`text-xs font-medium ${
+                          strength.score <= 2 ? 'text-red-500' :
+                          strength.score === 3 ? 'text-amber-500' : 'text-green-500'
+                        }`}>{strength.label}</p>
+                      </>
+                    )}
 
-                  {/* Rules list — selalu tampil dari awal */}
-                  <ul className="space-y-1">
-                    {PASSWORD_RULES.map(rule => {
-                      const passed = rule.test(password);
-                      return (
-                        <li key={rule.label} className="flex items-center gap-1.5">
-                          {passed
-                            ? <Check size={12} className="text-green-500 shrink-0" />
-                            : <X size={12} className="text-slate-300 dark:text-slate-600 shrink-0" />
-                          }
-                          <span className={`text-xs ${
-                            passed ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
-                          }`}>
-                            {rule.label}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
+                    <ul className="space-y-1">
+                      {PASSWORD_RULES.map(rule => {
+                        const passed = rule.test(password);
+                        return (
+                          <li key={rule.label} className="flex items-center gap-1.5">
+                            {passed
+                              ? <Check size={12} className="text-green-500 shrink-0" />
+                              : <X size={12} className="text-slate-300 dark:text-slate-600 shrink-0" />
+                            }
+                            <span className={`text-xs ${
+                              passed ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
+                            }`}>
+                              {rule.label}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
               </div>
 
               {/* Confirm Password */}
