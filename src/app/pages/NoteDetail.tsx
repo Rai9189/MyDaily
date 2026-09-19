@@ -21,10 +21,9 @@ import { formatFileSize, isImageFile } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { getDraft, saveDraft, clearDraft } from '../../lib/draftStorage';
-import { validateName, validateDescription } from '../../lib/validation';
+import { validateName } from '../../lib/validation';
 
-const MAX_TITLE   = 100;
-const MAX_CONTENT = 10_000;
+const MAX_TITLE = 100;
 
 interface NoteDraftData {
   title: string;
@@ -128,9 +127,6 @@ export function NoteDetail() {
     formData.categoryId    !== initialFormData.categoryId    ||
     formData.subcategoryId !== initialFormData.subcategoryId
   );
-
-  // ✅ Char count dari plain text (strip HTML tags)
-  const contentLength = stripHtml(formData.content).length;
 
   useEffect(() => {
     if (!isNew && note) {
@@ -249,9 +245,6 @@ export function NoteDetail() {
 
     const titleValidation = validateName(formData.title, MAX_TITLE);
     if (!titleValidation.valid) { toast.warning(titleValidation.error); return; }
-
-    const contentValidation = validateDescription(stripHtml(formData.content), MAX_CONTENT);
-    if (!contentValidation.valid) { toast.warning(contentValidation.error); return; }
 
     if (!formData.categoryId) { toast.warning('Please select a category.'); return; }
 
@@ -409,22 +402,12 @@ export function NoteDetail() {
 
                 {/* ✅ Rich Text Content */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between items-center">
-                    <Label>Content <span className="text-destructive">*</span></Label>
-                    <span className={`text-xs ${contentLength >= MAX_CONTENT ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
-                      {contentLength.toLocaleString('id-ID')}/{MAX_CONTENT.toLocaleString('id-ID')}
-                    </span>
-                  </div>
+                  <Label>Content <span className="text-destructive">*</span></Label>
                   <RichTextEditor
                     value={formData.content}
-                    onChange={(html) => {
-                      if (stripHtml(html).length <= MAX_CONTENT) {
-                        setFormData(prev => ({ ...prev, content: html }));
-                      }
-                    }}
+                    onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
                     placeholder="Write your note here..."
                     disabled={isBusy}
-                    maxLength={MAX_CONTENT}
                     minHeight={200}
                     maxHeight={480}
                   />
