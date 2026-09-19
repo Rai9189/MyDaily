@@ -1,6 +1,6 @@
 // src/app/components/Navbar.tsx
 import { useState, useEffect } from 'react';
-import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut, Settings, Menu, X, Trash2, Tag, MoreHorizontal, Plus } from 'lucide-react';
+import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut, Settings, Menu, X, Trash2, Tag, MoreHorizontal, Plus, Search } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -38,7 +38,7 @@ const ADD_ROUTES: Record<string, string> = {
   '/accounts':     '/accounts?add=true',
 };
 
-export function Navbar() {
+export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut } = useAuth();
@@ -95,17 +95,29 @@ export function Navbar() {
     <>
       {/* ── Top Navbar ── */}
       <header className="fixed top-0 left-0 right-0 h-16 bg-primary dark:bg-sidebar border-b border-transparent dark:border-sidebar-border flex items-center px-4 z-50 shadow-md">
-        {/* Hamburger — always visible on desktop, hidden on mobile (bottom nav handles it) */}
+        {/* Hamburger — tablet only; mobile uses bottom nav, desktop (lg+) uses the persistent sidebar */}
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="text-white p-2 rounded-lg hover:bg-white/15 transition-colors hidden md:flex"
+          className="text-white p-2 rounded-lg hover:bg-white/15 transition-colors hidden md:flex lg:hidden"
           aria-label="Open menu"
         >
           <Menu size={26} />
         </button>
 
         <span className="text-white font-bold text-xl tracking-wide flex-1 md:ml-3">{getPageTitle()}</span>
+
+        {/* Search trigger — desktop only, mobile uses bottom nav + no shortcut affordance */}
+        <button
+          type="button"
+          onClick={onOpenSearch}
+          className="hidden md:flex items-center gap-2 px-3 py-1.5 text-sm text-white/80 hover:text-white hover:bg-white/15 rounded-lg transition-colors"
+          title="Press Cmd+K to search"
+        >
+          <Search size={15} />
+          <span className="hidden lg:inline">Search...</span>
+          <kbd className="hidden lg:inline ml-1 text-[10px] px-1 py-0.5 bg-white/15 rounded">⌘K</kbd>
+        </button>
 
         {/* Quick-add "+" — mobile only, on list pages */}
         {addPath && (
@@ -120,19 +132,19 @@ export function Navbar() {
         )}
       </header>
 
-      {/* ── Overlay ── */}
+      {/* ── Overlay (drawer mode only — the lg+ sidebar isn't modal) ── */}
       {open && (
-        <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 bg-black/50 z-50 lg:hidden" onClick={() => setOpen(false)} />
       )}
 
-      {/* ── Drawer ── */}
+      {/* ── Drawer on mobile/tablet, permanent sidebar from lg+ ── */}
       <div
-        className={`fixed top-0 left-0 h-full w-72 z-50 flex flex-col transition-transform duration-300 ease-in-out ${
+        className={`fixed left-0 top-0 bottom-0 lg:top-16 w-72 z-50 lg:z-30 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 lg:shadow-none ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={{ background: isDark ? 'var(--sidebar)' : 'linear-gradient(to bottom, var(--primary), color-mix(in srgb, var(--primary) 80%, black))' }}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/20 dark:border-sidebar-border">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/20 dark:border-sidebar-border lg:hidden">
           <img src="/logo.png" alt="MyDaily" className="h-14 w-auto object-contain dark:invert" />
           <button
             type="button"

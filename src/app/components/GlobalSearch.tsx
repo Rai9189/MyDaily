@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, X, CreditCard, CheckSquare, FileText, Zap, Trash2 } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Search, X, CreditCard, CheckSquare, FileText, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTransactions } from '../context/TransactionContext';
 import { useTasks } from '../context/TaskContext';
@@ -16,7 +16,7 @@ type SearchResult = {
   path: string;
 };
 
-export function GlobalSearch() {
+export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const navigate = useNavigate();
   const { transactions } = useTransactions();
   const { tasks } = useTasks();
@@ -24,7 +24,6 @@ export function GlobalSearch() {
   const { accounts } = useAccounts();
   const { categories } = useCategories();
 
-  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -33,17 +32,17 @@ export function GlobalSearch() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        setOpen(o => !o);
+        onOpenChange(!open);
         setQuery('');
         setSelectedIndex(0);
       }
       if (e.key === 'Escape' && open) {
-        setOpen(false);
+        onOpenChange(false);
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [open]);
+  }, [open, onOpenChange]);
 
   const results = useMemo<SearchResult[]>(() => {
     if (!query.trim()) return [];
@@ -128,7 +127,7 @@ export function GlobalSearch() {
 
   const handleSelect = (result: SearchResult) => {
     navigate(result.path);
-    setOpen(false);
+    onOpenChange(false);
     setQuery('');
   };
 
@@ -142,7 +141,7 @@ export function GlobalSearch() {
       {open && (
         <div
           className="fixed inset-0 z-40 bg-black/50"
-          onClick={() => setOpen(false)}
+          onClick={() => onOpenChange(false)}
         />
       )}
 
@@ -163,7 +162,7 @@ export function GlobalSearch() {
                   className="flex-1 bg-transparent text-foreground text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-sm placeholder:text-muted-foreground"
                 />
                 <button
-                  onClick={() => setOpen(false)}
+                  onClick={() => onOpenChange(false)}
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <X size={18} />
@@ -218,21 +217,6 @@ export function GlobalSearch() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Keyboard Shortcut Hint */}
-      {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-          title="Press Cmd+K to search"
-        >
-          <Search size={14} />
-          <span className="hidden lg:inline">Search...</span>
-          <kbd className="hidden lg:inline ml-auto text-[10px] px-1 py-0.5 bg-muted border border-border rounded">
-            ⌘K
-          </kbd>
-        </button>
       )}
     </>
   );

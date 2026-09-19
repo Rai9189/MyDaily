@@ -73,12 +73,13 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
+  const [searchOpen, setSearchOpen] = useState(false);
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <Navbar />
-      <GlobalSearch />
+    <div className="min-h-screen bg-background flex flex-col lg:pl-72">
+      <Navbar onOpenSearch={() => setSearchOpen(true)} />
+      <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
 
-      {/* pt-16 = top navbar; pb-16 md:pb-0 = bottom nav clearance on mobile */}
+      {/* pt-16 = top navbar; pb-16 md:pb-0 = bottom nav clearance on mobile; lg:pl-72 (on parent) clears the persistent sidebar */}
       <main
         className="flex-1 pt-16 pb-16 md:pb-0 flex flex-col overflow-hidden"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}
