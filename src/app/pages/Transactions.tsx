@@ -543,7 +543,7 @@ export function Transactions() {
           <Card className="bg-white dark:bg-card border shadow-sm rounded-xl overflow-hidden">
             <div className={`grid divide-x divide-border ${summaryTransfer > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <button type="button" onClick={() => setActivePopup('income')}
-                className="flex flex-col items-start px-3 py-2.5 text-left hover:bg-muted/40 transition-colors min-w-0"
+                className="flex flex-col items-center px-3 py-2.5 text-center hover:bg-muted/40 transition-colors min-w-0"
               >
                 <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">
                   <TrendingUp size={11} className="text-green-600 dark:text-green-400 flex-shrink-0" /> Income
@@ -553,7 +553,7 @@ export function Transactions() {
               </button>
 
               <button type="button" onClick={() => setActivePopup('expense')}
-                className="flex flex-col items-start px-3 py-2.5 text-left hover:bg-muted/40 transition-colors min-w-0"
+                className="flex flex-col items-center px-3 py-2.5 text-center hover:bg-muted/40 transition-colors min-w-0"
               >
                 <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">
                   <TrendingDown size={11} className="text-red-600 dark:text-red-400 flex-shrink-0" /> Expense
@@ -564,7 +564,7 @@ export function Transactions() {
 
               {summaryTransfer > 0 && (
                 <button type="button" onClick={() => setActivePopup('transfer')}
-                  className="flex flex-col items-start px-3 py-2.5 text-left hover:bg-muted/40 transition-colors min-w-0"
+                  className="flex flex-col items-center px-3 py-2.5 text-center hover:bg-muted/40 transition-colors min-w-0"
                 >
                   <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">
                     <ArrowLeftRight size={11} className="text-blue-600 dark:text-blue-400 flex-shrink-0" /> Transfer
