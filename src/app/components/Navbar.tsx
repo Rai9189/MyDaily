@@ -1,5 +1,5 @@
 // src/app/components/Navbar.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut, Settings, Menu, X, Trash2, Tag, MoreHorizontal, Plus, Search } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -11,8 +11,12 @@ const navItems = [
   { path: '/tasks',        icon: CheckSquare, label: 'Tasks' },
   { path: '/notes',        icon: FileText,    label: 'Notes' },
   { path: '/accounts',     icon: Wallet,      label: 'Accounts' },
-  { path: '/profile',      icon: User,        label: 'Profile' },
-  { path: '/settings',     icon: Settings,    label: 'Settings' },
+];
+
+// Account-level actions live in the avatar menu, not the nav list
+const userMenuItems = [
+  { path: '/profile',  icon: User,     label: 'Profile' },
+  { path: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 // The 4 items covered by the mobile bottom nav — hidden in drawer on mobile only
@@ -45,6 +49,8 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const [open, setOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -52,6 +58,22 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [open]);
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') setUserMenuOpen(false); };
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [userMenuOpen]);
+
+  useEffect(() => { setUserMenuOpen(false); }, [location.pathname]);
 
   const getIsActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
@@ -84,6 +106,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
 
   const handleLogout = async () => {
     setOpen(false);
+    setUserMenuOpen(false);
     sessionStorage.removeItem('pinUnlocked');
     await signOut();
     navigate('/login');
@@ -129,6 +152,46 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
             <Plus size={24} strokeWidth={2.5} />
           </button>
         )}
+
+        {/* Avatar menu — Profile, Settings, Sign out */}
+        <div className="relative ml-1" ref={userMenuRef}>
+          <button
+            type="button"
+            onClick={() => setUserMenuOpen(o => !o)}
+            className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors"
+            aria-label="Account menu"
+          >
+            <User size={18} />
+          </button>
+
+          {userMenuOpen && (
+            <div className="absolute right-0 top-11 w-48 bg-popover text-popover-foreground border border-border rounded-lg shadow-lg py-1.5 z-50">
+              {userMenuItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3.5 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                  >
+                    <Icon size={16} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+              <div className="my-1.5 border-t border-border" />
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors"
+              >
+                <LogOut size={16} />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       {/* ── Overlay (drawer mode only — the lg+ sidebar isn't modal) ── */}
@@ -201,17 +264,6 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
             })}
           </div>
         </nav>
-
-        <div className="p-4 border-t border-white/20 dark:border-sidebar-border">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-white/80 dark:text-sidebar-foreground hover:bg-red-600/50 dark:hover:bg-red-900/40 hover:text-white transition-colors border border-red-400/40 dark:border-red-800/50"
-          >
-            <LogOut size={18} />
-            <span>Sign Out</span>
-          </button>
-        </div>
       </div>
 
       {/* ── Bottom Nav (mobile only) ── */}
