@@ -167,7 +167,9 @@
 /* ✅ Hide scrollbar but keep scroll functionality */
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar { display: none; }
-  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+  /* overscroll-behavior: contain keeps this container's own bounce without
+     chaining the gesture to the page behind it (pull-to-refresh, rubber-band). */
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: contain; }
 }
 
 @layer base {
@@ -175,13 +177,29 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    font-size: var(--font-size);
+    /* Mobile-native baseline: no gray/blue tap flash, no auto font inflation
+       on rotation, and the page itself never rubber-bands (each scroll
+       container opts back in via .no-scrollbar's overscroll-behavior: contain). */
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    overscroll-behavior: none;
   }
 
-  html {
-    font-size: var(--font-size);
+  /* Controls (not content): no lingering text-selection/callout on long-press,
+     and skip the ~300ms tap delay since these never double-tap-zoom. */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
 
   h1 {

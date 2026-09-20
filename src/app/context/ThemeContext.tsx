@@ -18,6 +18,13 @@ function getResolvedTheme(theme: Theme): 'light' | 'dark' {
   return theme;
 }
 
+// Keeps the mobile status bar / task-switcher chrome in sync with the app's
+// own theme choice (which can differ from the OS setting), not just at load.
+function syncThemeColorMeta(resolved: 'light' | 'dark') {
+  const meta = document.getElementById('theme-color-meta');
+  if (meta) meta.setAttribute('content', resolved === 'dark' ? '#17171a' : '#f4f4f5');
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   // ✅ FIX: Support 'system' sebagai nilai theme
   const [theme, setThemeState] = useState<Theme>(() => {
@@ -35,6 +42,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } else {
       root.classList.remove('dark');
     }
+    syncThemeColorMeta(resolved);
     localStorage.setItem('theme', theme);
   }, [theme]);
 
@@ -50,6 +58,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       } else {
         root.classList.remove('dark');
       }
+      syncThemeColorMeta(mediaQuery.matches ? 'dark' : 'light');
     };
 
     mediaQuery.addEventListener('change', handleChange);

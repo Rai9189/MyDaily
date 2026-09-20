@@ -4,6 +4,12 @@ import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut, Settings
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+// Soft resistance past a boundary instead of a hard stop — used when the
+// drawer is dragged open past its resting position.
+function rubberband(overshoot: number, dimension: number, constant = 0.55) {
+  return (overshoot * dimension * constant) / (dimension + constant * Math.abs(overshoot));
+}
+
 const navItems = [
   { path: '/',             icon: Home,        label: 'Dashboard' },
   { path: '/transactions', icon: CreditCard,  label: 'Transactions' },
@@ -77,7 +83,12 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
     }
     if (start.axis === 'x') {
       e.preventDefault();
-      setDragX(Math.min(0, dx));
+      if (dx <= 0) {
+        setDragX(dx);
+      } else {
+        const width = drawerRef.current?.offsetWidth ?? 288;
+        setDragX(rubberband(dx, width));
+      }
     }
   };
 
@@ -156,7 +167,10 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
   return (
     <>
       {/* ── Top Navbar ── */}
-      <header className="app-header fixed top-0 left-0 right-0 h-16 bg-sidebar/90 backdrop-blur-xl backdrop-saturate-150 border-b border-sidebar-border flex items-center px-4 z-50 shadow-md">
+      <header className="app-header fixed top-0 left-0 right-0 bg-sidebar/90 backdrop-blur-xl backdrop-saturate-150 border-b border-sidebar-border z-50 shadow-md">
+        {/* Spacer for the notch/Dynamic Island — env() resolves to 0 on devices without one */}
+        <div className="h-[env(safe-area-inset-top)]" />
+        <div className="h-16 flex items-center px-4">
         {/* Hamburger — tablet only; mobile uses bottom nav, desktop (lg+) uses the persistent sidebar */}
         <button
           type="button"
@@ -199,18 +213,21 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
             onClick={() => setUserMenuOpen(o => !o)}
             className="w-9 h-9 rounded-full bg-sidebar-foreground/10 hover:bg-sidebar-foreground/15 flex items-center justify-center text-sidebar-foreground transition-colors"
             aria-label="Account menu"
+            aria-haspopup="menu"
+            aria-expanded={userMenuOpen}
           >
             <User size={18} />
           </button>
 
           {userMenuOpen && (
-            <div className="absolute right-0 top-11 w-48 bg-popover text-popover-foreground border border-border rounded-lg shadow-lg py-1.5 z-50">
+            <div role="menu" aria-label="Account" className="absolute right-0 top-11 w-48 bg-popover text-popover-foreground border border-border rounded-lg shadow-lg py-1.5 z-50">
               {userMenuItems.map((item) => {
                 const Icon = item.icon;
                 return (
                   <Link
                     key={item.path}
                     to={item.path}
+                    role="menuitem"
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-2.5 px-3.5 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
                   >
@@ -222,6 +239,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
               <div className="my-1.5 border-t border-border" />
               <button
                 type="button"
+                role="menuitem"
                 onClick={handleLogout}
                 className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors"
               >
@@ -230,6 +248,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
               </button>
             </div>
           )}
+        </div>
         </div>
       </header>
 
@@ -254,7 +273,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
         }`}
         style={dragging ? { transform: `translateX(${dragX}px)`, transition: 'none' } : undefined}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-sidebar-border lg:hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-sidebar-border lg:hidden pt-[calc(1rem+env(safe-area-inset-top))]">
           <img src="/logo.png" alt="MyDaily" className="h-14 w-auto object-contain dark:invert" />
           <button
             type="button"
@@ -266,7 +285,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
           </button>
         </div>
 
-        <nav className="flex-1 p-4 overflow-y-auto">
+        <nav className="flex-1 p-4 overflow-y-auto overscroll-contain pb-[calc(1rem+env(safe-area-inset-bottom))]">
           {navItems.map((item) => {
             const isActive = getIsActive(item.path);
             const Icon = item.icon;
@@ -315,7 +334,8 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
       </div>
 
       {/* ── Bottom Nav (mobile only) ── */}
-      <nav className="app-bottomnav fixed bottom-0 left-0 right-0 h-16 bg-background/85 backdrop-blur-xl backdrop-saturate-150 border-t border-border z-40 flex md:hidden shadow-[0_-2px_8px_rgba(0,0,0,0.08)]">
+      <nav className="app-bottomnav fixed bottom-0 left-0 right-0 bg-background/85 backdrop-blur-xl backdrop-saturate-150 border-t border-border z-40 md:hidden shadow-[0_-2px_8px_rgba(0,0,0,0.08)]">
+        <div className="h-16 flex">
         {bottomNavItems.map((item) => {
           const isActive = getIsActive(item.path);
           const Icon = item.icon;
@@ -344,6 +364,9 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
           <MoreHorizontal size={22} strokeWidth={moreIsActive ? 2.5 : 1.8} />
           <span className="text-[10px] font-medium leading-none">More</span>
         </button>
+        </div>
+        {/* Spacer for the home-indicator area — env() resolves to 0 on devices without one */}
+        <div className="h-[env(safe-area-inset-bottom)]" />
       </nav>
     </>
   );
