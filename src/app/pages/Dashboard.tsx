@@ -127,8 +127,8 @@ export function Dashboard() {
   const pieData = useMemo(() => {
     if (pieMode === 'both') {
       const d = [];
-      if (income  > 0) d.push({ name: 'Income',  value: income,  color: '#16a34a' });
-      if (expense > 0) d.push({ name: 'Expense', value: expense, color: '#dc2626' });
+      if (income  > 0) d.push({ name: 'Income',  value: income,  color: 'var(--success)' });
+      if (expense > 0) d.push({ name: 'Expense', value: expense, color: 'var(--destructive)' });
       return d;
     }
     if (pieMode === 'income') {
@@ -483,8 +483,8 @@ export function Dashboard() {
 
                   <div className="space-y-2 mt-2">
                     {[
-                      { label: 'Income',  value: income,  color: '#16a34a', pct: income + expense > 0 ? ((income  / (income + expense)) * 100).toFixed(0) : '0' },
-                      { label: 'Expense', value: expense, color: '#dc2626', pct: income + expense > 0 ? ((expense / (income + expense)) * 100).toFixed(0) : '0' },
+                      { label: 'Income',  value: income,  color: 'var(--success)', pct: income + expense > 0 ? ((income  / (income + expense)) * 100).toFixed(0) : '0' },
+                      { label: 'Expense', value: expense, color: 'var(--destructive)', pct: income + expense > 0 ? ((expense / (income + expense)) * 100).toFixed(0) : '0' },
                     ].map(row => (
                       <div key={row.label} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-muted/40">
                         <div className="flex items-center gap-2.5 min-w-0 flex-1">

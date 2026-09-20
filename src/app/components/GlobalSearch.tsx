@@ -169,6 +169,11 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
                 <input
                   autoFocus
                   type="text"
+                  role="combobox"
+                  aria-expanded={results.length > 0}
+                  aria-controls="global-search-listbox"
+                  aria-activedescendant={results.length > 0 ? `global-search-option-${selectedIndex}` : undefined}
+                  aria-autocomplete="list"
                   placeholder="Search transactions, tasks, notes, accounts..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -189,10 +194,13 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
               <div className="border-t border-border">
                 {query.trim() ? (
                   results.length > 0 ? (
-                    <div className="max-h-80 overflow-y-auto p-2">
+                    <div id="global-search-listbox" role="listbox" className="max-h-80 overflow-y-auto overscroll-contain p-2">
                       {results.map((result, idx) => (
                         <button
                           key={result.id}
+                          id={`global-search-option-${idx}`}
+                          role="option"
+                          aria-selected={selectedIndex === idx}
                           type="button"
                           onClick={() => handleSelect(result)}
                           onMouseEnter={() => setSelectedIndex(idx)}
