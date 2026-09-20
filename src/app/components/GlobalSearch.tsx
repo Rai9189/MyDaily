@@ -42,7 +42,7 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
         allResults.push({
           id: t.id,
           type: 'transaction',
-          title: t.description || 'Unnamed Transaction',
+          title: stripHtml(t.description || '') || 'Unnamed Transaction',
           subtitle: `${t.type} · ${cat?.name || 'Other'} · ${acc?.name || 'Account'}`,
           icon: <CreditCard size={16} />,
           path: `/transactions/${t.id}`,
