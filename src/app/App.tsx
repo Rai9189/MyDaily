@@ -11,6 +11,7 @@ import { NoteProvider } from './context/NoteContext';
 import { AttachmentProvider } from './context/AttachmentContext';
 import { TrashProvider } from './context/TrashContext';
 import { Layout } from './components/Layout';
+import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 import { Loader2 } from 'lucide-react';
 import { Toaster } from './components/ui/sonner';
 
@@ -168,7 +169,9 @@ export default function App() {
               style: { fontSize: '14px' },
             }}
           />
-          <AppRoutes />
+          <RouteErrorBoundary>
+            <AppRoutes />
+          </RouteErrorBoundary>
         </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>

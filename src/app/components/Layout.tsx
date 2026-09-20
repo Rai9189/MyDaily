@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Plus, CreditCard, CheckSquare, FileText, X, Loader2 } from 'lucide-react';
 import { Navbar } from './Navbar';
 import { GlobalSearch } from './GlobalSearch';
+import { RouteErrorBoundary } from './RouteErrorBoundary';
 
 // Kept inside Layout (not the App-level Suspense) so only the content area
 // swaps to this while a page chunk loads — navbar/sidebar stay mounted.
@@ -45,7 +46,7 @@ function DashboardFAB() {
   if (location.pathname !== '/') return null;
 
   return (
-    <div className="fixed bottom-20 right-4 z-50 md:hidden flex flex-col items-end gap-2" ref={ref}>
+    <div className="fixed right-4 z-50 md:hidden flex flex-col items-end gap-2 bottom-[calc(5rem+env(safe-area-inset-bottom))]" ref={ref}>
       <AnimatePresence>
         {open && (
           <motion.div className="flex flex-col items-end gap-2 mb-1">
@@ -103,9 +104,9 @@ export function Layout({ children }: LayoutProps) {
       <Navbar onOpenSearch={() => setSearchOpen(true)} />
       <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
 
-      {/* pt-16 = top navbar; pb-16 md:pb-0 = bottom nav clearance on mobile; lg:pl-72 (on parent) clears the persistent sidebar */}
+      {/* pt-* clears the top navbar (64px + notch inset); pb-* clears the bottom nav (64px + home-indicator inset) on mobile; lg:pl-72 (on parent) clears the persistent sidebar */}
       <main
-        className="flex-1 pt-16 pb-16 md:pb-0 flex flex-col overflow-hidden"
+        className="flex-1 pt-[calc(4rem+env(safe-area-inset-top))] pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 flex flex-col overflow-hidden"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}
       >
         <style>{`main::-webkit-scrollbar { display: none; }`}</style>
@@ -119,7 +120,9 @@ export function Layout({ children }: LayoutProps) {
             className="w-full px-4 py-4 md:px-6 md:py-6 flex flex-col flex-1 min-h-0"
           >
             <Suspense fallback={<PageLoading />}>
-              {children}
+              <RouteErrorBoundary compact>
+                {children}
+              </RouteErrorBoundary>
             </Suspense>
           </motion.div>
         </AnimatePresence>
