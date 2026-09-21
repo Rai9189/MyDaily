@@ -169,7 +169,7 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   /* overscroll-behavior: contain keeps this container's own bounce without
      chaining the gesture to the page behind it (pull-to-refresh, rubber-band). */
-  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: contain; }
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 }
 
 @layer base {

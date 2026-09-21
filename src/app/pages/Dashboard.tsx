@@ -602,8 +602,8 @@ export function Dashboard() {
                       return (
                         <motion.div
                           key={task.id}
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
                           transition={{ delay: Math.min(i * 0.04, 0.3), duration: 0.2, ease: 'easeOut' }}
                           className="flex items-center justify-between py-2 hover:bg-muted/30 cursor-pointer -mx-1 px-1 rounded-lg transition-colors"
                           onClick={() => navigate(`/tasks/${task.id}`)}

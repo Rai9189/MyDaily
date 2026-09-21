@@ -7,6 +7,24 @@ import { Navbar } from './Navbar';
 import { GlobalSearch } from './GlobalSearch';
 import { RouteErrorBoundary } from './RouteErrorBoundary';
 
+// Warms the "add" pages' chunks (TransactionDetail/TaskDetail/NoteDetail + the
+// heavy RichTextEditor deps they pull in) during idle time, so the first tap on
+// "+" doesn't race a fresh fetch on a flaky mobile connection and trip the
+// RouteErrorBoundary's chunk-load fallback. Module-level flag: Layout remounts
+// on every route change (it's re-instantiated per <Route>), but the fetch only
+// needs to happen once per session — the browser caches the chunk after that.
+let detailChunksPrefetched = false;
+function prefetchDetailChunks() {
+  if (detailChunksPrefetched) return;
+  detailChunksPrefetched = true;
+  const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 1000));
+  idle(() => {
+    import('../pages/TransactionDetail');
+    import('../pages/TaskDetail');
+    import('../pages/NoteDetail');
+  });
+}
+
 // Kept inside Layout (not the App-level Suspense) so only the content area
 // swaps to this while a page chunk loads — navbar/sidebar stay mounted.
 function PageLoading() {
@@ -99,6 +117,9 @@ export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const [searchOpen, setSearchOpen] = useState(false);
   const reduceMotion = useReducedMotion();
+
+  useEffect(() => { prefetchDetailChunks(); }, []);
+
   return (
     <div className="min-h-screen bg-background flex flex-col lg:pl-72">
       <Navbar onOpenSearch={() => setSearchOpen(true)} />
