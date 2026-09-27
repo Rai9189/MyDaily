@@ -408,10 +408,21 @@ export function RichTextEditor({
     editorProps: {
       attributes: { class: 'outline-none' },
     },
-  }, [disabled]);
+  });
+
+  // Toggle editability in place. Recreating the editor on `disabled` (as the
+  // save button does while submitting) rebuilt it from React state and dropped
+  // any edit the mobile keyboard hadn't flushed yet (composition/autocorrect).
+  // useEditor can hand back an instance it has already destroyed (its 1ms
+  // scheduleDestroy fires before a slow mount/route transition finishes);
+  // touching one throws, so skip it — the replacement re-runs these effects.
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    editor.setEditable(!disabled, false);
+  }, [editor, disabled]);
 
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
     if (editor.getHTML() !== value) {
       editor.commands.setContent(value || '');
       setHasContent(editorHasContent(editor.getHTML()));
@@ -419,7 +430,7 @@ export function RichTextEditor({
   }, [value, editor]);
 
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
     setHasContent(editorHasContent(editor.getHTML()));
   }, [editor]);
 
