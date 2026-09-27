@@ -2,7 +2,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { Home, CreditCard, CheckSquare, FileText, Wallet, User, LogOut, Settings, Menu, X, Trash2, Tag, MoreHorizontal, Plus, Search } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion, useReducedMotion, type Variants } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
+
+// Account menu: grows out of the avatar (top-right origin), items stagger in.
+// Exit is quicker than enter so dismissing never feels in the way. With
+// reduced motion it only fades.
+const menuVariants = (reduce: boolean | null): Variants => ({
+  closed: reduce ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: -4, transition: { duration: 0.1, ease: 'easeIn' } },
+  open: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.15, ease: [0.23, 1, 0.32, 1], staggerChildren: reduce ? 0 : 0.03 } },
+});
+const menuItemVariants = (reduce: boolean | null): Variants => ({
+  closed: reduce ? { opacity: 1 } : { opacity: 0, x: 4 },
+  open: { opacity: 1, x: 0, transition: { duration: 0.15, ease: 'easeOut' } },
+});
 
 // Soft resistance past a boundary instead of a hard stop — used when the
 // drawer is dragged open past its resting position.
@@ -53,6 +66,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
   const { signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const reduceMotion = useReducedMotion();
   const userMenuRef = useRef<HTMLDivElement>(null);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -211,7 +225,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
           <button
             type="button"
             onClick={() => setUserMenuOpen(o => !o)}
-            className="w-9 h-9 rounded-full bg-sidebar-foreground/10 hover:bg-sidebar-foreground/15 flex items-center justify-center text-sidebar-foreground transition-colors"
+            className="w-9 h-9 rounded-full bg-sidebar-foreground/10 hover:bg-sidebar-foreground/15 flex items-center justify-center text-sidebar-foreground transition-[background-color,transform] active:scale-95"
             aria-label="Account menu"
             aria-haspopup="menu"
             aria-expanded={userMenuOpen}
@@ -219,35 +233,49 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
             <User size={18} />
           </button>
 
-          {userMenuOpen && (
-            <div role="menu" aria-label="Account" className="absolute right-0 top-11 w-48 bg-popover text-popover-foreground border border-border rounded-lg shadow-lg py-1.5 z-50">
-              {userMenuItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    role="menuitem"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-3.5 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-                  >
-                    <Icon size={16} />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-              <div className="my-1.5 border-t border-border" />
-              <button
-                type="button"
-                role="menuitem"
-                onClick={handleLogout}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors"
+          <AnimatePresence>
+            {userMenuOpen && (
+              <motion.div
+                role="menu"
+                aria-label="Account"
+                variants={menuVariants(reduceMotion)}
+                initial="closed"
+                animate="open"
+                exit="closed"
+                style={{ transformOrigin: 'top right' }}
+                className="absolute right-0 top-11 w-48 bg-popover text-popover-foreground border border-border rounded-lg shadow-lg py-1.5 z-50"
               >
-                <LogOut size={16} />
-                <span>Sign Out</span>
-              </button>
-            </div>
-          )}
+                {userMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <motion.div key={item.path} variants={menuItemVariants(reduceMotion)}>
+                      <Link
+                        to={item.path}
+                        role="menuitem"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-3.5 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                      >
+                        <Icon size={16} />
+                        <span>{item.label}</span>
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+                <div className="my-1.5 border-t border-border" />
+                <motion.div variants={menuItemVariants(reduceMotion)}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                  >
+                    <LogOut size={16} />
+                    <span>Sign Out</span>
+                  </button>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
         </div>
       </header>
