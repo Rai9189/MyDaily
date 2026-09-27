@@ -167,9 +167,11 @@
 /* ✅ Hide scrollbar but keep scroll functionality */
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar { display: none; }
-  /* overscroll-behavior: contain keeps this container's own bounce without
-     chaining the gesture to the page behind it (pull-to-refresh, rubber-band). */
-  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  /* No overscroll-behavior here: the window is the real scroller (Layout uses
+     min-h-screen), so "contain" on these non-overflowing containers swallowed
+     any scroll gesture that started over cards/charts. html/body already block
+     pull-to-refresh and rubber-banding. */
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 }
 
 @layer base {
@@ -180,8 +182,8 @@
   html {
     font-size: var(--font-size);
     /* Mobile-native baseline: no gray/blue tap flash, no auto font inflation
-       on rotation, and the page itself never rubber-bands (each scroll
-       container opts back in via .no-scrollbar's overscroll-behavior: contain). */
+       on rotation, and the page itself never rubber-bands or triggers
+       pull-to-refresh. */
     -webkit-tap-highlight-color: transparent;
     -webkit-text-size-adjust: 100%;
     overscroll-behavior: none;
