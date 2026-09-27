@@ -19,8 +19,14 @@ const RELOAD_FLAG = 'mydaily-chunk-reload';
 // promise .catch(), because React surfaces Suspense/lazy failures as render errors.
 function isChunkLoadError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /dynamically imported module|failed to fetch|chunkloaderror|loading chunk/i.test(message);
+  // "Importing a module script failed" is Safari/iOS's wording for the same failure.
+  return /dynamically imported module|importing a module script failed|failed to fetch|chunkloaderror|loading chunk/i.test(message);
 }
+
+// A reload within this window that fails again means the chunk is really
+// unavailable — show the fallback instead of reload-looping. Outside it (e.g. a
+// later redeploy in the same tab session) auto-reload is allowed again.
+const RELOAD_WINDOW_MS = 10_000;
 
 export class RouteErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false };
@@ -30,12 +36,12 @@ export class RouteErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: unknown) {
-    // Auto-recover once per tab session: reload to fetch the current build
-    // instead of leaving the user stranded on a blank screen. Guarded so a
-    // chunk that still fails after reload falls through to the fallback UI
-    // below rather than reload-looping.
-    if (isChunkLoadError(error) && !sessionStorage.getItem(RELOAD_FLAG)) {
-      sessionStorage.setItem(RELOAD_FLAG, '1');
+    console.error('[RouteErrorBoundary]', error);
+    // Auto-recover: reload to fetch the current build instead of leaving the
+    // user stranded on an error screen.
+    const lastReload = Number(sessionStorage.getItem(RELOAD_FLAG)) || 0;
+    if (isChunkLoadError(error) && Date.now() - lastReload > RELOAD_WINDOW_MS) {
+      sessionStorage.setItem(RELOAD_FLAG, String(Date.now()));
       window.location.reload();
     }
   }
