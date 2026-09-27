@@ -2,7 +2,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { useNotes } from '../context/NoteContext';
+import { useNotes, notePath } from '../context/NoteContext';
 import { useCategories } from '../context/CategoryContext';
 import { useViewPreferences } from '../hooks/useViewPreferences';
 import { stripHtml } from '../components/RichTextEditor';
@@ -21,6 +21,17 @@ import { ListPageSkeleton } from '../components/Skeletons';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 type SortOption = 'newest' | 'oldest' | 'az';
+
+// Shown on cards/rows and used for date sorting: last edit, falling back to creation.
+const lastEdited = (note: { timestamp: string; updatedAt?: string | null }) => note.updatedAt ?? note.timestamp;
+
+// "Today, 14:05" or "Sep 26, 2026, 14:05" (24-hour, matching NoteDetail).
+function formatLastEdited(iso: string) {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  if (d.toDateString() === new Date().toDateString()) return `Today, ${time}`;
+  return `${d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}, ${time}`;
+}
 
 export function Notes() {
   const navigate = useNavigate();
@@ -77,8 +88,8 @@ export function Notes() {
     if (filterPinned === 'pinned')   result = result.filter(n =>  n.pinned);
     if (filterPinned === 'unpinned') result = result.filter(n => !n.pinned);
     result.sort((a, b) => {
-      if (sortBy === 'newest') return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-      if (sortBy === 'oldest') return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      if (sortBy === 'newest') return new Date(lastEdited(b)).getTime() - new Date(lastEdited(a)).getTime();
+      if (sortBy === 'oldest') return new Date(lastEdited(a)).getTime() - new Date(lastEdited(b)).getTime();
       if (sortBy === 'az')     return a.title.localeCompare(b.title);
       return 0;
     });
@@ -129,9 +140,9 @@ export function Notes() {
     setDeleteTarget(null);
   };
 
-  const handleEdit = (e: React.MouseEvent, id: string) => {
+  const handleEdit = (e: React.MouseEvent, note: { id: string; title: string }) => {
     e.stopPropagation();
-    navigate(`/notes/${id}`);
+    navigate(notePath(note));
   };
 
   const handlePin = async (e: React.MouseEvent, note: any) => {
@@ -160,7 +171,7 @@ export function Notes() {
         animate={{ opacity: 1 }}
         transition={{ delay: Math.min(index * 0.03, 0.3), duration: 0.2, ease: 'easeOut' }}
       >
-      <Card onClick={() => navigate(`/notes/${note.id}`)}
+      <Card onClick={() => navigate(notePath(note))}
         className={`hover:shadow-lg hover:bg-muted/40 transition bg-white dark:bg-card cursor-pointer h-full flex flex-col ${note.pinned ? 'border-2 border-amber-400 dark:border-amber-500' : 'border-2 border-blue-200 dark:border-blue-900/50'}`}>
         <CardContent className="p-4 flex-1 flex flex-col">
           <div className="flex items-start justify-between gap-2 flex-1">
@@ -189,7 +200,7 @@ export function Notes() {
               </div>
               <div className="flex items-center justify-between mt-auto pt-3">
                 <span className="text-xs text-muted-foreground/70">
-                  {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {formatLastEdited(lastEdited(note))}
                 </span>
                 {note.attachments && note.attachments.length > 0 && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground/60"><Paperclip size={11} /> {note.attachments.length}</span>
@@ -203,7 +214,7 @@ export function Notes() {
                 {pinningId === note.id ? <Loader2 size={15} className="animate-spin" /> : <Pin size={15} />}
               </Button>
               <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/60 hover:text-foreground"
-                onClick={(e) => handleEdit(e, note.id)}><Edit size={15} /></Button>
+                onClick={(e) => handleEdit(e, note)}><Edit size={15} /></Button>
               <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/60 hover:bg-red-500 hover:text-white"
                 onClick={(e) => handleDeleteRequest(e, note)}>
                 <Trash2 size={15} />
@@ -247,7 +258,7 @@ export function Notes() {
             ? 'bg-amber-50/70 hover:bg-amber-100/60 dark:bg-amber-900/10 dark:hover:bg-amber-900/20 border-amber-100 dark:border-amber-900/30'
             : 'bg-white hover:bg-slate-50 dark:bg-card dark:hover:bg-muted/40 border-slate-100 dark:border-border/50'
         }`}
-        onClick={() => navigate(`/notes/${note.id}`)}>
+        onClick={() => navigate(notePath(note))}>
         <td className="pl-4 pr-2 py-3.5 w-8 text-center">
           <Pin size={14} className={isPinned ? 'text-amber-500 mx-auto' : 'text-muted-foreground/20 mx-auto'} />
         </td>
@@ -279,7 +290,7 @@ export function Notes() {
         </td>
         <td className="px-4 py-3.5 whitespace-nowrap text-center">
           <span className="text-sm text-slate-500 dark:text-foreground/65">
-            {new Date(note.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+            {formatLastEdited(lastEdited(note))}
           </span>
         </td>
         <td className="px-4 py-3.5 whitespace-nowrap text-center">
@@ -290,7 +301,7 @@ export function Notes() {
               {pinningId === note.id ? <Loader2 size={14} className="animate-spin" /> : <Pin size={14} />}
             </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/60 hover:text-foreground"
-              onClick={(e) => { e.stopPropagation(); navigate(`/notes/${note.id}`); }}><Edit size={14} /></Button>
+              onClick={(e) => { e.stopPropagation(); navigate(notePath(note)); }}><Edit size={14} /></Button>
             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/60 hover:bg-red-500 hover:text-white"
               onClick={(e) => handleDeleteRequest(e, note)}>
               <Trash2 size={14} />

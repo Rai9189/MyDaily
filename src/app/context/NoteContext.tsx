@@ -20,6 +20,14 @@ interface NoteContextType {
 
 const NoteContext = createContext<NoteContextType | undefined>(undefined);
 
+// Readable note URL: "/notes/<title-slug>-<first 8 chars of id>". The id suffix
+// keeps links unique and working after a rename.
+// ponytail: 8-char id prefix match, collision-free in practice for one user's notes.
+export function notePath(note: Pick<Note, 'id' | 'title'>) {
+  const slug = note.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+  return `/notes/${[slug, note.id.slice(0, 8)].filter(Boolean).join('-')}`;
+}
+
 function mapToNote(row: any): Note {
   return {
     id: row.id,
@@ -84,7 +92,9 @@ export function NoteProvider({ children }: { children: ReactNode }) {
     return unsub;
   }, [user]);
 
-  const getNoteById = (id: string) => notes.find(n => n.id === id);
+  // Accepts a full id (old links) or a notePath() param ending in the 8-char id prefix.
+  const getNoteById = (id: string) =>
+    notes.find(n => n.id === id) ?? (id.length >= 8 ? notes.find(n => n.id.startsWith(id.slice(-8))) : undefined);
 
   const createNote = async (note: Omit<Note, 'id' | 'timestamp'>) => {
     if (!user) {
@@ -133,16 +143,17 @@ export function NoteProvider({ children }: { children: ReactNode }) {
     if (updates.content       !== undefined) dbUpdates.content        = updates.content;
     if (updates.pinned        !== undefined) dbUpdates.pinned         = updates.pinned;
 
-    const result = await withErrorHandlingNoData(
-      () => supabase.from('notes').update(dbUpdates).eq('id', id),
+    // .select().single() errors when no row was updated (e.g. blocked by RLS)
+    // instead of silently "succeeding", and returns the fresh updated_at.
+    const result = await withErrorHandling(
+      () => supabase.from('notes').update(dbUpdates).eq('id', id).select().single(),
       { setError }
     );
 
-    if (result.success) {
-      setNotes(prev => prev.map(n => (n.id === id ? { ...n, ...updates } : n)));
-    }
-
-    return result;
+    if (!result.success || !result.data) return { success: false, error: result.error ?? 'Failed to update note' };
+    const updated = mapToNote(result.data);
+    setNotes(prev => prev.map(n => (n.id === id ? { ...updated, attachments: n.attachments } : n)));
+    return { success: true, error: null };
   };
 
   const deleteNote = async (id: string) => {

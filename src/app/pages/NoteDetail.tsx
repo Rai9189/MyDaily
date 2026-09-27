@@ -78,8 +78,8 @@ export function NoteDetail() {
 
   const idFromParams = params.id;
   const idFromUrl    = location.pathname.split('/notes/')[1];
-  const id           = idFromParams || idFromUrl;
-  const isNew        = id === 'new' || !id;
+  const routeParam   = idFromParams || idFromUrl;
+  const isNew        = routeParam === 'new' || !routeParam;
 
   const { user } = useAuth();
   const { loading: notesLoading, getNoteById, createNote, updateNote, togglePin } = useNotes();
@@ -93,7 +93,9 @@ export function NoteDetail() {
     isUploading: isUploadingPending,
   } = usePendingAttachments();
 
-  const note           = isNew ? null : getNoteById(id!);
+  const note           = isNew ? null : getNoteById(routeParam!);
+  // The URL carries a title slug; always talk to the DB with the real id.
+  const id             = note?.id;
   const noteCategories = useMemo(
     () => categories.filter(c => c.type === 'note'),
     [categories],
@@ -261,7 +263,7 @@ export function NoteDetail() {
         clearDraft(user?.id, 'note');
         navigate('/notes');
       } else {
-        if (!id || id === 'new') { toast.error('Invalid note ID'); return; }
+        if (!id) { toast.error('Invalid note ID'); return; }
         const { success, error } = await updateNote(id, formData);
         if (success) {
           setInitialFormData({ ...formData });
@@ -425,7 +427,7 @@ export function NoteDetail() {
                       <span>
                         Updated: {new Date(note.updatedAt).toLocaleString('en-US', {
                           day: 'numeric', month: 'short', year: 'numeric',
-                          hour: '2-digit', minute: '2-digit',
+                          hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
                         })}
                       </span>
                     )}

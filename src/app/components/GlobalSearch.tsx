@@ -3,7 +3,7 @@ import { Search, X, CreditCard, CheckSquare, FileText, Zap } from 'lucide-react'
 import { useNavigate } from 'react-router-dom';
 import { useTransactions } from '../context/TransactionContext';
 import { useTasks } from '../context/TaskContext';
-import { useNotes } from '../context/NoteContext';
+import { useNotes, notePath } from '../context/NoteContext';
 import { useAccounts } from '../context/AccountContext';
 import { useCategories } from '../context/CategoryContext';
 import { stripHtml } from '../../lib/stripHtml';
@@ -74,7 +74,7 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
           title: n.title || 'Untitled Note',
           subtitle: plainContent.substring(0, 60) || 'No content',
           icon: <FileText size={16} />,
-          path: `/notes/${n.id}`,
+          path: notePath(n),
         });
       }
     });
