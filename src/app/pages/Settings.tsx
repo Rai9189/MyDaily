@@ -1,5 +1,5 @@
 // src/app/pages/Settings.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -11,11 +11,14 @@ import { Label } from '../components/ui/label';
 import { ExportData } from '../components/ExportData';
 import {
   Lock, Tag, Trash2, Sun, Moon, Monitor, Mail,
-  ShieldCheck, Loader2, CheckCircle2, ChevronRight, Download,
+  ShieldCheck, Loader2, CheckCircle2, ChevronRight, Download, Bell,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { isPushSupported, getPushSubscription, enablePush, disablePush } from '../../lib/push';
+import { ReminderSettings } from '../components/ReminderSettings';
+import { Switch } from '../components/ui/switch';
 
 function SettingRow({
   icon, label, description, onClick, disabled, badge, children,
@@ -122,6 +125,47 @@ export function Settings() {
 
   const pinLocked = pinVerifyAttempts >= PIN_VERIFY_MAX;
 
+  /* ── Push notifications (per device) ── */
+  const pushSupported = isPushSupported();
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy]       = useState(false);
+  const [pushDenied, setPushDenied]   = useState(pushSupported && Notification.permission === 'denied');
+
+  useEffect(() => {
+    getPushSubscription()
+      .then(sub => setPushEnabled(!!sub && Notification.permission === 'granted'))
+      .catch(() => {});
+  }, []);
+
+  const handleTogglePush = async () => {
+    setPushBusy(true);
+    try {
+      if (pushEnabled) {
+        await disablePush();
+        setPushEnabled(false);
+        toast.success('Notifications turned off on this device.');
+      } else {
+        const permission = await enablePush();
+        if (permission === 'granted') {
+          setPushEnabled(true);
+          toast.success('Notifications turned on for this device.');
+        } else {
+          setPushDenied(permission === 'denied');
+        }
+      }
+    } catch {
+      toast.error('Failed to update notification settings. Please try again.');
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const pushDescription = !pushSupported
+    ? "This browser doesn't support notifications. On iPhone, add MyDaily to your Home Screen first."
+    : pushDenied
+      ? "Notifications are blocked. Allow them in your browser's site settings, then try again."
+      : 'Get reminders on this device, even when MyDaily is closed.';
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <ConfirmDialog
@@ -200,6 +244,24 @@ export function Settings() {
                 </form>
               )}
             </SettingRow>
+          </SettingSection>
+
+          {/* Notifications */}
+          <SettingSection icon={<Bell size={15} />} title="Notifications" borderColor="border-sky-300 dark:border-sky-900/50">
+            <div className="space-y-2">
+              <button type="button" role="switch" aria-checked={pushEnabled}
+                onClick={handleTogglePush} disabled={!pushSupported || pushDenied || pushBusy}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border bg-muted/30 hover:bg-muted transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed">
+                <span className="text-primary flex-shrink-0"><Bell size={15} /></span>
+                <span className="flex-1 min-w-0 text-sm font-medium text-foreground">Push Notifications</span>
+                {pushBusy
+                  ? <Loader2 size={16} className="animate-spin text-muted-foreground" />
+                  : <Switch checked={pushEnabled} />
+                }
+              </button>
+              <p className="text-xs text-muted-foreground px-1">{pushDescription}</p>
+            </div>
+            {pushEnabled && <ReminderSettings />}
           </SettingSection>
 
           {/* Data */}

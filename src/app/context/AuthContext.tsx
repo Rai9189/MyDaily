@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { supabase, handleSupabaseError } from '../../lib/supabase';
 import { withErrorHandling, withErrorHandlingNoData } from '../../lib/errorHandler';
+import { disablePush } from '../../lib/push';
 import type { Session } from '@supabase/supabase-js';
 import { User } from '../types';
 
@@ -234,6 +235,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           timestamp: new Date().toISOString(),
         });
       }
+
+      // Stop notifications for this device before the session (and RLS access) is gone
+      await disablePush().catch(() => {});
 
       await supabase.auth.signOut();
 
