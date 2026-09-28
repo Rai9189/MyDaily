@@ -184,7 +184,7 @@ export function Settings() {
                   )}
                   <div className="space-y-1.5">
                     <Label htmlFor="oldPin" className="text-sm">Current PIN</Label>
-                    <Input id="oldPin" type="password" placeholder="Enter current PIN"
+                    <Input id="oldPin" type="password" autoComplete="off" placeholder="Enter current PIN"
                       value={oldPin} onChange={(e) => setOldPin(e.target.value)}
                       required disabled={verifyingPin} autoFocus />
                   </div>

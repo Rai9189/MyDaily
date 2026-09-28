@@ -14,13 +14,13 @@ const STORAGE_KEY_ATTEMPTS   = 'login_attempts';
 const STORAGE_KEY_LOCK_UNTIL = 'login_lock_until';
 
 function getRemainingCooldown(): number {
-  const lockUntil = parseInt(sessionStorage.getItem(STORAGE_KEY_LOCK_UNTIL) || '0');
+  const lockUntil = parseInt(localStorage.getItem(STORAGE_KEY_LOCK_UNTIL) || '0');
   const remaining = Math.ceil((lockUntil - Date.now()) / 1000);
   return remaining > 0 ? remaining : 0;
 }
 
 function getAttempts(): number {
-  return parseInt(sessionStorage.getItem(STORAGE_KEY_ATTEMPTS) || '0');
+  return parseInt(localStorage.getItem(STORAGE_KEY_ATTEMPTS) || '0');
 }
 
 export function Login() {
@@ -49,19 +49,19 @@ export function Login() {
 
   const recordFailedAttempt = useCallback(() => {
     const newAttempts = getAttempts() + 1;
-    sessionStorage.setItem(STORAGE_KEY_ATTEMPTS, String(newAttempts));
+    localStorage.setItem(STORAGE_KEY_ATTEMPTS, String(newAttempts));
     setAttempts(newAttempts);
     if (newAttempts >= MAX_ATTEMPTS) {
       const lockUntil = Date.now() + COOLDOWN_SECONDS * 1000;
-      sessionStorage.setItem(STORAGE_KEY_LOCK_UNTIL, String(lockUntil));
+      localStorage.setItem(STORAGE_KEY_LOCK_UNTIL, String(lockUntil));
       setCooldown(COOLDOWN_SECONDS);
     }
     return newAttempts;
   }, []);
 
   const resetAttempts = useCallback(() => {
-    sessionStorage.removeItem(STORAGE_KEY_ATTEMPTS);
-    sessionStorage.removeItem(STORAGE_KEY_LOCK_UNTIL);
+    localStorage.removeItem(STORAGE_KEY_ATTEMPTS);
+    localStorage.removeItem(STORAGE_KEY_LOCK_UNTIL);
     setAttempts(0);
     setCooldown(0);
   }, []);

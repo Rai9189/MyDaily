@@ -1,18 +1,17 @@
 // src/app/pages/PINLock.tsx
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { AuthShell, AuthHeader } from '../components/AuthShell';
 import { Button } from '../components/ui/button';
-import { Loader2, AlertCircle, Eye, EyeOff, Clock } from 'lucide-react';
+import { Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
-const AUTO_LOGOUT_MINUTES = 15;
-const AUTO_LOGOUT_MS      = AUTO_LOGOUT_MINUTES * 60 * 1000;
-const WARNING_BEFORE_MS   = 60 * 1000;
-const MAX_ATTEMPTS        = 5;
+const MAX_ATTEMPTS = 5;
 
 export function PINLock() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from ?? '/';
   const { user, signOut, loading: authLoading, verifyPin } = useAuth();
 
   const [pin, setPin]         = useState('');
@@ -27,56 +26,6 @@ export function PINLock() {
   // Lockout dari DB
   const [locked, setLocked]       = useState(false);
   const [lockTimer, setLockTimer] = useState(0);
-
-  const [showIdleWarning, setShowIdleWarning] = useState(false);
-  const [idleCountdown, setIdleCountdown]     = useState(0);
-  const idleTimerRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const warningTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const handleAutoLogout = useCallback(async () => {
-    clearAllTimers();
-    sessionStorage.removeItem('pinUnlocked');
-    await signOut();
-    navigate('/login', { replace: true });
-  }, [signOut, navigate]);
-
-  const clearAllTimers = () => {
-    if (idleTimerRef.current)         clearTimeout(idleTimerRef.current);
-    if (warningTimerRef.current)      clearTimeout(warningTimerRef.current);
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-  };
-
-  const resetIdleTimer = useCallback(() => {
-    clearAllTimers();
-    setShowIdleWarning(false);
-    setIdleCountdown(0);
-    warningTimerRef.current = setTimeout(() => {
-      setShowIdleWarning(true);
-      setIdleCountdown(Math.round(WARNING_BEFORE_MS / 1000));
-      countdownIntervalRef.current = setInterval(() => {
-        setIdleCountdown(prev => {
-          if (prev <= 1) {
-            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }, AUTO_LOGOUT_MS - WARNING_BEFORE_MS);
-    idleTimerRef.current = setTimeout(() => { handleAutoLogout(); }, AUTO_LOGOUT_MS);
-  }, [handleAutoLogout]);
-
-  useEffect(() => {
-    const events = ['mousemove', 'mousedown', 'keypress', 'touchstart', 'scroll', 'click'];
-    const onActivity = () => resetIdleTimer();
-    events.forEach(e => window.addEventListener(e, onActivity, { passive: true }));
-    resetIdleTimer();
-    return () => {
-      events.forEach(e => window.removeEventListener(e, onActivity));
-      clearAllTimers();
-    };
-  }, [resetIdleTimer]);
 
   useEffect(() => {
     if (!authLoading && !user) navigate('/login', { replace: true });
@@ -126,8 +75,7 @@ export function PINLock() {
       const result = await verifyPin(pin);
 
       if (result.success) {
-        clearAllTimers();
-        navigate('/');
+        navigate(from, { replace: true });
       } else if (result.locked && result.lockedUntil) {
         const remaining = Math.floor(
           (new Date(result.lockedUntil).getTime() - Date.now()) / 1000
@@ -146,7 +94,6 @@ export function PINLock() {
   };
 
   const handleSwitchAccount = async () => {
-    clearAllTimers();
     sessionStorage.removeItem('pinUnlocked');
     await signOut();
     navigate('/login');
@@ -172,19 +119,6 @@ export function PINLock() {
             />
 
             <form onSubmit={handleSubmit} className="space-y-3">
-
-              {/* Idle warning */}
-              {showIdleWarning && (
-                <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl border-2 bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-400">
-                  <Clock size={15} className="shrink-0 mt-0.5" />
-                  <p>
-                    Inactive. Auto-logout in <strong>{idleCountdown}s</strong>.{' '}
-                    <button type="button" className="underline font-medium" onClick={resetIdleTimer}>
-                      Stay logged in
-                    </button>
-                  </p>
-                </div>
-              )}
 
               {/* Lockout banner */}
               {locked && (
@@ -214,7 +148,7 @@ export function PINLock() {
                 {isNumericPin ? (
                   <div className="relative">
                     <input
-                      type="text" inputMode="numeric"
+                      type="text" inputMode="numeric" autoComplete="off"
                       value={pin}
                       onChange={(e) => { setPin(e.target.value.replace(/\D/g, '')); setError(''); }}
                       maxLength={pinLength}
@@ -253,7 +187,7 @@ export function PINLock() {
                 ) : (
                   <div className="relative">
                     <input
-                      type={showPin ? 'text' : 'password'}
+                      type={showPin ? 'text' : 'password'} autoComplete="off"
                       placeholder="Enter your password"
                       value={pin}
                       onChange={(e) => { setPin(e.target.value); setError(''); }}

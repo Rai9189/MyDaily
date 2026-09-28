@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 export function PINSetup() {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { user, loading: authLoading, hasPin, savePin } = useAuth();
+  const { user, loading: authLoading, hasPin, savePin, verifyPassword } = useAuth();
 
   const [pinType, setPinType]               = useState<'pin4' | 'pin6' | 'password'>('pin4');
   const [pin, setPin]                       = useState('');
@@ -24,6 +24,13 @@ export function PINSetup() {
   const [error, setError]                   = useState<string | null>(null);
 
   const isForgotPin = location.state?.forgotPin === true;
+
+  // Resetting an existing PIN while the app is locked requires the account
+  // password — otherwise "Forgot my PIN" would bypass the PIN entirely.
+  // Coming from Settings (already unlocked + old PIN verified) skips this.
+  const [reauthed, setReauthed]               = useState(() => !!sessionStorage.getItem('pinUnlocked'));
+  const [accountPassword, setAccountPassword] = useState('');
+  const needsReauth = isForgotPin && hasPin() && !reauthed;
 
   useEffect(() => {
     if (!authLoading && user && hasPin() && !isForgotPin) {
@@ -67,6 +74,17 @@ export function PINSetup() {
     }
   };
 
+  const handleReauth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    const { success, error: authError } = await verifyPassword(accountPassword);
+    setSubmitting(false);
+    setAccountPassword('');
+    if (success) setReauthed(true);
+    else setError(authError || 'Incorrect password.');
+  };
+
   const getPinLabel = () => pinType === 'pin4' ? '4-Digit PIN' : pinType === 'pin6' ? '6-Digit PIN' : 'Password';
   const isNumeric   = pinType !== 'password';
 
@@ -74,6 +92,42 @@ export function PINSetup() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <Loader2 className="w-8 h-8 animate-spin text-primary" />
     </div>
+  );
+
+  if (needsReauth) return (
+    <AuthShell>
+      <AuthHeader title="Verify it's you" subtitle="Enter your account password to reset your PIN" />
+
+      <form onSubmit={handleReauth} className="space-y-4">
+        {error && (
+          <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl border-2 bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-400">
+            <p>{error}</p>
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <Label htmlFor="accountPassword">Account Password</Label>
+          <Input
+            id="accountPassword" type="password" autoComplete="current-password"
+            value={accountPassword} onChange={(e) => setAccountPassword(e.target.value)}
+            required autoFocus disabled={submitting}
+          />
+        </div>
+
+        <Button type="submit" className="w-full gap-2" disabled={submitting || !accountPassword}>
+          {submitting ? <><Loader2 size={16} className="animate-spin" /> Verifying...</> : 'Continue'}
+        </Button>
+
+        <Button
+          type="button" variant="link"
+          onClick={() => navigate('/pin-lock', { replace: true })}
+          className="text-sm text-muted-foreground p-0 h-auto w-full"
+          disabled={submitting}
+        >
+          Back to PIN
+        </Button>
+      </form>
+    </AuthShell>
   );
 
   return (
@@ -111,7 +165,7 @@ export function PINSetup() {
                 {isNumeric ? (
                   <div className="relative">
                     <input
-                      id="pin" type="text" inputMode="numeric"
+                      id="pin" type="text" inputMode="numeric" autoComplete="off"
                       value={pin}
                       onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                       maxLength={pinType === 'pin4' ? 4 : 6}
@@ -145,7 +199,7 @@ export function PINSetup() {
                 ) : (
                   <div className="relative">
                     <Input
-                      id="pin" type={showPin ? 'text' : 'password'}
+                      id="pin" type={showPin ? 'text' : 'password'} autoComplete="new-password"
                       placeholder="Enter password (min. 6 chars)"
                       value={pin} onChange={(e) => setPin(e.target.value)}
                       required disabled={submitting} className="pr-10"
@@ -164,7 +218,7 @@ export function PINSetup() {
                 {isNumeric ? (
                   <div className="relative">
                     <input
-                      id="confirmPin" type="text" inputMode="numeric"
+                      id="confirmPin" type="text" inputMode="numeric" autoComplete="off"
                       value={confirmPin}
                       onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
                       maxLength={pinType === 'pin4' ? 4 : 6}
@@ -208,7 +262,7 @@ export function PINSetup() {
                   <div className="space-y-1">
                     <div className="relative">
                       <Input
-                        id="confirmPin" type={showConfirmPin ? 'text' : 'password'}
+                        id="confirmPin" type={showConfirmPin ? 'text' : 'password'} autoComplete="new-password"
                         placeholder="Repeat password"
                         value={confirmPin} onChange={(e) => setConfirmPin(e.target.value)}
                         required disabled={submitting}

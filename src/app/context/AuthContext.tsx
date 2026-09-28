@@ -18,6 +18,7 @@ interface AuthContextType {
   updateProfile: (updates: Partial<User>) => Promise<{ success: boolean; error: string | null }>;
   savePin: (pin: string, pinType: 'pin4' | 'pin6' | 'password') => Promise<{ success: boolean; error: string | null }>;
   verifyPin: (pin: string) => Promise<{ success: boolean; locked?: boolean; lockedUntil?: string; error: string | null }>;
+  verifyPassword: (password: string) => Promise<{ success: boolean; error: string | null }>;
   hasPin: () => boolean;
 }
 
@@ -287,12 +288,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const pinHash = await hashPin(pin);
       const dbPinType = pinType === 'password' ? 'password' : 'numeric';
+      const pinLength = pinType === 'pin6' ? 6 : pinType === 'pin4' ? 4 : null;
 
       const { error } = await supabase
         .from('users')
         .update({
           pin_hash: pinHash,
           pin_type: dbPinType,
+          pin_length: pinLength,
           // ✅ Reset lockout saat PIN baru disimpan
           pin_attempts: 0,
           pin_locked_until: null,
@@ -305,6 +308,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...prev,
         pin_hash: pinHash,
         pin_type: dbPinType,
+        pin_length: pinLength,
         pin_attempts: 0,
         pin_locked_until: null,
       } : prev);
@@ -433,12 +437,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Re-authenticates the current user (e.g. before resetting a forgotten PIN)
+  const verifyPassword = async (password: string) => {
+    const email = session?.user.email;
+    if (!email) return { success: false, error: 'No user logged in' };
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { success: false, error: 'Incorrect password.' };
+    return { success: true, error: null };
+  };
+
   const hasPin = () => typeof user?.pin_hash === 'string' && user.pin_hash.length > 0;
 
   const value = {
     user, session, loading, profileLoading, error,
     signUp, signIn, signOut, resetPassword,
-    updateProfile, savePin, verifyPin, hasPin,
+    updateProfile, savePin, verifyPin, verifyPassword, hasPin,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

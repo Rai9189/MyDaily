@@ -1,6 +1,6 @@
 // src/app/App.tsx
-import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useRef } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AccountProvider } from './context/AccountContext';
@@ -65,6 +65,7 @@ function LoadingScreen() {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, session, loading, profileLoading, hasPin } = useAuth();
+  const location = useLocation();
 
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
@@ -72,7 +73,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!hasPin()) return <Navigate to="/pin-setup" replace />;
 
   const pinUnlocked = sessionStorage.getItem('pinUnlocked');
-  if (!pinUnlocked) return <Navigate to="/pin-lock" replace />;
+  if (!pinUnlocked) {
+    // Remember where the user was headed so PIN unlock can return them there
+    return <Navigate to="/pin-lock" replace state={{ from: location.pathname + location.search }} />;
+  }
 
   return <>{children}</>;
 }
@@ -100,6 +104,7 @@ function PINRoute({ children, requireNotUnlocked = false }: {
   requireNotUnlocked?: boolean;
 }) {
   const { session, loading, profileLoading, user, hasPin } = useAuth();
+  const location = useLocation();
 
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
@@ -107,13 +112,53 @@ function PINRoute({ children, requireNotUnlocked = false }: {
 
   if (requireNotUnlocked) {
     const pinUnlocked = sessionStorage.getItem('pinUnlocked');
-    if (pinUnlocked && hasPin()) return <Navigate to="/" replace />;
+    const from = (location.state as { from?: string } | null)?.from ?? '/';
+    if (pinUnlocked && hasPin()) return <Navigate to={from} replace />;
   }
 
   return <>{children}</>;
 }
 
+const PIN_RELOCK_MS = 5 * 60 * 1000;
+
+// Re-locks the app with the PIN (not a full logout) when the tab has been
+// hidden for longer than PIN_RELOCK_MS. hiddenAt lives in sessionStorage so a
+// tab discarded and restored by the browser (common on Android) is covered too.
+function usePinAutoLock() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const locationRef = useRef(location);
+  locationRef.current = location;
+
+  useEffect(() => {
+    const relockIfStale = () => {
+      const hiddenAt = Number(sessionStorage.getItem('hiddenAt'));
+      sessionStorage.removeItem('hiddenAt');
+      if (!hiddenAt || Date.now() - hiddenAt < PIN_RELOCK_MS) return;
+      if (!sessionStorage.getItem('pinUnlocked')) return;
+
+      sessionStorage.removeItem('pinUnlocked');
+      const { pathname, search } = locationRef.current;
+      navigate('/pin-lock', { replace: true, state: { from: pathname + search } });
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        sessionStorage.setItem('hiddenAt', String(Date.now()));
+      } else {
+        relockIfStale();
+      }
+    };
+
+    relockIfStale();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [navigate]);
+}
+
 function AppRoutes() {
+  usePinAutoLock();
+
   return (
     <DataProviders>
       <Suspense fallback={<LoadingScreen />}>
