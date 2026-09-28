@@ -1,4 +1,5 @@
 import { FileText, CreditCard, CheckSquare, Wallet, Tag } from 'lucide-react';
+import { Button } from './ui/button';
 
 type EmptyStateType = 'transactions' | 'tasks' | 'notes' | 'accounts' | 'categories';
 
@@ -53,12 +54,9 @@ export function EmptyState({ type, onAction }: EmptyStateProps) {
         <p className="text-sm text-muted-foreground">{config.description}</p>
       </div>
       {onAction && config.actionLabel && (
-        <button
-          onClick={onAction}
-          className="mt-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors active:scale-95"
-        >
+        <Button onClick={onAction} className="mt-2 active:scale-95">
           {config.actionLabel}
-        </button>
+        </Button>
       )}
     </div>
   );

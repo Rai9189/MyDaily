@@ -536,11 +536,11 @@ export function Categories() {
                   return (
                     <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)}
                       className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors min-w-0 ${
-                        active ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                        active ? 'bg-primary text-primary-foreground border-primary shadow-sm dark:bg-primary/20 dark:text-primary dark:border-primary/30 dark:shadow-none'
                         : 'bg-white dark:bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted'
                       }`}>
                       <span className="truncate">{tab.label}</span>
-                      <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${active ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}`}>
+                      <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${active ? 'bg-white/20 text-white dark:bg-primary/20 dark:text-primary' : 'bg-muted text-muted-foreground'}`}>
                         {countWithSubs(tab.key)}
                       </span>
                     </button>
@@ -574,7 +574,7 @@ export function Categories() {
                       subtypeFilter === opt.value
                         ? opt.value === 'income' ? 'bg-green-600 text-white border-green-600 dark:bg-green-500/15 dark:text-green-400 dark:border-green-500/30'
                           : opt.value === 'expense' ? 'bg-red-600 text-white border-red-600 dark:bg-red-500/15 dark:text-red-400 dark:border-red-500/30'
-                          : 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-primary text-primary-foreground border-primary dark:bg-primary/20 dark:text-primary dark:border-primary/30'
                         : 'bg-white dark:bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted'
                     }`}>{opt.label}</button>
                 ))}
