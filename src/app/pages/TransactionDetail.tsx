@@ -345,10 +345,10 @@ export function TransactionDetail() {
     const categoryExists = categories.find(c => c.id === tpl.categoryId);
     setFormData(prev => ({
       ...prev,
-      ...(accountExists  ? { accountId: tpl.accountId }   : {}),
+      ...(accountExists  ? { accountId: accountExists.id } : {}),
       type:          tpl.type,
       amount:        tpl.amount,
-      categoryId:    categoryExists ? tpl.categoryId              : '',
+      categoryId:    categoryExists ? categoryExists.id : '',
       subcategoryId: categoryExists ? (tpl.subcategoryId ?? null) : null,
       description:   tpl.description || '',
     }));
