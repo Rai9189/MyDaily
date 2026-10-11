@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState, useRef, ReactNode } fro
 import { supabase, handleSupabaseError } from '../../lib/supabase';
 import { withErrorHandling, withErrorHandlingNoData } from '../../lib/errorHandler';
 import { disablePush } from '../../lib/push';
-import type { Session } from '@supabase/supabase-js';
+import { isAuthRetryableFetchError, type Session } from '@supabase/supabase-js';
 import { User } from '../types';
 
 interface AuthContextType {
@@ -93,14 +93,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initAuth = async () => {
       try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        // An expired access token is refreshed here. If the network isn't up yet
+        // (tab restored after a long idle), supabase keeps the session stored but
+        // returns null + a retryable error — retry instead of treating it as signed out.
+        let { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
+        for (let attempt = 1; sessionError && isAuthRetryableFetchError(sessionError) && attempt <= 4; attempt++) {
+          await new Promise(res => setTimeout(res, 1000 * attempt));
+          if (!isMounted) return;
+          ({ data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession());
+        }
 
         if (!isMounted) return;
 
         if (!initialSession) {
-          Object.keys(localStorage).forEach(key => {
-            if (key.startsWith('sb-')) localStorage.removeItem(key);
-          });
+          // Only wipe storage on a clean "no session"; on an error the stored
+          // refresh token may still be valid (supabase removes dead sessions itself).
+          if (!sessionError) {
+            Object.keys(localStorage).forEach(key => {
+              if (key.startsWith('sb-')) localStorage.removeItem(key);
+            });
+          }
           sessionStorage.removeItem('pinUnlocked');
           setUser(null);
           setSession(null);

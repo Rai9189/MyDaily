@@ -20,6 +20,17 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta id="theme-color-meta" name="theme-color" content="#f4f4f5" />
+    <!-- Apply the saved theme before first paint so a reloaded/discarded tab doesn't flash white -->
+    <script>
+      try {
+        var t = localStorage.getItem('theme');
+        var dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) {
+          document.documentElement.classList.add('dark');
+          document.getElementById('theme-color-meta').setAttribute('content', '#17171a');
+        }
+      } catch (e) {}
+    </script>
 
     <!-- SEO -->
     <meta name="description" content="Kelola hidupmu dengan mudah" />
