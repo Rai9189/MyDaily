@@ -42,7 +42,7 @@ export function TrashProvider({ children }: { children: ReactNode }) {
       const [transactions, tasks, notes, categories, accounts] = await Promise.all([
         supabase.from('transactions').select('id, amount, type, date, description, deleted_at, account_id').eq('user_id', user.id).not('deleted_at', 'is', null),
         supabase.from('tasks').select('id, title, description, deadline, deleted_at').eq('user_id', user.id).not('deleted_at', 'is', null),
-        supabase.from('notes').select('id, title, content, deleted_at').eq('user_id', user.id).not('deleted_at', 'is', null),
+        supabase.from('notes').select('id, title, content, locked, deleted_at').eq('user_id', user.id).not('deleted_at', 'is', null),
         supabase.from('categories').select('id, name, type, color, deleted_at').eq('user_id', user.id).not('deleted_at', 'is', null),
         supabase.from('accounts').select('id, name, type, balance, deleted_at').eq('user_id', user.id).not('deleted_at', 'is', null),
       ]);
@@ -66,10 +66,10 @@ export function TrashProvider({ children }: { children: ReactNode }) {
       }));
 
       (notes.data || []).forEach(n => {
-        const plain = (n.content || '').replace(/<[^>]*>/g, '').trim();
+        const plain = n.locked ? '' : (n.content || '').replace(/<[^>]*>/g, '').trim();
         items.push({
           id: n.id, table: 'notes',
-          name: n.title,
+          name: n.locked ? 'Locked note' : n.title,
           description: plain.length > 0 ? plain.slice(0, 60) + (plain.length > 60 ? '...' : '') : undefined,
           deleted_at: n.deleted_at,
         });

@@ -23,7 +23,9 @@ const NoteContext = createContext<NoteContextType | undefined>(undefined);
 // Readable note URL: "/notes/<title-slug>-<first 8 chars of id>". The id suffix
 // keeps links unique and working after a rename.
 // ponytail: 8-char id prefix match, collision-free in practice for one user's notes.
-export function notePath(note: Pick<Note, 'id' | 'title'>) {
+// Locked notes get no slug so the title never shows in the address bar or history.
+export function notePath(note: Pick<Note, 'id' | 'title' | 'locked'>) {
+  if (note.locked) return `/notes/${note.id.slice(0, 8)}`;
   const slug = note.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
   return `/notes/${[slug, note.id.slice(0, 8)].filter(Boolean).join('-')}`;
 }
@@ -36,6 +38,7 @@ function mapToNote(row: any): Note {
     title: row.title,
     content: row.content,
     pinned: row.pinned,
+    locked: row.locked ?? false,
     timestamp: row.created_at,
     updatedAt: row.updated_at ?? null,
   };
@@ -142,6 +145,7 @@ export function NoteProvider({ children }: { children: ReactNode }) {
     if (updates.title         !== undefined) dbUpdates.title          = updates.title;
     if (updates.content       !== undefined) dbUpdates.content        = updates.content;
     if (updates.pinned        !== undefined) dbUpdates.pinned         = updates.pinned;
+    if (updates.locked        !== undefined) dbUpdates.locked         = updates.locked;
 
     // .select().single() errors when no row was updated (e.g. blocked by RLS)
     // instead of silently "succeeding", and returns the fresh updated_at.

@@ -6,6 +6,7 @@ import { useNotes, notePath } from '../context/NoteContext';
 import { useCategories } from '../context/CategoryContext';
 import { useViewPreferences } from '../hooks/useViewPreferences';
 import { stripHtml } from '../components/RichTextEditor';
+import { htmlToPreviewText } from '../../lib/stripHtml';
 import { EmptyState } from '../components/EmptyState';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -14,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import {
   Plus, Search, Pin, Paperclip,
   ChevronLeft, ChevronRight, Filter, Loader2, X, Edit, Trash2,
-  LayoutGrid, List,
+  LayoutGrid, List, Lock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ListPageSkeleton } from '../components/Skeletons';
@@ -79,10 +80,10 @@ export function Notes() {
     let result = [...notes];
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(n =>
+      result = result.filter(n => !n.locked && (
         n.title.toLowerCase().includes(q) ||
         stripHtml(n.content).toLowerCase().includes(q)
-      );
+      ));
     }
     if (filterCategory !== 'all') result = result.filter(n => n.categoryId === filterCategory || n.subcategoryId === filterCategory);
     if (filterPinned === 'pinned')   result = result.filter(n =>  n.pinned);
@@ -127,7 +128,7 @@ export function Notes() {
 
   const handleDeleteRequest = (e: React.MouseEvent, note: any) => {
     e.stopPropagation();
-    setDeleteTarget({ id: note.id, name: note.title });
+    setDeleteTarget({ id: note.id, name: note.locked ? 'Locked note' : note.title });
   };
 
   const handleDeleteConfirm = async () => {
@@ -153,7 +154,7 @@ export function Notes() {
   };
 
   const NoteCardView = ({ note, index = 0 }: { note: any; index?: number }) => {
-    const plainContent = stripHtml(note.content);
+    const plainContent = useMemo(() => (note.locked ? '' : htmlToPreviewText(note.content)), [note.locked, note.content]);
     const displaySnippet = useMemo(() => {
       if (!searchQuery) return plainContent;
       const q = searchQuery.toLowerCase();
@@ -194,8 +195,17 @@ export function Notes() {
                     </button>
                   )}
                 </div>
-                <h3 className="text-sm font-semibold text-foreground line-clamp-1 mt-2">{note.title}</h3>
-                <p className="text-sm text-muted-foreground line-clamp-3 mt-1">{displaySnippet}</p>
+                {note.locked ? (
+                  <>
+                    <h3 className="text-sm font-semibold text-foreground line-clamp-1 mt-2 flex items-center gap-1.5"><Lock size={13} /> Locked note</h3>
+                    <p className="text-sm text-muted-foreground mt-1 tracking-widest" aria-hidden>••••••••••••</p>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-sm font-semibold text-foreground line-clamp-1 mt-2">{note.title}</h3>
+                    <p className="text-sm text-muted-foreground line-clamp-3 mt-1 whitespace-pre-wrap">{displaySnippet}</p>
+                  </>
+                )}
                 {!searchQuery && plainContent.length > 200 && <p className="text-xs text-muted-foreground/50 mt-1 italic">Read more...</p>}
               </div>
               <div className="flex items-center justify-between mt-auto pt-3">
@@ -240,7 +250,7 @@ export function Notes() {
   );
 
   const NoteTableRow = ({ note, isPinned }: { note: any; isPinned: boolean }) => {
-    const plainContent = stripHtml(note.content);
+    const plainContent = note.locked ? '' : stripHtml(note.content);
     const tooltipSnippet = useMemo(() => {
       if (!searchQuery) return plainContent;
       const q = searchQuery.toLowerCase();
@@ -265,7 +275,9 @@ export function Notes() {
         <td className="px-4 py-3.5 text-center">
           <div className="relative inline-block">
             <div className="flex items-center justify-center gap-2">
-              <p className="text-sm font-semibold text-foreground line-clamp-1">{note.title}</p>
+              <p className="text-sm font-semibold text-foreground line-clamp-1 flex items-center gap-1.5">
+                {note.locked ? <><Lock size={13} /> Locked note</> : note.title}
+              </p>
               {note.attachments && note.attachments.length > 0 && (
                 <span className="flex items-center gap-0.5 text-xs text-muted-foreground/60 flex-shrink-0">
                   <Paperclip size={11} />{note.attachments.length}

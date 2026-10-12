@@ -68,6 +68,7 @@ export interface Note {
   timestamp: string;
   updatedAt?: string | null;
   pinned: boolean;
+  locked?: boolean;                // hidden everywhere; opening requires the PIN
   categoryId: string;
   subcategoryId?: string | null;
   attachments?: Attachment[];

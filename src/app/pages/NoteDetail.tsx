@@ -1,7 +1,7 @@
 // src/app/pages/NoteDetail.tsx
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { useNotes } from '../context/NoteContext';
+import { useNotes, notePath } from '../context/NoteContext';
 import { useCategories } from '../context/CategoryContext';
 import { useAttachments } from '../context/AttachmentContext';
 import { useAuth } from '../context/AuthContext';
@@ -14,8 +14,9 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import {
   ChevronLeft, Pin, X, Loader2, FileText,
-  Image as ImageIcon, Save, Trash2,
+  Image as ImageIcon, Save, Trash2, Lock, LockOpen,
 } from 'lucide-react';
+import { PinPromptDialog } from '../components/PinPromptDialog';
 import { CategorySelect } from '../components/CategorySelect';
 import { formatFileSize, isImageFile } from '../../lib/supabase';
 import { toast } from 'sonner';
@@ -115,6 +116,10 @@ export function NoteDetail() {
   const [uploading, setUploading]           = useState(false);
   const [submitting, setSubmitting]         = useState(false);
   const [togglingPin, setTogglingPin]       = useState(false);
+  const [togglingLock, setTogglingLock]     = useState(false);
+  // Id of the locked note unlocked with the PIN in this visit; leaving the page
+  // (or switching notes) locks it again.
+  const [unlockedId, setUnlockedId]         = useState<string | null>(null);
   const [attachsLoading, setAttachsLoading] = useState(false);
   const [deleteAttachTarget, setDeleteAttachTarget] = useState<{ id: string; url: string } | null>(null);
   const [deletingAttach, setDeletingAttach] = useState(false);
@@ -242,6 +247,22 @@ export function NoteDetail() {
     setTogglingPin(false);
   };
 
+  const handleToggleLock = async () => {
+    if (!id || !note) return;
+    setTogglingLock(true);
+    const locked = !note.locked;
+    const { success, error } = await updateNote(id, { locked });
+    if (success) {
+      setUnlockedId(id);   // keep it open while you're here
+      // Locked notes use an id-only URL so the title isn't left in the address bar
+      navigate(notePath({ ...note, locked }), { replace: true });
+      toast.success(locked ? 'Note locked' : 'Note unlocked');
+    } else {
+      toast.error(error || 'Failed to update lock');
+    }
+    setTogglingLock(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -308,6 +329,33 @@ export function NoteDetail() {
     );
   }
 
+  if (note?.locked && unlockedId !== note.id) {
+    return (
+      <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+          <div className="space-y-4 pb-6">
+            <button type="button" onClick={() => navigate(-1)}
+              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <ChevronLeft size={16} /> Back
+            </button>
+            <Card className="bg-white dark:bg-card border-2 border-slate-200 dark:border-border shadow-sm rounded-xl">
+              <CardContent className="py-16 text-center space-y-3">
+                <Lock size={28} className="mx-auto text-muted-foreground" />
+                <p className="text-muted-foreground font-medium">This note is locked</p>
+                <Button variant="outline" size="sm" onClick={() => setUnlockedId(null)}>Enter PIN</Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+        <PinPromptDialog
+          open={unlockedId === null}
+          onSuccess={() => setUnlockedId(note.id)}
+          onCancel={() => setUnlockedId('')}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex-1 overflow-y-auto no-scrollbar">
@@ -324,6 +372,24 @@ export function NoteDetail() {
               Back
             </button>
             {!isNew && (
+              <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleToggleLock}
+                disabled={togglingLock}
+                title={note?.locked ? 'Unlock: show title and content again' : 'Lock: hide this note and require your PIN to open it'}
+                className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                  note?.locked
+                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-100'
+                    : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                {togglingLock
+                  ? <Loader2 size={11} className="animate-spin" />
+                  : note?.locked ? <Lock size={11} /> : <LockOpen size={11} />
+                }
+                {note?.locked ? 'Locked' : 'Lock'}
+              </button>
               <button
                 type="button"
                 onClick={handleTogglePin}
@@ -340,6 +406,7 @@ export function NoteDetail() {
                 }
                 {formData.pinned ? 'Pinned' : 'Pin'}
               </button>
+              </div>
             )}
           </div>
 

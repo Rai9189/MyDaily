@@ -66,6 +66,7 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
 
     // Search notes
     notes.forEach(n => {
+      if (n.locked) return;   // locked notes never show in search
       const plainContent = stripHtml(n.content || '');
       if (n.title.toLowerCase().includes(q) || plainContent.toLowerCase().includes(q)) {
         allResults.push({
