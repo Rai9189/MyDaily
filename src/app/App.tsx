@@ -26,6 +26,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m
 const Accounts = lazy(() => import('./pages/Accounts').then(m => ({ default: m.Accounts })));
 const Transactions = lazy(() => import('./pages/Transactions').then(m => ({ default: m.Transactions })));
 const TransactionDetail = lazy(() => import('./pages/TransactionDetail').then(m => ({ default: m.TransactionDetail })));
+const TransactionImport = lazy(() => import('./pages/TransactionImport').then(m => ({ default: m.TransactionImport })));
 const Tasks = lazy(() => import('./pages/Tasks').then(m => ({ default: m.Tasks })));
 const TaskDetail = lazy(() => import('./pages/TaskDetail').then(m => ({ default: m.TaskDetail })));
 const Notes = lazy(() => import('./pages/Notes').then(m => ({ default: m.Notes })));
@@ -180,6 +181,7 @@ function AppRoutes() {
         <Route path="/accounts"          element={<ProtectedRoute><Layout><Accounts /></Layout></ProtectedRoute>} />
         <Route path="/transactions"      element={<ProtectedRoute><Layout><Transactions /></Layout></ProtectedRoute>} />
         <Route path="/transactions/new"  element={<ProtectedRoute><Layout><TransactionDetail /></Layout></ProtectedRoute>} />
+        <Route path="/transactions/import" element={<ProtectedRoute><Layout><TransactionImport /></Layout></ProtectedRoute>} />
         <Route path="/transactions/:id"  element={<ProtectedRoute><Layout><TransactionDetail /></Layout></ProtectedRoute>} />
         <Route path="/tasks"             element={<ProtectedRoute><Layout><Tasks /></Layout></ProtectedRoute>} />
         <Route path="/tasks/new"         element={<ProtectedRoute><Layout><TaskDetail /></Layout></ProtectedRoute>} />

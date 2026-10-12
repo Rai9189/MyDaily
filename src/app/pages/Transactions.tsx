@@ -15,7 +15,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import {
-  Plus, TrendingUp, TrendingDown, Paperclip, ArrowUpDown,
+  Plus, TrendingUp, TrendingDown, Paperclip, ArrowUpDown, FileUp,
   ChevronLeft, ChevronRight, Filter, CalendarDays,
   Search, X, Edit, Trash2, ArrowLeftRight,
   LayoutGrid, List,
@@ -310,9 +310,14 @@ export function Transactions() {
 
         <div className="flex justify-between items-center">
           <p className="text-sm font-medium text-foreground/65">All Your Transaction History</p>
-          <Button onClick={() => navigate('/transactions/new')} className="hidden md:flex gap-2" disabled={accounts.length === 0}>
-            <Plus size={18} /> Add Transaction
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/transactions/import')} className="gap-2" disabled={accounts.length === 0}>
+              <FileUp size={18} /> Import PDF
+            </Button>
+            <Button onClick={() => navigate('/transactions/new')} className="hidden md:flex gap-2" disabled={accounts.length === 0}>
+              <Plus size={18} /> Add Transaction
+            </Button>
+          </div>
         </div>
 
         {activeFilterCount > 0 && (
