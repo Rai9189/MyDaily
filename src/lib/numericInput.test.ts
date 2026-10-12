@@ -58,7 +58,8 @@ describe('numericInput utilities', () => {
     });
 
     it('rejects multiple commas', () => {
-      expect(handleNumericKeyInput('1.000,5,5')).toBe('1.000,5');
+      // called per keystroke: typing a second comma drops it
+      expect(handleNumericKeyInput('1.000,5,')).toBe('1.000,5');
     });
 
     it('rejects more than 2 decimal places', () => {

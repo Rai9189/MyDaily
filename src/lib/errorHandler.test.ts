@@ -64,7 +64,7 @@ describe('errorHandler utilities', () => {
     });
 
     it('respects context parameter for different error messages', async () => {
-      const operation = vi.fn().mockResolvedValueOnce({
+      const operation = vi.fn().mockResolvedValue({
         data: null,
         error: { message: 'invalid password' },
       });
