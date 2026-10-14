@@ -130,7 +130,12 @@ async function sendToUser(userId: string, payload: object) {
 
   await Promise.all((subs ?? []).map(s =>
     webpush
-      .sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload))
+      .sendNotification(
+        { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+        JSON.stringify(payload),
+        // high: deliver now even in Android Doze; TTL: drop reminders more than 1h stale
+        { urgency: 'high', TTL: 60 * 60 },
+      )
       .catch(async (err: { statusCode?: number }) => {
         // 404/410: the browser dropped this subscription — clean it up
         if (err.statusCode === 404 || err.statusCode === 410) {
