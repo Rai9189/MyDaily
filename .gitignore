@@ -1,7 +1,5 @@
 node_modules
 
-Kamenrider01* (Pass Supabase)
-
 .env
 .env.local
 .env.production
@@ -18,3 +16,8 @@ agent-skills/
 
 # Vercel builds from source; committed dist/ was stale build output
 dist/
+# Claude Code project instructions — local only
+CLAUDE.md
+
+# Supabase CLI local state (linked project ref, CLI version cache)
+supabase/.temp/
