@@ -1,44 +1,33 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { addTransaction, amountLabel, balanceOf, findTransaction, randomAmount, signIn, skipPinLock } from './helpers';
 
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => sessionStorage.setItem('pinUnlocked', 'true'));
-});
-
-// Random amount: it's the only text that identifies this row in the list and Trash.
-const amount = 100_000 + Math.floor(Math.random() * 899_999);
-const amountLabel = new Intl.NumberFormat('id-ID').format(amount);
-
-async function findTransaction(page: Page) {
-  await page.getByPlaceholder('Search transactions...').fill(String(amount));
-  return page.getByRole('row').filter({ hasText: amountLabel });
-}
+test.beforeAll(() => signIn());
+test.beforeEach(({ page }) => skipPinLock(page));
 
 test('transaction can be added, deleted and restored from Trash', async ({ page }) => {
-  await page.goto('/transactions/new');
-  await page.locator('#amount').fill(String(amount));
-  await page.locator('#type').click();
-  await page.getByRole('option', { name: 'Income' }).click();
-  await page.locator('#category').click();
-  await page.getByRole('option', { name: 'E2E Income' }).click();
-  await page.getByRole('button', { name: 'Save Transaction' }).click();
-  await expect(page).toHaveURL(/\/transactions$/);
+  const amount = randomAmount();
+  const before = await balanceOf('E2E Bank');
 
-  const row = await findTransaction(page);
+  await addTransaction(page, amount, 'Income');
+  const row = await findTransaction(page, amount);
   await expect(row).toBeVisible();
+  await expect.poll(() => balanceOf('E2E Bank')).toBe(before + amount);
 
   await row.locator('button:has(.lucide-trash-2)').click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   // The open dialog hides the row from getByRole, so wait for the toast instead.
   await expect(page.getByText('Transaction deleted')).toBeVisible();
   await expect(row).toBeHidden();
+  await expect.poll(() => balanceOf('E2E Bank')).toBe(before);
 
   await page.goto('/trash');
-  const trashRow = page.locator('.divide-y > div').filter({ hasText: amountLabel });
+  const trashRow = page.locator('.divide-y > div').filter({ hasText: amountLabel(amount) });
   await expect(trashRow).toBeVisible();
   await trashRow.locator('button:has(.lucide-rotate-ccw)').click();
   await expect(page.getByText('Transaction restored!')).toBeVisible();
   await expect(trashRow).toBeHidden();
+  await expect.poll(() => balanceOf('E2E Bank')).toBe(before + amount);
 
   await page.goto('/transactions');
-  await expect(await findTransaction(page)).toBeVisible();
+  await expect(await findTransaction(page, amount)).toBeVisible();
 });
