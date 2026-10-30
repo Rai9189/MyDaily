@@ -18,6 +18,9 @@ export default defineConfig({
   reporter: 'list',
   use: {
     baseURL: `http://localhost:${PORT}`,
+    // Visible and slowed down so a run can be watched locally.
+    headless: !!process.env.CI,
+    launchOptions: { slowMo: process.env.CI ? 0 : 300 },
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

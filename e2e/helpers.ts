@@ -28,7 +28,7 @@ export async function balanceOf(accountName: string) {
   return Number(data.balance);
 }
 
-export async function addTransaction(page: Page, amount: number, type: 'Income' | 'Expense') {
+export async function addTransaction(page: Page, amount: number | string, type: 'Income' | 'Expense') {
   await page.goto('/transactions/new');
   await page.locator('#amount').fill(String(amount));
   await page.locator('#type').click();
