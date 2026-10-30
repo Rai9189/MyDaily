@@ -2,6 +2,14 @@ import { FileJson, FileText } from 'lucide-react';
 import { useTransactions } from '../context/TransactionContext';
 import { useAccounts } from '../context/AccountContext';
 import { useCategories } from '../context/CategoryContext';
+import { stripHtml } from '../../lib/stripHtml';
+
+// Quotes would break the columns, and spreadsheets run a leading = + - @ as a formula.
+function csvCell(value: unknown): string {
+  const text = String(value ?? '');
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
 
 export function ExportData() {
   const { transactions } = useTransactions();
@@ -12,7 +20,7 @@ export function ExportData() {
     const headers = ['Date', 'Description', 'Type', 'Category', 'Account', 'Amount'];
     const rows = transactions.map(t => [
       t.date,
-      t.description,
+      stripHtml(t.description ?? ''),
       t.type,
       categories.find(c => c.id === t.categoryId)?.name || 'Other',
       accounts.find(a => a.id === t.accountId)?.name || 'Account',
@@ -21,7 +29,7 @@ export function ExportData() {
 
     const csv = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
+      ...rows.map(row => row.map(csvCell).join(',')),
     ].join('\n');
 
     const blob = new Blob([csv], { type: 'text/csv' });

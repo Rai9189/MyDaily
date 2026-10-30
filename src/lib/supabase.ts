@@ -83,6 +83,20 @@ export function handleSupabaseError(error: unknown, context: 'signin' | 'signup'
 // FILE UPLOAD HELPERS
 // ============================================
 
+// attachments.url still holds the public-style URL; only its path is used now.
+export function extractStoragePath(urlOrPath: string): string {
+  if (!urlOrPath.startsWith('http')) return urlOrPath;
+  try {
+    const parsed = new URL(urlOrPath);
+    const marker = '/object/public/attachments/';
+    const idx = parsed.pathname.indexOf(marker);
+    if (idx !== -1) return decodeURIComponent(parsed.pathname.slice(idx + marker.length));
+  } catch {
+    // fallback
+  }
+  return urlOrPath;
+}
+
 export async function uploadFile(
   bucket: string,
   path: string,

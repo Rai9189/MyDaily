@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, supabase } from './helpers';
+import { clearPinLock, signIn } from './helpers';
 
 const { E2E_EMAIL, E2E_PIN } = process.env as Record<string, string>;
 const WRONG_PIN = E2E_PIN === '0000' ? '1111' : '0000';
@@ -19,13 +19,7 @@ test.describe('PIN lock', () => {
   test.beforeAll(() => signIn());
 
   // Failed attempts live on the shared test user, so never leave it locked.
-  test.afterEach(async () => {
-    const { data } = await supabase.auth.getUser();
-    await supabase
-      .from('users')
-      .update({ pin_attempts: 0, pin_locked_until: null })
-      .eq('id', data.user!.id);
-  });
+  test.afterEach(clearPinLock);
 
   test('app stays locked until the correct PIN, then returns to the page', async ({ page }) => {
     await page.goto('/transactions');
@@ -40,6 +34,7 @@ test.describe('PIN lock', () => {
   });
 
   test('five wrong PINs lock the app, and reloading does not clear it', async ({ page }) => {
+    test.setTimeout(75_000); // clearPinLock waits out the 30-second lockout
     await page.goto('/pin-lock');
 
     for (let attemptsLeft = 4; attemptsLeft >= 1; attemptsLeft--) {

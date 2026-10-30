@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addTransaction, balanceOf, randomAmount, signIn, skipPinLock, supabase } from './helpers';
+import { addTransaction, balanceOf, clearPinLock, randomAmount, signIn, skipPinLock, supabase } from './helpers';
 
 const { E2E_PIN } = process.env as Record<string, string>;
 const WRONG_PIN = E2E_PIN === '0000' ? '1111' : '0000';
@@ -7,11 +7,6 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 
 test.beforeAll(() => signIn());
 test.beforeEach(({ page }) => skipPinLock(page));
-
-async function resetPinAttempts() {
-  const { data } = await supabase.auth.getUser();
-  await supabase.from('users').update({ pin_attempts: 0, pin_locked_until: null }).eq('id', data.user!.id);
-}
 
 async function fillIncomeForm(page: Page, amount: number) {
   await page.goto('/transactions/new');
@@ -119,6 +114,18 @@ test.describe('attachments', () => {
     expect(data).toHaveLength(1);
   });
 
+  test('View opens the file through a signed link', async ({ page }) => {
+    await openNewTransaction(page);
+    await page.locator('input[type="file"]').setInputFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
+    await expect(page.getByText('Upload complete')).toBeVisible();
+
+    const popup = page.waitForEvent('popup');
+    await page.getByRole('button', { name: 'View', exact: true }).click();
+    const tab = await popup;
+    await expect(tab).toHaveURL(/\/object\/sign\/attachments\//);
+    expect((await tab.request.get(tab.url())).ok()).toBe(true);
+  });
+
   test('an unsupported file type is refused', async ({ page }) => {
     const id = await openNewTransaction(page);
     await page.locator('input[type="file"]').setInputFiles({
@@ -138,8 +145,7 @@ test.describe('attachments', () => {
     await expect(page.getByText(/File terlalu besar/)).toBeVisible();
   });
 
-  // BUG: handleFileUpload shows the success toast even when every upload failed.
-  test.fail('a failed upload does not claim success', async ({ page }) => {
+  test('a failed upload does not claim success', async ({ page }) => {
     await openNewTransaction(page);
     await page.locator('input[type="file"]').setInputFiles({
       name: 'evil.html', mimeType: 'text/html', buffer: Buffer.from('x'),
@@ -166,7 +172,7 @@ test.describe('PDF import', () => {
 });
 
 test.describe('profile and settings', () => {
-  test.afterEach(resetPinAttempts);
+  test.afterEach(clearPinLock);
 
   test('profile name updates', async ({ page }) => {
     await page.goto('/profile');
@@ -191,6 +197,16 @@ test.describe('profile and settings', () => {
     await expect(page.getByText('Image must be smaller than 2MB')).toBeVisible();
   });
 
+  test('avatar uploads', async ({ page }) => {
+    await page.goto('/profile');
+    await page.locator('input[type="file"]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: PNG });
+    await expect(page.getByText('Profile photo updated!')).toBeVisible();
+
+    const { data } = await supabase.auth.getUser();
+    await supabase.from('users').update({ avatar: null }).eq('id', data.user!.id);
+    await supabase.storage.from('avatars').remove([`${data.user!.id}/avatar.png`]);
+  });
+
   test('changing the PIN needs the current PIN', async ({ page }) => {
     await page.goto('/settings');
     await page.getByRole('button', { name: /PIN/ }).first().click();
@@ -206,20 +222,17 @@ test.describe('CSV export', () => {
     expect(await exportCsv(page)).toContain('Date,Description,Type,Category,Account,Amount');
   });
 
-  // BUG: cells aren't escaped, so a quote in a description breaks the columns.
-  test.fail('escapes quotes in a description', async ({ page }) => {
+  test('escapes quotes in a description', async ({ page }) => {
     await insertWithDescription('say "hi", ok');
     expect(await exportCsv(page)).toContain('"say ""hi"", ok"');
   });
 
-  // BUG: spreadsheets run cells starting with = as formulas (CSV injection).
-  test.fail('neutralises spreadsheet formulas', async ({ page }) => {
+  test('neutralises spreadsheet formulas', async ({ page }) => {
     await insertWithDescription('=HYPERLINK("http://example.com")');
     expect(await exportCsv(page)).not.toContain('"=HYPERLINK');
   });
 
-  // BUG: descriptions are stored as HTML and exported with their tags.
-  test.fail('exports descriptions as plain text', async ({ page }) => {
+  test('exports descriptions as plain text', async ({ page }) => {
     await insertWithDescription('<p>plain note</p>');
     expect(await exportCsv(page)).not.toContain('<p>plain note</p>');
   });

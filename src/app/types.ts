@@ -80,7 +80,7 @@ export interface User {
   email: string;
   avatar?: string;
   pin_type?: 'numeric' | 'password';
-  pin_hash?: string;
+  has_pin?: boolean;
   pin_length?: number | null;
   pin_attempts?: number;
   pin_locked_until?: string | null;

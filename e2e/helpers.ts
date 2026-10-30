@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { expect, type Page } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 
@@ -8,6 +9,16 @@ export const supabase = createClient(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY);
 
 export const signIn = () =>
   supabase.auth.signInWithPassword({ email: E2E_EMAIL, password: E2E_PASSWORD });
+
+// Lockout can only be cleared by the correct PIN, and not until it expires.
+export async function clearPinLock() {
+  const p_pin_hash = createHash('sha256').update(process.env.E2E_PIN!).digest('hex');
+  const { data } = await supabase.rpc('verify_pin', { p_pin_hash });
+  if (data?.locked) {
+    await new Promise((resolve) => setTimeout(resolve, 31_000));
+    await supabase.rpc('verify_pin', { p_pin_hash });
+  }
+}
 
 // pinUnlocked is in sessionStorage, which storageState doesn't save.
 export const skipPinLock = (page: Page) =>

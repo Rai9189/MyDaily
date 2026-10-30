@@ -207,7 +207,7 @@ export function PINLock() {
               </div>
 
               {/* ✅ Sisa percobaan — tidak ada (user as any) */}
-              {!locked && pinAttempts > 0 && (
+              {!locked && !error && pinAttempts > 0 && (
                 <p className="text-xs text-center text-amber-600 dark:text-amber-400">
                   {MAX_ATTEMPTS - pinAttempts} attempts remaining before lockout
                 </p>

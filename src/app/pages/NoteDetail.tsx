@@ -7,6 +7,7 @@ import { useAttachments } from '../context/AttachmentContext';
 import { useAuth } from '../context/AuthContext';
 import { usePendingAttachments } from '../hooks/usePendingAttachments';
 import { PendingAttachmentPicker } from '../components/PendingAttachmentPicker';
+import { AttachmentLink } from '../components/AttachmentLink';
 import { RichTextEditor, stripHtml } from '../components/RichTextEditor';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -203,13 +204,14 @@ export function NoteDetail() {
     if (!files || files.length === 0 || !id) return;
     setUploading(true);
     const uploadToast = toast.loading('Uploading...');
+    let uploaded = 0;
     for (let i = 0; i < files.length; i++) {
       const { success, data, error } = await uploadAttachment(files[i], 'note', id);
-      if (success && data) setAttachments(prev => [...prev, data]);
+      if (success && data) { uploaded++; setAttachments(prev => [...prev, data]); }
       else toast.error(error || 'Failed to upload file');
     }
     toast.dismiss(uploadToast);
-    toast.success('Upload complete');
+    if (uploaded > 0) toast.success('Upload complete');
     setUploading(false);
     e.target.value = '';
   };
@@ -542,8 +544,8 @@ export function NoteDetail() {
                               <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
                               <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
                             </div>
-                            <a href={file.url} target="_blank" rel="noopener noreferrer"
-                              className="text-xs text-primary hover:underline flex-shrink-0 mr-2">View</a>
+                            <AttachmentLink url={file.url}
+                              className="text-xs text-primary hover:underline flex-shrink-0 mr-2" />
                           </div>
                           <Button type="button" variant="ghost" size="icon"
                             className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive"

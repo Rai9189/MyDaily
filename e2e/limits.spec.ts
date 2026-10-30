@@ -143,8 +143,7 @@ test.describe('bad URLs', () => {
     await expect(page.getByText(/not found/i)).toBeVisible();
   });
 
-  // BUG: TaskDetail has no not-found state, so a bad id opens an empty edit form.
-  test.fail('unknown task id shows not found', async ({ page }) => {
+  test('unknown task id shows not found', async ({ page }) => {
     await page.goto(`/tasks/${NIL_UUID}`);
     await expect(page.getByText(/not found/i)).toBeVisible();
   });

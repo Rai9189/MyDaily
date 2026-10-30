@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('*')
+          .select('id, name, email, avatar, pin_type, pin_length, pin_attempts, pin_locked_until, has_pin, created_at, updated_at')
           .eq('id', userId)
           .single();
 
@@ -306,23 +306,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const dbPinType = pinType === 'password' ? 'password' : 'numeric';
       const pinLength = pinType === 'pin6' ? 6 : pinType === 'pin4' ? 4 : null;
 
-      const { error } = await supabase
-        .from('users')
-        .update({
-          pin_hash: pinHash,
-          pin_type: dbPinType,
-          pin_length: pinLength,
-          // ✅ Reset lockout saat PIN baru disimpan
-          pin_attempts: 0,
-          pin_locked_until: null,
-        })
-        .eq('id', user.id);
+      const { error } = await supabase.rpc('set_pin', {
+        p_pin_hash: pinHash,
+        p_pin_type: dbPinType,
+        p_pin_length: pinLength,
+      });
 
       if (error) throw error;
 
       setUser(prev => prev ? {
         ...prev,
-        pin_hash: pinHash,
+        has_pin: true,
         pin_type: dbPinType,
         pin_length: pinLength,
         pin_attempts: 0,
@@ -348,53 +342,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
 
-      const MAX_ATTEMPTS  = 5;
-      const LOCK_DURATION = 30; // detik
-
-      // Ambil data user terbaru dari DB (bukan dari state)
-      // agar pin_attempts & pin_locked_until selalu akurat
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       if (!currentSession?.user) throw new Error('No active session');
 
-      const { data: userData, error: fetchError } = await supabase
-        .from('users')
-        .select('pin_hash, pin_attempts, pin_locked_until')
-        .eq('id', currentSession.user.id)
-        .single();
+      // Attempts and lockout are enforced by the verify_pin RPC
+      const { data, error } = await supabase.rpc('verify_pin', { p_pin_hash: await hashPin(pin) });
+      if (error) throw error;
+      if (data.no_pin) return { success: false, error: 'PIN not set up yet' };
 
-      if (fetchError) throw fetchError;
-      if (!userData?.pin_hash) return { success: false, error: 'PIN not set up yet' };
-
-      // ✅ Cek apakah masih dalam masa lockout
-      if (userData.pin_locked_until) {
-        const lockedUntil = new Date(userData.pin_locked_until);
-        if (lockedUntil > new Date()) {
-          return {
-            success: false,
-            locked: true,
-            lockedUntil: userData.pin_locked_until,
-            error: 'Too many failed attempts.',
-          };
-        } else {
-          // Lockout sudah habis, reset
-          await supabase
-            .from('users')
-            .update({ pin_attempts: 0, pin_locked_until: null })
-            .eq('id', currentSession.user.id);
-        }
-      }
-
-      const pinHash = await hashPin(pin);
-      const isCorrect = pinHash === userData.pin_hash;
-
-      if (isCorrect) {
-        // ✅ PIN benar — reset attempts di DB
-        await supabase
-          .from('users')
-          .update({ pin_attempts: 0, pin_locked_until: null })
-          .eq('id', currentSession.user.id);
-
-        // Update user state
+      if (data.success) {
         setUser(prev => prev ? { ...prev, pin_attempts: 0, pin_locked_until: null } : prev);
 
         sessionStorage.setItem('pinUnlocked', 'true');
@@ -404,49 +360,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
 
         return { success: true, error: null };
-      } else {
-        // ✅ PIN salah — increment attempts di DB
-        const newAttempts = (userData.pin_attempts ?? 0) + 1;
-        const shouldLock  = newAttempts >= MAX_ATTEMPTS;
-        const lockedUntil = shouldLock
-          ? new Date(Date.now() + LOCK_DURATION * 1000).toISOString()
-          : null;
+      }
 
-        await supabase
-          .from('users')
-          .update({
-            pin_attempts: newAttempts,
-            pin_locked_until: lockedUntil,
-          })
-          .eq('id', currentSession.user.id);
-
-        // Update user state
+      // attempts is missing when the app was already locked
+      if (data.attempts !== undefined) {
         setUser(prev => prev ? {
           ...prev,
-          pin_attempts: newAttempts,
-          pin_locked_until: lockedUntil,
+          pin_attempts: data.attempts,
+          pin_locked_until: data.locked_until,
         } : prev);
 
-        await logActivity(currentSession.user.id, shouldLock ? 'pin_locked' : 'pin_failed', {
-          attempts: newAttempts,
-          locked_until: lockedUntil,
+        await logActivity(currentSession.user.id, data.locked ? 'pin_locked' : 'pin_failed', {
+          attempts: data.attempts,
+          locked_until: data.locked_until,
           timestamp: new Date().toISOString(),
         });
+      }
 
-        if (shouldLock) {
-          return {
-            success: false,
-            locked: true,
-            lockedUntil: lockedUntil!,
-            error: 'Too many failed attempts.',
-          };
-        }
-
+      if (data.locked) {
         return {
           success: false,
-          error: `Wrong PIN! ${MAX_ATTEMPTS - newAttempts} attempts remaining before lockout.`,
+          locked: true,
+          lockedUntil: data.locked_until as string,
+          error: 'Too many failed attempts.',
         };
       }
+
+      return {
+        success: false,
+        error: `Wrong PIN! ${data.attempts_left} attempts remaining before lockout.`,
+      };
     } catch (err) {
       const errorMessage = handleSupabaseError(err);
       return { success: false, error: errorMessage };
@@ -462,7 +405,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true, error: null };
   };
 
-  const hasPin = () => typeof user?.pin_hash === 'string' && user.pin_hash.length > 0;
+  const hasPin = () => user?.has_pin === true;
 
   const value = {
     user, session, loading, profileLoading, error,

@@ -46,8 +46,11 @@ test.describe('another signed-in user', () => {
   }
 
   test("cannot read the victim's profile or PIN hash", async () => {
-    const { data } = await attacker.from('users').select('pin_hash').eq('id', victimId);
-    expect(data).toEqual([]);
+    const { data } = await attacker.from('users').select('id, pin_hash').eq('id', victimId);
+    expect(data ?? []).toEqual([]);
+
+    const profile = await attacker.from('users').select('id').eq('id', victimId);
+    expect(profile.data).toEqual([]);
   });
 
   test("cannot change the victim's balance directly", async () => {
@@ -71,8 +74,7 @@ test.describe('another signed-in user', () => {
     expect(error).not.toBeNull();
   });
 
-  // BUG: the balance is safe, but the row is stored against another user's account (no ownership check on account_id).
-  test.fail("cannot attach their own transaction to the victim's account", async () => {
+  test("cannot attach their own transaction to the victim's account", async () => {
     const { data: category } = await attacker.from('categories').select('id').limit(1).single();
     const before = await victim.from('accounts').select('balance').eq('id', victimAccountId).single();
 
@@ -86,12 +88,36 @@ test.describe('another signed-in user', () => {
     expect(error).not.toBeNull();
   });
 
-  // BUG: reset_category_order is SECURITY DEFINER and trusts p_user_id.
-  test.fail("cannot reorder the victim's categories", async () => {
+  test("cannot reorder the victim's categories", async () => {
     await victim.from('categories').update({ sort_order: 999 }).eq('id', victimCategoryId);
     await attacker.rpc('reset_category_order', { p_user_id: victimId, p_type: 'transaction' });
     const { data } = await victim.from('categories').select('sort_order').eq('id', victimCategoryId).single();
     expect(data!.sort_order).toBe(999);
+  });
+
+  test('cannot read a PIN hash, even their own', async () => {
+    const { error } = await attacker.from('users').select('pin_hash').eq('id', attackerId);
+    expect(error).not.toBeNull();
+  });
+
+  test('cannot reset their own PIN lockout', async () => {
+    const { error } = await attacker.from('users').update({ pin_attempts: 0 }).eq('id', attackerId);
+    expect(error).not.toBeNull();
+  });
+
+  test('cannot overwrite the PIN column directly', async () => {
+    const { error } = await attacker.from('users').update({ pin_hash: 'x' }).eq('id', attackerId);
+    expect(error).not.toBeNull();
+  });
+
+  test('can still edit their own name', async () => {
+    const { error } = await attacker.from('users').update({ name: 'Attacker' }).eq('id', attackerId);
+    expect(error).toBeNull();
+  });
+
+  test('can still reorder their own categories', async () => {
+    const { error } = await attacker.rpc('reset_category_order', { p_user_id: attackerId, p_type: 'transaction' });
+    expect(error).toBeNull();
   });
 
   test("cannot upload into the victim's storage folder", async () => {
@@ -110,20 +136,16 @@ test.describe('signed-out visitor', () => {
     }
   });
 
-  // BUG: hard_delete_expired_trash is executable by anon.
-  test.fail('cannot run the trash purge', async () => {
+  test('cannot run the trash purge', async () => {
     const { error } = await anon.rpc('hard_delete_expired_trash');
     expect(error).not.toBeNull();
   });
 
-  // BUG: reset_category_order is executable by anon.
-  test.fail("cannot reorder a user's categories", async () => {
+  test("cannot reorder a user's categories", async () => {
     const { error } = await anon.rpc('reset_category_order', { p_user_id: victimId, p_type: 'transaction' });
     expect(error).not.toBeNull();
   });
-
-  // BUG: the attachments bucket is public, so receipts open without logging in.
-  test.fail('cannot open an uploaded attachment by URL', async () => {
+  test('cannot open an uploaded attachment by URL', async () => {
     const path = `${victimId}/public-check.png`;
     await victim.storage.from('attachments').upload(path, PNG, { contentType: 'image/png', upsert: true });
     const url = victim.storage.from('attachments').getPublicUrl(path).data.publicUrl;
@@ -136,8 +158,7 @@ test.describe('signed-out visitor', () => {
 });
 
 test.describe('server-side validation', () => {
-  // BUG: no CHECK (amount > 0); a negative expense raises the balance.
-  test.fail('rejects a negative amount', async () => {
+  test('rejects a negative amount', async () => {
     const { data: category } = await attacker.from('categories').select('id').limit(1).single();
     const { data: account } = await attacker
       .from('accounts')
@@ -152,8 +173,7 @@ test.describe('server-side validation', () => {
     expect(error).not.toBeNull();
   });
 
-  // BUG: file type and size are only checked in the browser.
-  test.fail('rejects uploading an HTML file', async () => {
+  test('rejects uploading an HTML file', async () => {
     const path = `${attackerId}/page.html`;
     const { error } = await attacker.storage
       .from('attachments')

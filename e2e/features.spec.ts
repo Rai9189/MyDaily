@@ -143,6 +143,28 @@ test.describe('accounts', () => {
     await expect.poll(() => deletedAt('accounts', 'name', name)).toBeTruthy();
   });
 
+  test('permanently deleting an account keeps its transactions', async () => {
+    const { data: user } = await supabase.auth.getUser();
+    const user_id = user.user!.id;
+    const { data: account } = await supabase
+      .from('accounts')
+      .insert({ user_id, name: unique('Closing'), type: 'Cash', balance: 0 })
+      .select('id')
+      .single();
+    const category = await supabase.from('categories').select('id').eq('name', 'E2E Income').single();
+    const { data: transaction } = await supabase
+      .from('transactions')
+      .insert({ user_id, account_id: account!.id, category_id: category.data!.id, amount: 1, type: 'income', date: '2026-01-01' })
+      .select('id')
+      .single();
+
+    const { error } = await supabase.from('accounts').delete().eq('id', account!.id);
+    expect(error).toBeNull();
+
+    const { data } = await supabase.from('transactions').select('account_id').eq('id', transaction!.id).single();
+    expect(data!.account_id).toBeNull();
+  });
+
   test('balance above one billion is capped', async ({ page }) => {
     await page.goto('/accounts');
     await page.getByRole('button', { name: 'Add Account' }).click();

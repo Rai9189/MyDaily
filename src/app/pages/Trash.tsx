@@ -283,7 +283,7 @@ export function Trash() {
                       : 'bg-white dark:bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted'
                     }`}>
                     {t !== 'all' && TABLE_ICONS[t]}
-                    {t === 'all' ? 'All' : `${TABLE_LABELS[t]}s`}
+                    {t === 'all' ? 'All' : t.charAt(0).toUpperCase() + t.slice(1)}
                     <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold ${active ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}`}>{count}</span>
                   </button>
                 );

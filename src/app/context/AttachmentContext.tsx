@@ -1,6 +1,6 @@
 // src/app/context/AttachmentContext.tsx
 import { createContext, useContext, ReactNode } from 'react';
-import { supabase, handleSupabaseError, uploadFile, deleteFile, deleteFiles, generateUniqueFileName } from '../../lib/supabase';
+import { supabase, handleSupabaseError, uploadFile, deleteFile, deleteFiles, generateUniqueFileName, extractStoragePath } from '../../lib/supabase';
 import { useAuth } from './AuthContext';
 import { Attachment } from '../types';
 
@@ -77,19 +77,6 @@ export function AttachmentProvider({ children }: { children: ReactNode }) {
       return { success: false, error: errorMessage };
     }
   };
-
-  function extractStoragePath(urlOrPath: string): string {
-    if (!urlOrPath.startsWith('http')) return urlOrPath;
-    try {
-      const parsed = new URL(urlOrPath);
-      const marker = '/object/public/attachments/';
-      const idx = parsed.pathname.indexOf(marker);
-      if (idx !== -1) return decodeURIComponent(parsed.pathname.slice(idx + marker.length));
-    } catch {
-      // fallback
-    }
-    return urlOrPath;
-  }
 
   // Delete attachment
   const deleteAttachment = async (id: string, storagePath: string) => {
