@@ -3,6 +3,12 @@ node_modules
 .env
 .env.local
 .env.production
+.env.e2e
+
+# Playwright artifacts (playwright/.auth holds a logged-in session)
+test-results/
+playwright-report/
+playwright/.auth/
 
 supabase.md
 
