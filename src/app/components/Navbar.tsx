@@ -63,7 +63,7 @@ const ADD_ROUTES: Record<string, string> = {
 export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const reduceMotion = useReducedMotion();
@@ -230,7 +230,9 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
             aria-haspopup="menu"
             aria-expanded={userMenuOpen}
           >
-            <User size={18} />
+            {user?.avatar
+              ? <img src={user.avatar} alt="" className="w-full h-full rounded-full object-cover" />
+              : <User size={18} />}
           </button>
 
           <AnimatePresence>

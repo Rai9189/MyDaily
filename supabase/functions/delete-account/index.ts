@@ -39,6 +39,23 @@ Deno.serve(async (req) => {
       )
     }
 
+    // A stolen session alone must not be enough to destroy the account.
+    const { password } = await req.json().catch(() => ({}))
+    const { error: passwordError } = typeof password === 'string' && user.email
+      ? await createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_ANON_KEY')!,
+          { auth: { persistSession: false } }
+        ).auth.signInWithPassword({ email: user.email, password })
+      : { error: new Error('Password required') }
+
+    if (passwordError) {
+      return new Response(
+        JSON.stringify({ error: 'Incorrect password' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!

@@ -14,6 +14,9 @@ import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { DetailPageSkeleton } from '../components/Skeletons';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { AvatarCropDialog } from '../components/AvatarCropDialog';
+
+const MAX_AVATAR_SOURCE_BYTES = 10 * 1024 * 1024;
 
 export function Profile() {
   const navigate = useNavigate();
@@ -25,12 +28,15 @@ export function Profile() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [signingOut, setSigningOut]           = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [cropFile, setCropFile]               = useState<File | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletePassword, setDeletePassword]       = useState('');
   const [deletingAccount, setDeletingAccount]     = useState(false);
 
+  const canDeleteAccount = deleteConfirmText === 'DELETE' && deletePassword !== '';
   const hasChanged = formData.name.trim() !== displayName.trim() && formData.name.trim() !== '';
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -42,31 +48,36 @@ export function Profile() {
     setSubmitting(false);
   };
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file || !user) return;
     if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
       toast.error('Only JPEG, PNG, and WebP images are supported'); return;
     }
-    if (file.size > 2 * 1024 * 1024) { toast.error('Image must be smaller than 2MB'); return; }
+    // The cropped result is always small, so only the source photo is limited here.
+    if (file.size > MAX_AVATAR_SOURCE_BYTES) { toast.error('Image must be smaller than 10MB'); return; }
+    setCropFile(file);
+  };
+
+  const handleAvatarCropped = async (blob: Blob) => {
+    if (!user) return;
     setUploadingAvatar(true);
     const uploadToast = toast.loading('Uploading photo...');
     try {
-      const ext  = file.name.split('.').pop();
-      const path = `${user.id}/avatar.${ext}`;
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+      const path = `${user.id}/avatar.jpg`;
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
       const { success, error } = await updateProfile({ avatar: `${urlData.publicUrl}?t=${Date.now()}` });
       toast.dismiss(uploadToast);
-      if (success) toast.success('Profile photo updated!');
+      if (success) { toast.success('Profile photo updated!'); setCropFile(null); }
       else throw new Error(error || 'Failed to save avatar URL');
     } catch (err: any) {
       toast.dismiss(uploadToast);
       toast.error(err.message || 'Failed to upload photo');
     } finally {
       setUploadingAvatar(false);
-      e.target.value = '';
     }
   };
 
@@ -78,7 +89,7 @@ export function Profile() {
   };
 
   const handleDeleteAccount = async () => {
-    if (deleteConfirmText !== 'DELETE') return;
+    if (!canDeleteAccount) return;
     setDeletingAccount(true);
     const deleteToast = toast.loading('Deleting account...');
     try {
@@ -86,8 +97,11 @@ export function Profile() {
       if (!session) throw new Error('No active session');
       const { error } = await supabase.functions.invoke('delete-account', {
         headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { password: deletePassword },
       });
-      if (error) throw error;
+      if (error) {
+        throw new Error(error.context?.status === 403 ? 'Incorrect password.' : 'Failed to delete account. Please try again.');
+      }
       toast.dismiss(deleteToast);
       sessionStorage.clear();
       await signOut();
@@ -117,6 +131,13 @@ export function Profile() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
+      <AvatarCropDialog
+        file={cropFile}
+        saving={uploadingAvatar}
+        onCancel={() => setCropFile(null)}
+        onConfirm={handleAvatarCropped}
+      />
+
       <ConfirmDialog
         open={showSignOutConfirm}
         title="Sign Out?"
@@ -163,7 +184,7 @@ export function Profile() {
                     className="text-xs opacity-90 hover:opacity-100 underline mt-2 transition-opacity block">
                     {uploadingAvatar ? 'Uploading...' : 'Change photo'}
                   </button>
-                  <p className="text-xs opacity-55 mt-0.5">Max 2MB · JPEG, PNG, WebP</p>
+                  <p className="text-xs opacity-55 mt-0.5">Max 10MB · JPEG, PNG, WebP</p>
                 </div>
               </div>
             </CardContent>
@@ -260,13 +281,20 @@ export function Profile() {
                       placeholder="Type DELETE here" disabled={deletingAccount}
                       className="border-red-200 dark:border-red-800/50 focus:border-destructive text-sm" />
                   </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="deletePassword" className="text-xs text-muted-foreground">Your account password</Label>
+                    <Input id="deletePassword" type="password" autoComplete="current-password" value={deletePassword}
+                      onChange={(e) => setDeletePassword(e.target.value)}
+                      placeholder="Enter your password" disabled={deletingAccount}
+                      className="border-red-200 dark:border-red-800/50 focus:border-destructive text-sm" />
+                  </div>
                   <div className="flex gap-2">
                     <Button type="button" variant="destructive" className="flex-1 gap-2 text-sm"
-                      onClick={handleDeleteAccount} disabled={deleteConfirmText !== 'DELETE' || deletingAccount}>
+                      onClick={handleDeleteAccount} disabled={!canDeleteAccount || deletingAccount}>
                       {deletingAccount ? <><Loader2 size={13} className="animate-spin" /> Deleting...</> : <><Trash2 size={13} /> Confirm Delete</>}
                     </Button>
                     <Button type="button" variant="outline" className="text-sm"
-                      onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }} disabled={deletingAccount}>
+                      onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); setDeletePassword(''); }} disabled={deletingAccount}>
                       Cancel
                     </Button>
                   </div>

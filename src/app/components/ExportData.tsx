@@ -1,7 +1,11 @@
+import { useState } from 'react';
 import { FileJson, FileText } from 'lucide-react';
 import { useTransactions } from '../context/TransactionContext';
 import { useAccounts } from '../context/AccountContext';
 import { useCategories } from '../context/CategoryContext';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { inDateRange } from '../../lib/exportRange';
 import { stripHtml } from '../../lib/stripHtml';
 
 // Quotes would break the columns, and spreadsheets run a leading = + - @ as a formula.
@@ -12,13 +16,21 @@ function csvCell(value: unknown): string {
 }
 
 export function ExportData() {
-  const { transactions } = useTransactions();
-  const { accounts } = useAccounts();
-  const { categories } = useCategories();
+  const { transactions, loading: loadingTransactions } = useTransactions();
+  const { accounts, loading: loadingAccounts } = useAccounts();
+  const { categories, loading: loadingCategories } = useCategories();
+  // Exporting mid-load would silently produce a file with no rows.
+  const loading = loadingTransactions || loadingAccounts || loadingCategories;
+
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const selected = transactions.filter(t => inDateRange(t.date, from, to));
+  const emptyRange = (from !== '' || to !== '') && selected.length === 0;
+  const disabled = loading || emptyRange;
 
   const exportToCSV = () => {
     const headers = ['Date', 'Description', 'Type', 'Category', 'Account', 'Amount'];
-    const rows = transactions.map(t => [
+    const rows = selected.map(t => [
       t.date,
       stripHtml(t.description ?? ''),
       t.type,
@@ -44,7 +56,8 @@ export function ExportData() {
   const exportToJSON = () => {
     const data = {
       exportDate: new Date().toISOString(),
-      transactions: transactions.map(t => ({
+      dateRange: { from: from || null, to: to || null },
+      transactions: selected.map(t => ({
         ...t,
         categoryName: categories.find(c => c.id === t.categoryId)?.name,
         accountName: accounts.find(a => a.id === t.accountId)?.name,
@@ -64,16 +77,33 @@ export function ExportData() {
 
   return (
     <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label htmlFor="exportFrom" className="text-xs">From</Label>
+          <Input id="exportFrom" type="date" value={from} max={to || undefined} onChange={e => setFrom(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="exportTo" className="text-xs">To</Label>
+          <Input id="exportTo" type="date" value={to} min={from || undefined} onChange={e => setTo(e.target.value)} />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {emptyRange
+          ? 'No transactions in this range'
+          : from || to ? `${selected.length} transactions selected` : 'Leave both dates empty to export everything'}
+      </p>
       <button
         onClick={exportToCSV}
-        className="flex items-center gap-2 px-3 py-2 text-sm bg-primary/10 text-primary hover:bg-primary/20 rounded-lg transition-colors"
+        disabled={disabled}
+        className="flex items-center gap-2 px-3 py-2 text-sm bg-primary/10 text-primary hover:bg-primary/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <FileText size={16} />
         Export to CSV
       </button>
       <button
         onClick={exportToJSON}
-        className="flex items-center gap-2 px-3 py-2 text-sm bg-primary/10 text-primary hover:bg-primary/20 rounded-lg transition-colors"
+        disabled={disabled}
+        className="flex items-center gap-2 px-3 py-2 text-sm bg-primary/10 text-primary hover:bg-primary/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <FileJson size={16} />
         Export to JSON
