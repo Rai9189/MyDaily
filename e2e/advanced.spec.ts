@@ -108,8 +108,21 @@ test.describe('form helpers', () => {
     await expect(page.getByText(`Template "${name}" saved!`)).toBeVisible();
 
     await page.goto('/transactions/new');
+    await page.getByRole('button', { name: /^Templates/ }).click();
+    await page.getByLabel('Search templates').fill(name);
     await page.getByRole('button', { name: new RegExp(name) }).click();
     await expect(page.locator('#amount')).toHaveValue(new Intl.NumberFormat('id-ID').format(amount));
+    await expect(page.getByRole('dialog')).toBeHidden();
+
+    await page.getByRole('button', { name: /^Templates/ }).click();
+    await page.getByLabel('Search templates').fill('no such template');
+    await expect(page.getByText('No templates found')).toBeVisible();
+    await page.getByLabel('Search templates').fill(name);
+    await page.getByRole('button', { name: 'Delete template' }).click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect.poll(async () =>
+      (await supabase.from('transaction_templates').select('id').eq('name', name)).data?.length
+    ).toBe(0);
   });
 
   test('unsaved form is restored as a draft', async ({ page }) => {

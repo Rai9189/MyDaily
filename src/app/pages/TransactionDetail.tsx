@@ -26,6 +26,7 @@ import { formatFileSize, isImageFile } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { DetailPageSkeleton } from '../components/Skeletons';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { TemplatePicker } from '../components/TemplatePicker';
 import { getDraft, saveDraft, clearDraft } from '../../lib/draftStorage';
 import { fmtIDR } from '../../lib/formatCurrency';
 import { formatNumericDisplay, parseNumericInput, handleNumericKeyInput } from '../../lib/numericInput';
@@ -131,6 +132,8 @@ export function TransactionDetail() {
   // Template state
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [templateName, setTemplateName]         = useState('');
+  const [templateListOpen, setTemplateListOpen] = useState(false);
+  const [deleteTemplateTarget, setDeleteTemplateTarget] = useState<typeof templates[0] | null>(null);
 
   // Tax state
   const [taxEnabled, setTaxEnabled]           = useState(false);
@@ -587,6 +590,23 @@ export function TransactionDetail() {
         onConfirm={doDeleteAttachment}
         onCancel={() => setDeleteAttachTarget(null)}
       />
+      <ConfirmDialog
+        open={!!deleteTemplateTarget}
+        title="Delete Template?"
+        description={`"${deleteTemplateTarget?.name}" will be permanently deleted.`}
+        confirmLabel="Delete"
+        variant="danger"
+        icon={<Trash2 size={20} />}
+        onConfirm={() => { deleteTemplate(deleteTemplateTarget!.id); setDeleteTemplateTarget(null); }}
+        onCancel={() => setDeleteTemplateTarget(null)}
+      />
+      <TemplatePicker
+        open={templateListOpen}
+        onOpenChange={setTemplateListOpen}
+        templates={templates}
+        onSelect={applyTemplate}
+        onDelete={setDeleteTemplateTarget}
+      />
 
       <div className="flex-1 overflow-y-auto no-scrollbar">
         <div className="space-y-4 pb-6">
@@ -597,6 +617,12 @@ export function TransactionDetail() {
               className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <ChevronLeft size={16} /> Back
             </button>
+            {isNew && templates.length > 0 && (
+              <button type="button" onClick={() => setTemplateListOpen(true)}
+                className="flex items-center gap-1.5 py-3 -my-3 text-sm font-medium text-primary hover:opacity-80 transition-opacity">
+                <Bookmark size={15} /> Templates ({templates.length})
+              </button>
+            )}
           </div>
 
           {/* Draft restored banner */}
@@ -610,32 +636,6 @@ export function TransactionDetail() {
                 className="text-xs font-semibold text-blue-700 dark:text-blue-300 hover:underline flex-shrink-0">
                 Discard
               </button>
-            </div>
-          )}
-
-          {/* Template Bar — hanya saat new transaction */}
-          {isNew && templates.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="flex items-center gap-1 text-xs text-muted-foreground font-medium flex-shrink-0">
-                <Bookmark size={12} /> Templates:
-              </span>
-              {templates.map(tpl => (
-                <div key={tpl.id} className="flex items-center rounded-full border border-border bg-muted/40 overflow-hidden">
-                  <button type="button" onClick={() => applyTemplate(tpl)}
-                    className="flex items-center gap-1.5 text-xs px-2.5 py-1 hover:bg-muted transition-colors max-w-[160px]">
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${tpl.type === 'income' ? 'bg-green-500' : 'bg-red-500'}`} />
-                    <span className="truncate font-medium">{tpl.name}</span>
-                    <span className="text-muted-foreground flex-shrink-0 text-[10px]">
-                      {new Intl.NumberFormat('id-ID', { notation: 'compact', maximumFractionDigits: 1 }).format(tpl.amount)}
-                    </span>
-                  </button>
-                  <button type="button" onClick={() => deleteTemplate(tpl.id)}
-                    className="px-1.5 py-1 text-muted-foreground hover:text-destructive hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    title="Hapus template">
-                    <X size={11} />
-                  </button>
-                </div>
-              ))}
             </div>
           )}
 
