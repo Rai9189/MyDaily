@@ -304,7 +304,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch: () => void }) {
         style={dragging ? { transform: `translateX(${dragX}px)`, transition: 'none' } : undefined}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-sidebar-border lg:hidden pt-[calc(1rem+env(safe-area-inset-top))]">
-          <img src="/logo.png" alt="MyDaily" className="h-14 w-auto object-contain dark:invert" />
+          <img src="/logo.svg" alt="MyDaily" className="h-14 w-auto object-contain" />
           <button
             type="button"
             onClick={() => setOpen(false)}

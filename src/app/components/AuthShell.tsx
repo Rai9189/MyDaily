@@ -25,7 +25,7 @@ export function AuthShell({ children, align = 'center', cardClassName = '' }: Au
 export function AuthHeader({ title, subtitle }: { title: ReactNode; subtitle?: ReactNode }) {
   return (
     <div className="flex flex-col items-center mb-6">
-      <img src="/logo.png" alt="MyDaily" className="h-14 w-auto object-contain mb-3 dark:invert" />
+      <img src="/logo.svg" alt="MyDaily" className="h-14 w-auto object-contain mb-3" />
       <h1 className="text-2xl font-bold tracking-tight text-foreground text-center">{title}</h1>
       {subtitle && <p className="text-sm text-muted-foreground mt-1 text-center">{subtitle}</p>}
     </div>
